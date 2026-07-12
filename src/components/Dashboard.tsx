@@ -1,53 +1,161 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { useAuth } from '../contexts/AuthContext';
+import {
+  subscribeOwnerEvents,
+  createCloudEvent,
+  deleteCloudEvent,
+  type CloudEvent,
+} from '../services/firestore';
+import { FolderPicker } from './FolderPicker';
+import { QRCodeSVG } from 'qrcode.react';
+import {
+  FolderPlus, Calendar, Image as ImageIcon, Users, Trash2,
+  ArrowLeft, LogOut, Cloud, HardDrive, Link2, QrCode,
+  CheckCircle2, Loader2, Clock, Copy, Check, X,
+  Plus, Sparkles, Play, Pause,
+} from 'lucide-react';
+import { useScanner } from '../contexts/ScannerContext';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { db } from '../db';
-import { PrivacyBanner } from './PrivacyBanner';
-import { FolderPlus, Calendar, Image as ImageIcon, Users, Trash2, ArrowLeft } from 'lucide-react';
 
-interface DashboardProps {
-  onSelectEvent: (id: number) => void;
-}
+export function Dashboard() {
+  const navigate = useNavigate();
+  const { user, googleAccessToken, signOut } = useAuth();
+  const {
+    isScanning,
+    isPaused,
+    scannedCount,
+    totalToScan,
+    etaSeconds,
+    activeScanningEventId,
+    togglePause,
+  } = useScanner();
 
-export function Dashboard({ onSelectEvent }: DashboardProps) {
+  const [cloudEvents, setCloudEvents] = useState<CloudEvent[]>([]);
+  const [loadingEvents, setLoadingEvents] = useState(true);
+  const [mode, setMode] = useState<'cloud' | 'local'>('cloud');
+
+  const formatETA = (seconds: number | null) => {
+    if (seconds === null) return 'מחשב זמן...';
+    if (seconds === 0) return 'מסתיים כעת...';
+    if (seconds < 60) return `זמן נותר: כ-${seconds} שניות`;
+    const mins = Math.floor(seconds / 60);
+    const secs = seconds % 60;
+    return `זמן נותר: כ-${mins} דקות ו-${secs} שניות`;
+  };
+
+  // Cloud event creation flow
+  const [showFolderPicker, setShowFolderPicker] = useState(false);
   const [newEventName, setNewEventName] = useState('');
+  const [showCreateModal, setShowCreateModal] = useState(false);
+  const [creating, setCreating] = useState(false);
+  const [pendingFolder, setPendingFolder] = useState<{ id: string; name: string } | null>(null);
 
-  // Fetch events along with their live photo and cluster statistics
-  const events = useLiveQuery(async () => {
+  // QR code modal
+  const [qrEvent, setQrEvent] = useState<CloudEvent | null>(null);
+
+  // Copy feedback
+  const [copiedId, setCopiedId] = useState<string | null>(null);
+
+  // Local events (for testing mode)
+  const localEvents = useLiveQuery(async () => {
     const list = await db.events.reverse().toArray();
     const withStats = [];
     for (const item of list) {
       if (item.id === undefined) continue;
       const photoCount = await db.photos.where({ eventId: item.id }).count();
       const clusterCount = await db.clusters.where({ eventId: item.id }).count();
-      withStats.push({
-        ...item,
-        photoCount,
-        clusterCount,
-      });
+      withStats.push({ ...item, photoCount, clusterCount });
     }
     return withStats;
   });
 
-  const handleCreateEvent = async (e: React.FormEvent) => {
-    e.preventDefault();
-    const name = newEventName.trim();
-    if (!name) return;
-
-    const eventId = await db.events.add({
-      name,
-      createdAt: Date.now(),
-    });
-
-    setNewEventName('');
-    onSelectEvent(eventId);
-  };
-
-  const handleDeleteEvent = async (id: number, name: string, e: React.MouseEvent) => {
-    e.stopPropagation(); // Avoid triggering event selection
-    if (!confirm(`האם אתה בטוח שברצונך למחוק את האירוע "${name}"?\nפעולה זו תמחק לצמיתות את כל התמונות והפנים שנותחו עבור אירוע זה.`)) {
+  // Subscribe to cloud events in real-time
+  useEffect(() => {
+    if (!user) {
+      setCloudEvents([]);
+      setLoadingEvents(false);
       return;
     }
 
+    setLoadingEvents(true);
+    const unsubscribe = subscribeOwnerEvents(
+      user.uid,
+      (events) => {
+        setCloudEvents(events);
+        setLoadingEvents(false);
+      },
+      (err) => {
+        console.error('Failed to load events:', err);
+        setLoadingEvents(false);
+      }
+    );
+
+    return () => unsubscribe();
+  }, [user]);
+
+  const handleFolderSelected = (folderId: string, folderName: string) => {
+    setPendingFolder({ id: folderId, name: folderName });
+    setShowFolderPicker(false);
+    setShowCreateModal(true);
+    if (!newEventName) {
+      setNewEventName(folderName);
+    }
+  };
+
+  const handleCreateEvent = async () => {
+    if (!user || !pendingFolder || !newEventName.trim()) return;
+    setCreating(true);
+    try {
+      const eventId = await createCloudEvent(
+        user.uid,
+        newEventName.trim(),
+        pendingFolder.id,
+        pendingFolder.name
+      );
+      setShowCreateModal(false);
+      setNewEventName('');
+      setPendingFolder(null);
+      navigate(`/dashboard/event/${eventId}`);
+    } catch (err) {
+      console.error('Failed to create event:', err);
+      alert('שגיאה ביצירת האירוע. נסה שוב.');
+    } finally {
+      setCreating(false);
+    }
+  };
+
+  const handleDeleteCloudEvent = async (event: CloudEvent, e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (!confirm(`האם אתה בטוח שברצונך למחוק את האירוע "${event.name}"?\nפעולה זו תמחק את כל הנתונים לצמיתות.`)) {
+      return;
+    }
+    try {
+      await deleteCloudEvent(event.id!);
+      setCloudEvents((prev) => prev.filter((ev) => ev.id !== event.id));
+    } catch (err) {
+      console.error('Failed to delete event:', err);
+      alert('שגיאה במחיקת האירוע.');
+    }
+  };
+
+  const handleCopyShareLink = async (event: CloudEvent, e: React.MouseEvent) => {
+    e.stopPropagation();
+    const link = `${window.location.origin}/event/${event.shareCode}`;
+    try {
+      await navigator.clipboard.writeText(link);
+      setCopiedId(event.id!);
+      setTimeout(() => setCopiedId(null), 2000);
+    } catch {
+      // Fallback for HTTP
+      prompt('העתק את הקישור:', link);
+    }
+  };
+
+  const handleDeleteLocalEvent = async (id: number, name: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (!confirm(`האם אתה בטוח שברצונך למחוק את האירוע "${name}"?`)) return;
     await db.transaction('rw', [db.events, db.photos, db.faces, db.clusters], async () => {
       await db.events.delete(id);
       await db.photos.where({ eventId: id }).delete();
@@ -56,120 +164,500 @@ export function Dashboard({ onSelectEvent }: DashboardProps) {
     });
   };
 
+  const getStatusBadge = (status: CloudEvent['status']) => {
+    switch (status) {
+      case 'ready':
+        return (
+          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-bold bg-emerald-500/15 text-emerald-700 dark:text-emerald-400 border border-emerald-500/20">
+            <CheckCircle2 className="w-3 h-3" /> מוכן
+          </span>
+        );
+      case 'scanning':
+        return (
+          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-bold bg-amber-500/15 text-amber-700 dark:text-amber-400 border border-amber-500/20 animate-pulse">
+            <Loader2 className="w-3 h-3 animate-spin" /> סורק
+          </span>
+        );
+      default:
+        return (
+          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-bold bg-slate-500/15 text-slate-600 dark:text-slate-400 border border-slate-500/20">
+            <Clock className="w-3 h-3" /> ממתין
+          </span>
+        );
+    }
+  };
+
   return (
     <div className="max-w-6xl mx-auto px-4 py-8 flex-grow flex flex-col gap-8 transition-colors duration-300">
-      {/* Header section */}
+      {/* Header */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 border-b border-slate-200 dark:border-slate-800 pb-8">
-        <div>
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-amber-200 to-amber-400 dark:from-amber-500 dark:to-amber-700 flex items-center justify-center shadow-lg shadow-amber-500/20 dark:shadow-amber-600/30">
-              <Users className="w-6 h-6 text-amber-900 dark:text-white" />
-            </div>
-            <h1 className="text-3xl font-extrabold tracking-tight text-slate-800 dark:text-white m-0">EventTag</h1>
+        <div className="flex items-center gap-4">
+          <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-amber-200 to-amber-400 dark:from-amber-500 dark:to-amber-700 flex items-center justify-center shadow-lg shadow-amber-500/20 dark:shadow-amber-600/30">
+            <Sparkles className="w-6 h-6 text-amber-900 dark:text-white" />
           </div>
-          <p className="text-slate-500 dark:text-slate-400 text-sm mt-2 leading-relaxed">
-            מערכת חכמה לניהול ואיתור אורחים בגלריות אירועים, באלגנטיות ופרטיות מוחלטת.
-          </p>
+          <div>
+            <h1 className="text-3xl font-extrabold tracking-tight text-slate-800 dark:text-white m-0">EventTag</h1>
+            <p className="text-slate-500 dark:text-slate-400 text-sm mt-0.5">לוח הבקרה שלי</p>
+          </div>
         </div>
-        
-        {/* Create new event form */}
-        <form onSubmit={handleCreateEvent} className="flex gap-2 shrink-0">
-          <input
-            type="text"
-            value={newEventName}
-            onChange={(e) => setNewEventName(e.target.value)}
-            placeholder="שם האירוע (למשל: חתונת יוסי ודנה 2026)"
-            required
-            className="px-4 py-2.5 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 focus:border-amber-400 dark:focus:border-amber-500 focus:outline-none text-slate-800 dark:text-slate-100 text-sm w-72 placeholder:text-slate-400 dark:placeholder:text-slate-500 transition-colors shadow-sm"
-          />
+
+        <div className="flex items-center gap-3">
+          {/* User info */}
+          {user && (
+            <div className="flex items-center gap-3 bg-white/50 dark:bg-slate-900/40 backdrop-blur-sm border border-slate-200 dark:border-slate-800 rounded-2xl px-4 py-2.5">
+              {user.photoURL && (
+                <img src={user.photoURL} alt="" className="w-8 h-8 rounded-full ring-2 ring-amber-400/30" />
+              )}
+              <div className="flex flex-col">
+                <span className="text-sm font-bold text-slate-800 dark:text-slate-200">{user.displayName}</span>
+                <span className="text-[10px] text-slate-500">{user.email}</span>
+              </div>
+              <button
+                onClick={signOut}
+                className="p-2 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-400 hover:text-red-500 transition-all cursor-pointer"
+                title="התנתק"
+              >
+                <LogOut className="w-4 h-4" />
+              </button>
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* Mode toggle */}
+      <div className="flex items-center justify-between">
+        <div className="flex bg-white dark:bg-slate-950 p-1.5 rounded-xl border border-slate-200 dark:border-slate-800 gap-1 shadow-sm">
           <button
-            type="submit"
-            className="px-5 py-2.5 rounded-xl bg-amber-100 hover:bg-amber-200 text-amber-900 dark:bg-amber-500 dark:hover:bg-amber-400 dark:text-slate-950 font-medium text-sm flex items-center gap-2 transition-all cursor-pointer shadow-md shadow-amber-900/5 dark:shadow-amber-500/20 active:scale-95 border border-amber-200 dark:border-amber-600/30"
+            onClick={() => setMode('cloud')}
+            className={`px-4 py-2 rounded-lg text-sm font-medium transition-all cursor-pointer flex items-center gap-2 ${
+              mode === 'cloud'
+                ? 'bg-amber-100 dark:bg-amber-500/20 text-amber-900 dark:text-amber-400 shadow-sm'
+                : 'text-slate-500 dark:text-slate-400'
+            }`}
           >
-            <FolderPlus className="w-4 h-4" />
+            <Cloud className="w-4 h-4" />
+            <span>אירועים בענן</span>
+          </button>
+          <button
+            onClick={() => setMode('local')}
+            className={`px-4 py-2 rounded-lg text-sm font-medium transition-all cursor-pointer flex items-center gap-2 ${
+              mode === 'local'
+                ? 'bg-amber-100 dark:bg-amber-500/20 text-amber-900 dark:text-amber-400 shadow-sm'
+                : 'text-slate-500 dark:text-slate-400'
+            }`}
+          >
+            <HardDrive className="w-4 h-4" />
+            <span>מצב מקומי (בדיקות)</span>
+          </button>
+        </div>
+
+        {mode === 'cloud' && (
+          <button
+            onClick={() => {
+              setNewEventName('');
+              setPendingFolder(null);
+              setShowFolderPicker(true);
+            }}
+            disabled={!googleAccessToken}
+            className="px-5 py-2.5 rounded-xl bg-amber-100 hover:bg-amber-200 text-amber-900 dark:bg-amber-500 dark:hover:bg-amber-400 dark:text-slate-950 font-bold text-sm flex items-center gap-2 transition-all cursor-pointer shadow-md shadow-amber-900/5 dark:shadow-amber-500/20 active:scale-95 border border-amber-200 dark:border-amber-600/30 disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            <Plus className="w-4 h-4" />
             <span>אירוע חדש</span>
           </button>
-        </form>
-      </div>
-
-      <PrivacyBanner />
-
-      {/* Events Grid */}
-      <div className="flex flex-col gap-4">
-        <h2 className="text-xl font-bold text-slate-800 dark:text-slate-100 m-0">האירועים שלי</h2>
-        
-        {!events ? (
-          <div className="text-center py-12 text-slate-500">טוען אירועים...</div>
-        ) : events.length === 0 ? (
-          <div className="border border-dashed border-slate-300 dark:border-slate-800 rounded-3xl p-12 text-center flex flex-col items-center justify-center gap-4 bg-white/50 dark:bg-slate-900/20 shadow-sm">
-            <div className="w-12 h-12 rounded-full bg-slate-100 dark:bg-slate-800/50 flex items-center justify-center text-slate-400 dark:text-slate-500">
-              <FolderPlus className="w-6 h-6" />
-            </div>
-            <div className="max-w-md">
-              <h3 className="font-semibold text-slate-700 dark:text-slate-300 text-lg">אין אירועים פעילים</h3>
-              <p className="text-slate-500 text-sm mt-1">
-                לא נוצרו עדיין אירועים. הזן שם לאירוע חדש למעלה ולחץ על "אירוע חדש" כדי להתחיל.
-              </p>
-            </div>
-          </div>
-        ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {events.map((event) => (
-              <div
-                key={event.id}
-                onClick={() => event.id !== undefined && onSelectEvent(event.id)}
-                className="group relative border border-slate-200 dark:border-slate-800 hover:border-amber-300 dark:hover:border-amber-500/40 bg-white dark:bg-slate-900/60 rounded-2xl p-6 cursor-pointer transition-all duration-300 flex flex-col gap-6 shadow-sm hover:shadow-xl dark:shadow-none hover:-translate-y-1"
-              >
-                {/* Delete button */}
-                <button
-                  onClick={(e) => event.id !== undefined && handleDeleteEvent(event.id, event.name, e)}
-                  title="מחק אירוע"
-                  className="absolute top-4 left-4 p-1.5 rounded-lg bg-white/80 dark:bg-slate-900/80 hover:bg-red-50 dark:hover:bg-red-500/20 border border-slate-200 dark:border-slate-800 hover:border-red-200 dark:hover:border-red-500/30 text-slate-400 dark:text-slate-500 hover:text-red-500 dark:hover:text-red-400 opacity-0 group-hover:opacity-100 transition-all duration-200 z-10 cursor-pointer shadow-sm"
-                >
-                  <Trash2 className="w-4 h-4" />
-                </button>
-
-                <div className="flex flex-col gap-1.5 pr-1">
-                  <h3 className="font-bold text-lg text-slate-800 dark:text-slate-100 group-hover:text-amber-700 dark:group-hover:text-amber-400 transition-colors line-clamp-1">
-                    {event.name}
-                  </h3>
-                  <div className="flex items-center gap-1.5 text-xs text-slate-500 mt-1">
-                    <Calendar className="w-3.5 h-3.5" />
-                    <span>{new Date(event.createdAt).toLocaleDateString('he-IL')}</span>
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-2 gap-4 border-t border-slate-100 dark:border-slate-800/80 pt-4 mt-auto">
-                  <div className="flex items-center gap-2">
-                    <div className="p-2 rounded-lg bg-slate-50 dark:bg-slate-800/50 text-slate-400">
-                      <ImageIcon className="w-4 h-4" />
-                    </div>
-                    <div className="flex flex-col">
-                      <span className="text-xs text-slate-500">תמונות</span>
-                      <span className="text-sm font-semibold text-slate-700 dark:text-slate-200">{event.photoCount}</span>
-                    </div>
-                  </div>
-
-                  <div className="flex items-center gap-2">
-                    <div className="p-2 rounded-lg bg-slate-50 dark:bg-slate-800/50 text-slate-400">
-                      <Users className="w-4 h-4" />
-                    </div>
-                    <div className="flex flex-col">
-                      <span className="text-xs text-slate-500">אורחים מזוהים</span>
-                      <span className="text-sm font-semibold text-slate-700 dark:text-slate-200">{event.clusterCount}</span>
-                    </div>
-                  </div>
-                </div>
-
-                <div className="flex items-center gap-1.5 text-xs font-bold text-amber-700 dark:text-amber-400 mt-2 self-start hover:underline">
-                  <span>פתח אירוע</span>
-                  <ArrowLeft className="w-3.5 h-3.5 transform group-hover:-translate-x-1 transition-transform" />
-                </div>
-              </div>
-            ))}
-          </div>
         )}
       </div>
+
+      {/* Cloud Events */}
+      {mode === 'cloud' && (
+        <div className="flex flex-col gap-4">
+          <h2 className="text-xl font-bold text-slate-800 dark:text-slate-100 m-0">האירועים שלי בענן</h2>
+
+          {loadingEvents ? (
+            <div className="text-center py-12 text-slate-500 flex flex-col items-center gap-3">
+              <Loader2 className="w-6 h-6 animate-spin text-amber-500" />
+              <span>טוען אירועים...</span>
+            </div>
+          ) : cloudEvents.length === 0 ? (
+            <div className="border border-dashed border-slate-300 dark:border-slate-800 rounded-3xl p-12 text-center flex flex-col items-center justify-center gap-4 bg-white/50 dark:bg-slate-900/20 shadow-sm">
+              <div className="w-12 h-12 rounded-full bg-slate-100 dark:bg-slate-800/50 flex items-center justify-center text-slate-400 dark:text-slate-500">
+                <Cloud className="w-6 h-6" />
+              </div>
+              <div className="max-w-md">
+                <h3 className="font-semibold text-slate-700 dark:text-slate-300 text-lg">אין אירועים בענן</h3>
+                <p className="text-slate-500 text-sm mt-1">
+                  לחץ על "אירוע חדש" כדי לבחור תיקיית תמונות מ-Google Drive ולהתחיל.
+                </p>
+              </div>
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+              {cloudEvents.map((event) => {
+                const isThisEventScanning = isScanning && activeScanningEventId === event.id;
+                return (
+                  <div
+                    key={event.id}
+                    onClick={() => navigate(`/dashboard/event/${event.id}`)}
+                    className="group relative border border-slate-200 dark:border-slate-800 hover:border-amber-300 dark:hover:border-amber-500/40 bg-white dark:bg-slate-900/60 rounded-2xl p-6 cursor-pointer transition-all duration-300 flex flex-col gap-5 shadow-sm hover:shadow-xl dark:shadow-none hover:-translate-y-1"
+                  >
+                    {/* Actions */}
+                    <div className="absolute top-4 left-4 flex items-center gap-1.5 opacity-0 group-hover:opacity-100 transition-all z-10">
+                      <button
+                        onClick={(e) => handleCopyShareLink(event, e)}
+                        title="העתק קישור שיתוף"
+                        className="p-1.5 rounded-lg bg-white/80 dark:bg-slate-900/80 hover:bg-amber-50 dark:hover:bg-amber-500/20 border border-slate-200 dark:border-slate-800 hover:border-amber-200 dark:hover:border-amber-500/30 text-slate-400 dark:text-slate-500 hover:text-amber-600 dark:hover:text-amber-400 transition-all cursor-pointer shadow-sm"
+                      >
+                        {copiedId === event.id ? <Check className="w-4 h-4 text-emerald-500" /> : <Link2 className="w-4 h-4" />}
+                      </button>
+                      <button
+                        onClick={(e) => { e.stopPropagation(); setQrEvent(event); }}
+                        title="הצג QR קוד"
+                        className="p-1.5 rounded-lg bg-white/80 dark:bg-slate-900/80 hover:bg-amber-50 dark:hover:bg-amber-500/20 border border-slate-200 dark:border-slate-800 hover:border-amber-200 dark:hover:border-amber-500/30 text-slate-400 dark:text-slate-500 hover:text-amber-600 dark:hover:text-amber-400 transition-all cursor-pointer shadow-sm"
+                      >
+                        <QrCode className="w-4 h-4" />
+                      </button>
+                      <button
+                        onClick={(e) => handleDeleteCloudEvent(event, e)}
+                        title="מחק אירוע"
+                        className="p-1.5 rounded-lg bg-white/80 dark:bg-slate-900/80 hover:bg-red-50 dark:hover:bg-red-500/20 border border-slate-200 dark:border-slate-800 hover:border-red-200 dark:hover:border-red-500/30 text-slate-400 dark:text-slate-500 hover:text-red-500 dark:hover:text-red-400 transition-all cursor-pointer shadow-sm"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    </div>
+
+                    <div className="flex flex-col gap-1.5 pr-1">
+                      <div className="flex items-center gap-2.5">
+                        {isThisEventScanning ? (
+                          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-bold bg-amber-500/15 text-amber-700 dark:text-amber-400 border border-amber-500/20 animate-pulse">
+                            <Loader2 className="w-3 h-3 animate-spin" /> סורק כעת
+                          </span>
+                        ) : (
+                          getStatusBadge(event.status)
+                        )}
+                      </div>
+                      <h3 className="font-bold text-lg text-slate-800 dark:text-slate-100 group-hover:text-amber-700 dark:group-hover:text-amber-400 transition-colors line-clamp-1 mt-2">
+                        {event.name}
+                      </h3>
+                      <div className="flex items-center gap-1.5 text-xs text-slate-500 mt-1">
+                        <Calendar className="w-3.5 h-3.5" />
+                        <span>{event.createdAt && typeof event.createdAt === 'object' && 'toDate' in event.createdAt ? event.createdAt.toDate().toLocaleDateString('he-IL') : 'ממתין'}</span>
+                      </div>
+                    </div>
+
+                    {isThisEventScanning && (
+                      <div className="flex flex-col gap-2 mt-2 w-full text-right" onClick={(e) => e.stopPropagation()}>
+                        <div className="flex items-center justify-between text-xs gap-2">
+                          <span className="text-slate-500 dark:text-slate-400 font-medium truncate">
+                            {isPaused ? 'סריקה הושהתה' : formatETA(etaSeconds)}
+                          </span>
+                          <div className="flex items-center gap-1.5 shrink-0">
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                togglePause();
+                              }}
+                              className={`p-1 rounded-lg transition-all cursor-pointer ${
+                                isPaused
+                                  ? 'bg-amber-100 dark:bg-amber-500/20 text-amber-900 dark:text-amber-400 border border-amber-200 dark:border-amber-500/30'
+                                  : 'bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-700 border border-slate-200 dark:border-slate-700'
+                              }`}
+                              title={isPaused ? "המשך סריקה" : "השהה סריקה"}
+                            >
+                              {isPaused ? <Play className="w-3.5 h-3.5" /> : <Pause className="w-3.5 h-3.5" />}
+                            </button>
+                            <span className="font-mono font-bold text-slate-700 dark:text-slate-300">
+                              {scannedCount} / {totalToScan || event.photoCount || 0}
+                            </span>
+                          </div>
+                        </div>
+                        <div className="w-full bg-slate-100 dark:bg-slate-800 rounded-full h-2 overflow-hidden border border-slate-200 dark:border-slate-700">
+                          <div
+                            className="bg-amber-500 h-2 rounded-full transition-all duration-300 ease-out"
+                            style={{
+                              width: `${(totalToScan || event.photoCount) > 0 ? (scannedCount / (totalToScan || event.photoCount)) * 100 : 0}%`,
+                            }}
+                          />
+                        </div>
+                      </div>
+                    )}
+
+                    <div className="grid grid-cols-2 gap-4 border-t border-slate-100 dark:border-slate-800/80 pt-4 mt-auto">
+                      <div className="flex items-center gap-2">
+                        <div className="p-2 rounded-lg bg-slate-50 dark:bg-slate-800/50 text-slate-400">
+                          <ImageIcon className="w-4 h-4" />
+                        </div>
+                        <div className="flex flex-col">
+                          <span className="text-xs text-slate-500">תמונות</span>
+                          <span className="text-sm font-semibold text-slate-700 dark:text-slate-200">
+                            {isThisEventScanning ? scannedCount : event.photoCount}
+                          </span>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <div className="p-2 rounded-lg bg-slate-50 dark:bg-slate-800/50 text-slate-400">
+                          <Users className="w-4 h-4" />
+                        </div>
+                        <div className="flex flex-col">
+                          <span className="text-xs text-slate-500">פנים מזוהות</span>
+                          <span className="text-sm font-semibold text-slate-700 dark:text-slate-200">{event.faceCount}</span>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center gap-1.5 text-xs font-bold text-amber-700 dark:text-amber-400 mt-1 self-start hover:underline">
+                      <span>פתח אירוע</span>
+                      <ArrowLeft className="w-3.5 h-3.5 transform group-hover:-translate-x-1 transition-transform" />
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Local Events (testing mode) */}
+      {mode === 'local' && (
+        <div className="flex flex-col gap-4">
+          <div className="flex items-center justify-between">
+            <h2 className="text-xl font-bold text-slate-800 dark:text-slate-100 m-0">אירועים מקומיים (בדיקות)</h2>
+            <div className="flex gap-2">
+              <input
+                type="text"
+                value={newEventName}
+                onChange={(e) => setNewEventName(e.target.value)}
+                placeholder="שם האירוע..."
+                className="px-4 py-2.5 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 focus:border-amber-400 dark:focus:border-amber-500 focus:outline-none text-slate-800 dark:text-slate-100 text-sm w-64 placeholder:text-slate-400 dark:placeholder:text-slate-500 transition-colors shadow-sm"
+              />
+              <button
+                onClick={async () => {
+                  const name = newEventName.trim();
+                  if (!name) return;
+                  const eventId = await db.events.add({ name, createdAt: Date.now() });
+                  setNewEventName('');
+                  navigate(`/dashboard/event/${eventId}`);
+                }}
+                className="px-5 py-2.5 rounded-xl bg-amber-100 hover:bg-amber-200 text-amber-900 dark:bg-amber-500 dark:hover:bg-amber-400 dark:text-slate-950 font-medium text-sm flex items-center gap-2 transition-all cursor-pointer shadow-md active:scale-95 border border-amber-200 dark:border-amber-600/30"
+              >
+                <FolderPlus className="w-4 h-4" />
+                <span>אירוע חדש</span>
+              </button>
+            </div>
+          </div>
+
+          {!localEvents ? (
+            <div className="text-center py-12 text-slate-500">טוען...</div>
+          ) : localEvents.length === 0 ? (
+            <div className="border border-dashed border-slate-300 dark:border-slate-800 rounded-3xl p-12 text-center flex flex-col items-center justify-center gap-4 bg-white/50 dark:bg-slate-900/20 shadow-sm">
+              <div className="w-12 h-12 rounded-full bg-slate-100 dark:bg-slate-800/50 flex items-center justify-center text-slate-400 dark:text-slate-500">
+                <HardDrive className="w-6 h-6" />
+              </div>
+              <p className="text-slate-500 text-sm">אין אירועים מקומיים. צור אירוע חדש למעלה.</p>
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+              {localEvents.map((event) => {
+                const isThisEventScanning = isScanning && activeScanningEventId === event.id;
+                return (
+                  <div
+                    key={event.id}
+                    onClick={() => event.id !== undefined && navigate(`/dashboard/event/${event.id}`)}
+                    className="group relative border border-slate-200 dark:border-slate-800 hover:border-amber-300 dark:hover:border-amber-500/40 bg-white dark:bg-slate-900/60 rounded-2xl p-6 cursor-pointer transition-all duration-300 flex flex-col gap-6 shadow-sm hover:shadow-xl hover:-translate-y-1"
+                  >
+                    <button
+                      onClick={(e) => event.id !== undefined && handleDeleteLocalEvent(event.id, event.name, e)}
+                      title="מחק אירוע"
+                      className="absolute top-4 left-4 p-1.5 rounded-lg bg-white/80 dark:bg-slate-900/80 hover:bg-red-50 dark:hover:bg-red-500/20 border border-slate-200 dark:border-slate-800 hover:border-red-200 dark:hover:border-red-500/30 text-slate-400 dark:text-slate-500 hover:text-red-500 dark:hover:text-red-400 opacity-0 group-hover:opacity-100 transition-all z-10 cursor-pointer shadow-sm"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </button>
+
+                    <div className="flex flex-col gap-1.5 pr-1">
+                      {isThisEventScanning && (
+                        <div className="flex items-center gap-2.5">
+                          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-bold bg-amber-500/15 text-amber-700 dark:text-amber-400 border border-amber-500/20 animate-pulse">
+                            <Loader2 className="w-3 h-3 animate-spin" /> סורק כעת
+                          </span>
+                        </div>
+                      )}
+                      <h3 className="font-bold text-lg text-slate-800 dark:text-slate-100 group-hover:text-amber-700 dark:group-hover:text-amber-400 transition-colors line-clamp-1">
+                        {event.name}
+                      </h3>
+                      <div className="flex items-center gap-1.5 text-xs text-slate-500 mt-1">
+                        <Calendar className="w-3.5 h-3.5" />
+                        <span>{new Date(event.createdAt).toLocaleDateString('he-IL')}</span>
+                      </div>
+                    </div>
+
+                    {isThisEventScanning && (
+                      <div className="flex flex-col gap-2 mt-2 w-full text-right" onClick={(e) => e.stopPropagation()}>
+                        <div className="flex items-center justify-between text-xs gap-2">
+                          <span className="text-slate-500 dark:text-slate-400 font-medium truncate">
+                            {isPaused ? 'סריקה הושהתה' : formatETA(etaSeconds)}
+                          </span>
+                          <div className="flex items-center gap-1.5 shrink-0">
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                togglePause();
+                              }}
+                              className={`p-1 rounded-lg transition-all cursor-pointer ${
+                                isPaused
+                                  ? 'bg-amber-100 dark:bg-amber-500/25 text-amber-900 dark:text-amber-400'
+                                  : 'bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-700'
+                              }`}
+                              title={isPaused ? "המשך סריקה" : "השהה סריקה"}
+                            >
+                              {isPaused ? <Play className="w-3.5 h-3.5" /> : <Pause className="w-3.5 h-3.5" />}
+                            </button>
+                            <span className="font-mono font-bold text-slate-700 dark:text-slate-300">
+                              {scannedCount} / {totalToScan || event.photoCount || 0}
+                            </span>
+                          </div>
+                        </div>
+                        <div className="w-full bg-slate-100 dark:bg-slate-800 rounded-full h-2 overflow-hidden border border-slate-200 dark:border-slate-700">
+                          <div
+                            className="bg-amber-500 h-2 rounded-full transition-all duration-300 ease-out"
+                            style={{
+                              width: `${(totalToScan || event.photoCount) > 0 ? (scannedCount / (totalToScan || event.photoCount)) * 100 : 0}%`,
+                            }}
+                          />
+                        </div>
+                      </div>
+                    )}
+
+                    <div className="grid grid-cols-2 gap-4 border-t border-slate-100 dark:border-slate-800/80 pt-4 mt-auto">
+                      <div className="flex items-center gap-2">
+                        <div className="p-2 rounded-lg bg-slate-50 dark:bg-slate-800/50 text-slate-400">
+                          <ImageIcon className="w-4 h-4" />
+                        </div>
+                        <div className="flex flex-col">
+                          <span className="text-xs text-slate-500">תמונות</span>
+                          <span className="text-sm font-semibold text-slate-700 dark:text-slate-200">
+                            {isThisEventScanning ? scannedCount : event.photoCount}
+                          </span>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <div className="p-2 rounded-lg bg-slate-50 dark:bg-slate-800/50 text-slate-400">
+                          <Users className="w-4 h-4" />
+                        </div>
+                        <div className="flex flex-col">
+                          <span className="text-xs text-slate-500">אורחים</span>
+                          <span className="text-sm font-semibold text-slate-700 dark:text-slate-200">{event.clusterCount}</span>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center gap-1.5 text-xs font-bold text-amber-700 dark:text-amber-400 mt-2 self-start hover:underline">
+                      <span>פתח אירוע</span>
+                      <ArrowLeft className="w-3.5 h-3.5 transform group-hover:-translate-x-1 transition-transform" />
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Folder Picker Modal */}
+      {showFolderPicker && googleAccessToken && (
+        <FolderPicker
+          accessToken={googleAccessToken}
+          onSelect={handleFolderSelected}
+          onCancel={() => setShowFolderPicker(false)}
+        />
+      )}
+
+      {/* Create Event Modal (after folder selection) */}
+      {showCreateModal && pendingFolder && (
+        <div className="fixed inset-0 bg-slate-950/70 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl p-8 max-w-md w-full shadow-2xl flex flex-col gap-6">
+            <div className="flex items-center justify-between">
+              <h3 className="text-xl font-bold text-slate-800 dark:text-slate-100">אירוע חדש</h3>
+              <button
+                onClick={() => { setShowCreateModal(false); setPendingFolder(null); }}
+                className="p-1.5 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-400 transition-colors cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="flex flex-col gap-2">
+              <label className="text-sm font-medium text-slate-600 dark:text-slate-400">תיקיית Google Drive:</label>
+              <div className="flex items-center gap-2 bg-slate-50 dark:bg-slate-800/50 rounded-xl px-4 py-3 border border-slate-200 dark:border-slate-800">
+                <FolderPlus className="w-4 h-4 text-amber-500 shrink-0" />
+                <span className="text-sm text-slate-700 dark:text-slate-300 truncate">{pendingFolder.name}</span>
+              </div>
+            </div>
+
+            <div className="flex flex-col gap-2">
+              <label className="text-sm font-medium text-slate-600 dark:text-slate-400">שם האירוע:</label>
+              <input
+                type="text"
+                value={newEventName}
+                onChange={(e) => setNewEventName(e.target.value)}
+                placeholder="למשל: חתונת יוסי ודנה 2026"
+                className="px-4 py-3 rounded-xl bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800 focus:border-amber-400 dark:focus:border-amber-500 focus:outline-none text-slate-800 dark:text-slate-100 text-sm placeholder:text-slate-400 dark:placeholder:text-slate-500 transition-colors"
+                autoFocus
+              />
+            </div>
+
+            <div className="flex gap-3 mt-2">
+              <button
+                onClick={handleCreateEvent}
+                disabled={creating || !newEventName.trim()}
+                className="flex-1 py-3 rounded-xl bg-amber-500 hover:bg-amber-400 text-white dark:text-slate-950 font-bold text-sm transition-all cursor-pointer shadow-lg shadow-amber-500/20 active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+              >
+                {creating ? (
+                  <><Loader2 className="w-4 h-4 animate-spin" /> יוצר...</>
+                ) : (
+                  <><Plus className="w-4 h-4" /> צור אירוע</>
+                )}
+              </button>
+              <button
+                onClick={() => { setShowCreateModal(false); setPendingFolder(null); }}
+                className="px-6 py-3 rounded-xl bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-300 font-medium text-sm transition-all cursor-pointer"
+              >
+                ביטול
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* QR Code Modal */}
+      {qrEvent && (
+        <div className="fixed inset-0 bg-slate-950/70 backdrop-blur-sm flex items-center justify-center z-50 p-4" onClick={() => setQrEvent(null)}>
+          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl p-8 max-w-sm w-full shadow-2xl flex flex-col items-center gap-6" onClick={(e) => e.stopPropagation()}>
+            <h3 className="text-lg font-bold text-slate-800 dark:text-slate-100">{qrEvent.name}</h3>
+            <div className="bg-white p-4 rounded-2xl shadow-inner">
+              <QRCodeSVG
+                value={`${window.location.origin}/event/${qrEvent.shareCode}`}
+                size={220}
+                level="M"
+                bgColor="#ffffff"
+                fgColor="#0f172a"
+              />
+            </div>
+            <div className="flex flex-col items-center gap-2">
+              <p className="text-xs text-slate-500 dark:text-slate-400 text-center">סרוק את הקוד כדי לפתוח את עמוד האירוע</p>
+              <button
+                onClick={(e) => handleCopyShareLink(qrEvent, e)}
+                className="flex items-center gap-2 px-4 py-2 rounded-xl bg-amber-100 dark:bg-amber-500/20 text-amber-900 dark:text-amber-400 text-sm font-bold border border-amber-200 dark:border-amber-500/30 hover:bg-amber-200 dark:hover:bg-amber-500/30 transition-all cursor-pointer"
+              >
+                {copiedId === qrEvent.id ? <><Check className="w-3.5 h-3.5" /> הועתק!</> : <><Copy className="w-3.5 h-3.5" /> העתק קישור</>}
+              </button>
+            </div>
+            <button
+              onClick={() => setQrEvent(null)}
+              className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 text-sm transition-colors cursor-pointer"
+            >
+              סגור
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

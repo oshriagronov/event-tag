@@ -31,7 +31,7 @@ export interface Face {
     width: number;
     height: number;
   };
-  embedding: number[]; // 128-dimensional descriptor vector
+  embedding: number[]; // 512-dimensional descriptor vector (Facenet512)
   thumbnail: string; // Base64 data URL of the cropped face
 }
 

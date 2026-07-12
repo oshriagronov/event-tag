@@ -1,90 +1,106 @@
-import { useState, useEffect } from 'react';
-import { Dashboard } from './components/Dashboard';
-import { EventView } from './components/EventView';
-import { loadFaceModels } from './ml';
-import { BrainCircuit } from 'lucide-react';
+import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
+import { AuthProvider, useAuth } from './contexts/AuthContext';
 import { SettingsProvider } from './contexts/SettingsContext';
 import { ScannerProvider } from './contexts/ScannerContext';
 import { SettingsModal } from './components/SettingsModal';
+import { Dashboard } from './components/Dashboard';
+import { EventView } from './components/EventView';
+import { GuestView } from './components/GuestView';
+import { LandingPage } from './components/LandingPage';
+import { useParams, useNavigate } from 'react-router-dom';
 
-function AppContent() {
-  const [activeEventId, setActiveEventId] = useState<number | null>(null);
-  const [modelsLoading, setModelsLoading] = useState(true);
-  const [modelsError, setModelsError] = useState(false);
+function ProtectedRoute({ children }: { children: React.ReactNode }) {
+  const { user, loading } = useAuth();
 
-  useEffect(() => {
-    async function init() {
-      try {
-        await loadFaceModels();
-        setModelsLoading(false);
-      } catch (err) {
-        console.error("Failed to load face-api models", err);
-        setModelsError(true);
-      }
-    }
-    init();
-  }, []);
-
-  if (modelsLoading) {
+  if (loading) {
     return (
-      <div className="min-h-screen bg-slate-50 dark:bg-[#111113] text-slate-900 dark:text-white flex flex-col items-center justify-center gap-6 p-4 text-center transition-colors">
-        {/* Loading Spinner with Brain Circuit Icon */}
-        <div className="w-16 h-16 rounded-2xl bg-amber-500/10 border border-amber-500/20 flex items-center justify-center text-amber-600 dark:text-amber-400">
-          <BrainCircuit className="w-8 h-8 text-amber-600 dark:text-amber-400 animate-pulse" />
-        </div>
-        <div className="flex flex-col gap-2">
-          <h2 className="text-xl font-bold text-slate-800 dark:text-slate-100">מפעיל בינה מלאכותית מקומית...</h2>
-          <p className="text-slate-500 dark:text-slate-400 text-sm max-w-sm leading-relaxed">
-            טוען את מודלי זיהוי הפנים לדפדפן שלך.
-            <br />
-            העיבוד מתבצע בצורה מאובטחת ומקומית לחלוטין ללא שרת.
-          </p>
-        </div>
-        <div className="w-48 bg-slate-200 dark:bg-slate-900 h-1.5 rounded-full overflow-hidden border border-slate-300 dark:border-slate-800">
-          <div className="bg-amber-500 h-full rounded-full w-2/3 animate-pulse" />
+      <div className="min-h-screen bg-slate-50 dark:bg-[#111113] flex items-center justify-center">
+        <div className="flex flex-col items-center gap-4">
+          <div className="w-10 h-10 border-4 border-amber-500 border-t-transparent rounded-full animate-spin" />
+          <span className="text-slate-500 dark:text-slate-400 text-sm">טוען...</span>
         </div>
       </div>
     );
   }
 
-  if (modelsError) {
-    return (
-      <div className="min-h-screen bg-slate-50 dark:bg-[#111113] text-slate-900 dark:text-white flex flex-col items-center justify-center gap-4 p-4 text-center transition-colors">
-        <div className="w-16 h-16 rounded-2xl bg-red-500/10 border border-red-500/20 flex items-center justify-center text-red-500 dark:text-red-400">
-          <BrainCircuit className="w-8 h-8" />
-        </div>
-        <h2 className="text-xl font-bold text-slate-800 dark:text-slate-100">שגיאה באתחול מנוע ה-AI</h2>
-        <p className="text-slate-500 dark:text-slate-400 text-sm max-w-md leading-relaxed">
-          לא הצלחנו לטעון את משקולות מודל הפנים מתיקיית השרת המקומית. 
-          אנא ודא שהקבצים קיימים בתיקייה <code>public/models/</code> וששרת הפיתוח פועל.
-        </p>
-      </div>
-    );
+  if (!user) {
+    return <Navigate to="/" replace />;
   }
+
+  return <>{children}</>;
+}
+
+function EventViewWrapper() {
+  const { eventId } = useParams<{ eventId: string }>();
+  const navigate = useNavigate();
+
+  if (!eventId) return <Navigate to="/dashboard" replace />;
+
+  // Parse as integer only if it is fully numeric, preserving it as a string for cloud events
+  const parsedId = /^\d+$/.test(eventId) ? parseInt(eventId, 10) : eventId;
 
   return (
-    <>
+    <EventView
+      eventId={parsedId}
+      onBack={() => navigate('/dashboard')}
+    />
+  );
+}
+
+function GuestViewWrapper() {
+  const { shareCode } = useParams<{ shareCode: string }>();
+
+  if (!shareCode) return <Navigate to="/" replace />;
+
+  return <GuestView shareCode={shareCode} />;
+}
+
+function AppRoutes() {
+  return (
+    <div className="min-h-screen bg-slate-50 dark:bg-[#111113] text-slate-900 dark:text-slate-100 flex flex-col font-sans transition-colors duration-300">
       <SettingsModal />
-      <div className="min-h-screen bg-slate-50 dark:bg-[#111113] text-slate-900 dark:text-slate-100 flex flex-col transition-colors duration-300">
-      {activeEventId === null ? (
-        <Dashboard onSelectEvent={setActiveEventId} />
-      ) : (
-        <EventView eventId={activeEventId} onBack={() => setActiveEventId(null)} />
-      )}
+      <Routes>
+        {/* Public routes */}
+        <Route path="/" element={<LandingPage />} />
+        <Route path="/event/:shareCode" element={<GuestViewWrapper />} />
+
+        {/* Protected owner routes */}
+        <Route
+          path="/dashboard"
+          element={
+            <ProtectedRoute>
+              <Dashboard />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/dashboard/event/:eventId"
+          element={
+            <ProtectedRoute>
+              <EventViewWrapper />
+            </ProtectedRoute>
+          }
+        />
+
+        {/* Fallback */}
+        <Route path="*" element={<Navigate to="/" replace />} />
+      </Routes>
     </div>
-    </>
   );
 }
 
 function App() {
   return (
-    <SettingsProvider>
-      <ScannerProvider>
-        <AppContent />
-      </ScannerProvider>
-    </SettingsProvider>
+    <BrowserRouter>
+      <AuthProvider>
+        <SettingsProvider>
+          <ScannerProvider>
+            <AppRoutes />
+          </ScannerProvider>
+        </SettingsProvider>
+      </AuthProvider>
+    </BrowserRouter>
   );
 }
 
 export default App;
-// Remove unused import React
