@@ -14,10 +14,13 @@
     "@vladmandic/face-api": "^1.7.15",
     "dexie": "^4.4.4",
     "dexie-react-hooks": "^4.4.0",
+    "firebase": "^12.16.0",
     "jszip": "^3.10.1",
     "lucide-react": "^1.24.0",
+    "qrcode.react": "^4.2.0",
     "react": "^19.2.5",
     "react-dom": "^19.2.5",
+    "react-router-dom": "^7.18.1",
     "tailwindcss": "^4.3.2"
   },
   "devDependencies": {

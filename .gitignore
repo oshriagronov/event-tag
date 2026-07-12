@@ -7,18 +7,88 @@ yarn-error.log*
 pnpm-debug.log*
 lerna-debug.log*
 
-node_modules
-dist
-dist-ssr
-*.local
+# Dependency directories
+node_modules/
+**/node_modules/
+jspm_packages/
+bower_components/
 
-# Editor directories and files
+# Build & Output directories
+dist/
+**/dist/
+dist-ssr/
+build/
+**/build/
+out/
+.next/
+.nuxt/
+.cache/
+**/.cache/
+
+# Local Environment Variables and Secrets
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+.env.*
+!.env.example
+**/.env
+**/.env.*
+!**/.env.example
+
+# Secrets, Keys, and Service Accounts
+*key*.json
+*secret*.json
+*credentials*.json
+*service-account*.json
+*.pem
+*.key
+*.pub
+*.cert
+secring.gpg
+
+# Firebase and cloud files
+.firebase/
+firebase-debug.log
+.firestore/
+
+# Python virtual env and cache files
+venv/
+**/venv/
+.venv/
+**/.venv/
+env/
+**/env/
+ENV/
+**/ENV/
+__pycache__/
+**/__pycache__/
+*.py[cod]
+*$py.class
+.pytest_cache/
+.mypy_cache/
+.poetry/
+pip-log.txt
+pip-delete-this-directory.txt
+
+# Editor / IDE settings
 .vscode/*
 !.vscode/extensions.json
-.idea
-.DS_Store
+.idea/
 *.suo
 *.ntvs*
 *.njsproj
 *.sln
 *.sw?
+.project
+.classpath
+.settings/
+
+# OS-specific files
+.DS_Store
+**/.DS_Store
+Thumbs.db
+desktop.ini
+.Spotlight-V100
+.Trashes

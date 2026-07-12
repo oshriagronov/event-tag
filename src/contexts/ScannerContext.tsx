@@ -1,7 +1,14 @@
-import { createContext, useContext, useState, useRef, ReactNode } from 'react';
+import { createContext, useContext, useState, useRef, type ReactNode } from 'react';
+import * as faceapi from '@vladmandic/face-api';
 import { db } from '../db';
-import { fileToImage, detectFacesInImage } from '../ml';
-import { assignFaceToCluster } from '../clustering';
+import { IncrementalClusterer } from '../clustering';
+import { getPhotoBlob, type DriveFile } from '../services/googleDrive';
+import {
+  addCloudPhoto,
+  appendFaceDescriptors,
+  updateCloudEvent,
+  type CloudFaceEntry,
+} from '../services/firestore';
 
 interface ScannerContextType {
   isScanning: boolean;
@@ -9,12 +16,139 @@ interface ScannerContextType {
   scannedCount: number;
   totalToScan: number;
   etaSeconds: number | null;
-  activeScanningEventId: number | null;
+  activeScanningEventId: number | string | null;
   startScanning: (eventId: number, filesList: any[]) => Promise<void>;
+  startCloudScanning: (
+    eventId: string,
+    driveFiles: DriveFile[],
+    googleAccessToken: string
+  ) => Promise<void>;
   togglePause: () => void;
 }
 
 const ScannerContext = createContext<ScannerContextType | undefined>(undefined);
+
+// Number of images to preload ahead of the current processing image
+const PRELOAD_AHEAD = 2;
+
+// Singleton model loading state
+let modelsLoaded = false;
+let modelsLoading = false;
+let modelLoadPromise: Promise<void> | null = null;
+
+async function ensureModelsLoaded(): Promise<void> {
+  if (modelsLoaded) return;
+  if (modelsLoading && modelLoadPromise) return modelLoadPromise;
+
+  modelsLoading = true;
+  modelLoadPromise = (async () => {
+    const MODEL_URL = '/models';
+    await Promise.all([
+      faceapi.nets.ssdMobilenetv1.loadFromUri(MODEL_URL),
+      faceapi.nets.faceLandmark68Net.loadFromUri(MODEL_URL),
+      faceapi.nets.faceRecognitionNet.loadFromUri(MODEL_URL),
+    ]);
+    modelsLoaded = true;
+    modelsLoading = false;
+    console.log('TFJS Backend initialized:', (faceapi.tf as any).getBackend());
+  })();
+
+  return modelLoadPromise;
+}
+
+/**
+ * Process a photo blob locally using face-api.js client-side
+ */
+async function processPhotoLocally(fileBlob: Blob): Promise<{
+  width: number;
+  height: number;
+  detections: Array<{
+    embedding: number[];
+    box: { x: number; y: number; width: number; height: number };
+    thumbnail: string;
+  }>;
+}> {
+  await ensureModelsLoaded();
+
+  const blobUrl = URL.createObjectURL(fileBlob);
+  const img = new Image();
+  img.src = blobUrl;
+
+  await new Promise<void>((resolve, reject) => {
+    img.onload = () => resolve();
+    img.onerror = (e) => reject(e);
+  });
+
+  const width = img.naturalWidth;
+  const height = img.naturalHeight;
+
+  // Conditionally downscale to a maximum dimension of 1600px for speed while maintaining high detection quality
+  const MAX_DIM = 1600;
+  let detectionSource: HTMLImageElement | HTMLCanvasElement = img;
+
+  if (Math.max(width, height) > MAX_DIM) {
+    const scale = MAX_DIM / Math.max(width, height);
+    const canvasWidth = Math.round(width * scale);
+    const canvasHeight = Math.round(height * scale);
+
+    const canvas = document.createElement('canvas');
+    canvas.width = canvasWidth;
+    canvas.height = canvasHeight;
+    const ctx = canvas.getContext('2d');
+    if (ctx) {
+      ctx.drawImage(img, 0, 0, canvasWidth, canvasHeight);
+      detectionSource = canvas;
+    }
+  }
+
+  const srcWidth = detectionSource instanceof HTMLCanvasElement ? detectionSource.width : width;
+  const srcHeight = detectionSource instanceof HTMLCanvasElement ? detectionSource.height : height;
+
+  // Run face-api.js detection with optimized confidence threshold to capture more faces at angles/shadows
+  const options = new faceapi.SsdMobilenetv1Options({ minConfidence: 0.45 });
+  const detections = await faceapi
+    .detectAllFaces(detectionSource, options)
+    .withFaceLandmarks()
+    .withFaceDescriptors();
+
+  URL.revokeObjectURL(blobUrl);
+
+  const results = [];
+  for (const det of detections) {
+    const box = det.detection.box;
+    // Bounding box in relative percentages for overlay rendering
+    const relBox = {
+      x: box.x / srcWidth,
+      y: box.y / srcHeight,
+      width: box.width / srcWidth,
+      height: box.height / srcHeight,
+    };
+
+    // Crop face and create a base64 thumbnail from the detection source
+    const canvas = document.createElement('canvas');
+    const ctx = canvas.getContext('2d')!;
+    const padW = box.width * 0.15;
+    const padH = box.height * 0.15;
+
+    const sx = Math.max(0, box.x - padW);
+    const sy = Math.max(0, box.y - padH);
+    const sw = Math.min(srcWidth - sx, box.width + padW * 2);
+    const sh = Math.min(srcHeight - sy, box.height + padH * 2);
+
+    canvas.width = 120;
+    canvas.height = 120;
+    ctx.drawImage(detectionSource, sx, sy, sw, sh, 0, 0, 120, 120);
+    const thumbnail = canvas.toDataURL('image/jpeg', 0.8);
+
+    results.push({
+      embedding: Array.from(det.descriptor),
+      box: relBox,
+      thumbnail,
+    });
+  }
+
+  return { width, height, detections: results };
+}
 
 export function ScannerProvider({ children }: { children: ReactNode }) {
   const [isScanning, setIsScanning] = useState(false);
@@ -22,21 +156,27 @@ export function ScannerProvider({ children }: { children: ReactNode }) {
   const [scannedCount, setScannedCount] = useState(0);
   const [totalToScan, setTotalToScan] = useState(0);
   const [etaSeconds, setEtaSeconds] = useState<number | null>(null);
-  const [activeScanningEventId, setActiveScanningEventId] = useState<number | null>(null);
+  const [activeScanningEventId, setActiveScanningEventId] = useState<number | string | null>(null);
 
   const isPausedRef = useRef(isPaused);
   isPausedRef.current = isPaused;
 
   const togglePause = () => {
-    setIsPaused(prev => !prev);
+    setIsPaused((prev) => !prev);
   };
 
-  const startScanning = async (eventId: number, filesList: Array<{ fileHandle?: FileSystemFileHandle; fallbackBlob?: Blob; name: string }>) => {
+  /**
+   * Local scanning flow using client-side face-api.js
+   */
+  const startScanning = async (
+    eventId: number,
+    filesList: Array<{ fileHandle?: FileSystemFileHandle; fallbackBlob?: Blob; name: string }>
+  ) => {
     if (isScanning) {
-        alert("סריקה כבר מתבצעת. אנא המתן לסיומה.");
-        return;
+      alert('סריקה כבר מתבצעת. אנא המתן לסיומה.');
+      return;
     }
-    
+
     setIsScanning(true);
     setTotalToScan(filesList.length);
     setScannedCount(0);
@@ -44,34 +184,16 @@ export function ScannerProvider({ children }: { children: ReactNode }) {
     setActiveScanningEventId(eventId);
     setIsPaused(false);
 
-    const photosToProcessIds = [];
+    // Save metadata first
+    const photosToProcess: Array<{ id: number; item: typeof filesList[0] }> = [];
 
-    // 1. Save metadata first
     for (const item of filesList) {
       const existing = await db.photos.where({ eventId, fileName: item.name }).first();
       if (existing) {
         if (!existing.processed) {
-          photosToProcessIds.push(existing.id!);
+          photosToProcess.push({ id: existing.id!, item });
         }
         continue;
-      }
-
-      let width = 0;
-      let height = 0;
-      try {
-        let imageObj;
-        if (item.fileHandle) {
-          const fileObj = await item.fileHandle.getFile();
-          imageObj = await fileToImage(fileObj);
-        } else if (item.fallbackBlob) {
-          imageObj = await fileToImage(item.fallbackBlob);
-        }
-        if (imageObj) {
-          width = imageObj.naturalWidth;
-          height = imageObj.naturalHeight;
-        }
-      } catch (e) {
-        console.error('Error fetching image dimensions', item.name, e);
       }
 
       const photoId = await db.photos.add({
@@ -79,84 +201,272 @@ export function ScannerProvider({ children }: { children: ReactNode }) {
         fileName: item.name,
         fileHandle: item.fileHandle,
         fallbackBlob: item.fallbackBlob,
-        width,
-        height,
+        width: 0,
+        height: 0,
         processed: false,
       });
 
-      photosToProcessIds.push(photoId);
+      photosToProcess.push({ id: photoId, item });
     }
 
-    setTotalToScan(photosToProcessIds.length);
-    
-    if (photosToProcessIds.length === 0) {
+    setTotalToScan(photosToProcess.length);
+
+    if (photosToProcess.length === 0) {
       setIsScanning(false);
       setActiveScanningEventId(null);
       return;
     }
 
-    // 2. Sequential processing loop
+    const clusterer = new IncrementalClusterer(eventId);
+    await clusterer.init();
+
+    // Cache preloaded blobs
+    const preloadCache = new Map<number, Promise<Blob | null>>();
+
+    function preloadFile(entry: typeof photosToProcess[0]): Promise<Blob | null> {
+      if (preloadCache.has(entry.id)) return preloadCache.get(entry.id)!;
+
+      const promise = (async () => {
+        try {
+          if (entry.item.fileHandle) {
+            return await entry.item.fileHandle.getFile();
+          } else if (entry.item.fallbackBlob) {
+            return entry.item.fallbackBlob;
+          }
+          return null;
+        } catch {
+          return null;
+        }
+      })();
+
+      preloadCache.set(entry.id, promise);
+      return promise;
+    }
+
     let progress = 0;
     let totalActiveTime = 0;
-    
-    for (const photoId of photosToProcessIds) {
+
+    for (let idx = 0; idx < photosToProcess.length; idx++) {
       while (isPausedRef.current) {
-        await new Promise(resolve => setTimeout(resolve, 200));
+        await new Promise((resolve) => setTimeout(resolve, 200));
+      }
+
+      // Preload future files
+      for (let ahead = 1; ahead <= PRELOAD_AHEAD; ahead++) {
+        const futureIdx = idx + ahead;
+        if (futureIdx < photosToProcess.length) {
+          preloadFile(photosToProcess[futureIdx]);
+        }
       }
 
       const photoStart = Date.now();
+      const entry = photosToProcess[idx];
 
       try {
-        const photo = await db.photos.get(photoId);
-        if (!photo) continue;
+        const fileBlob = await preloadFile(entry);
+        preloadCache.delete(entry.id);
 
-        let imageObj;
-        if (photo.fileHandle) {
-          const fileObj = await photo.fileHandle.getFile();
-          imageObj = await fileToImage(fileObj);
-        } else if (photo.fallbackBlob) {
-          imageObj = await fileToImage(photo.fallbackBlob);
+        if (!fileBlob) continue;
+
+        // Process locally via client-side face-api.js
+        const { width, height, detections } = await processPhotoLocally(fileBlob);
+
+        if (detections && detections.length > 0) {
+          const facesToAdd = [];
+          for (const det of detections) {
+            const clusterId = await clusterer.assign(det.embedding);
+            facesToAdd.push({
+              eventId,
+              photoId: entry.id,
+              clusterId,
+              box: det.box,
+              embedding: det.embedding,
+              thumbnail: det.thumbnail,
+            });
+          }
+          await db.faces.bulkAdd(facesToAdd);
         }
 
-        if (!imageObj) continue;
-
-        const detections = await detectFacesInImage(imageObj);
-
-        for (const det of detections) {
-          const clusterId = await assignFaceToCluster(eventId, det.embedding);
-          await db.faces.add({
-            eventId,
-            photoId,
-            clusterId,
-            box: det.box,
-            embedding: det.embedding,
-            thumbnail: det.thumbnail,
-          });
-        }
-
-        await db.photos.update(photoId, { processed: true });
+        await db.photos.update(entry.id, {
+          processed: true,
+          width,
+          height,
+        });
       } catch (err) {
-        console.error(`Error processing photo ID: ${photoId}`, err);
+        console.error(`Error scanning photo ID: ${entry.id}`, err);
       }
-      
-      const photoDuration = (Date.now() - photoStart) / 1000;
-      totalActiveTime += photoDuration;
+
+      const duration = (Date.now() - photoStart) / 1000;
+      totalActiveTime += duration;
 
       progress++;
       setScannedCount(progress);
 
-      const avgTimePerPhoto = totalActiveTime / progress;
-      const remainingPhotos = photosToProcessIds.length - progress;
-      const eta = Math.round(remainingPhotos * avgTimePerPhoto);
-      setEtaSeconds(eta);
+      const avgTime = totalActiveTime / progress;
+      const remaining = photosToProcess.length - progress;
+      setEtaSeconds(Math.round(remaining * avgTime));
     }
 
     setIsScanning(false);
     setActiveScanningEventId(null);
   };
 
+  /**
+   * Cloud Google Drive scanning flow using client-side face-api.js and Firestore
+   */
+  const startCloudScanning = async (
+    eventId: string,
+    driveFiles: DriveFile[],
+    googleAccessToken: string
+  ) => {
+    if (isScanning) {
+      alert('סריקה כבר מתבצעת. אנא המתן לסיומה.');
+      return;
+    }
+
+    setIsScanning(true);
+    setTotalToScan(driveFiles.length);
+    setScannedCount(0);
+    setEtaSeconds(null);
+    setActiveScanningEventId(eventId);
+    setIsPaused(false);
+
+    let progress = 0;
+    let totalActiveTime = 0;
+    let totalFacesFound = 0;
+
+    // Buffer to batch Firestore face descriptor updates
+    let facesBuffer: CloudFaceEntry[] = [];
+
+    // Cache preloaded blobs for Google Drive downloads
+    const preloadCache = new Map<string, Promise<Blob | null>>();
+
+    function preloadDriveFile(fileId: string): Promise<Blob | null> {
+      if (preloadCache.has(fileId)) return preloadCache.get(fileId)!;
+
+      const promise = (async () => {
+        try {
+          return await getPhotoBlob(googleAccessToken, fileId);
+        } catch (err) {
+          console.error(`Failed to pre-download file ${fileId}:`, err);
+          return null;
+        }
+      })();
+
+      preloadCache.set(fileId, promise);
+      return promise;
+    }
+
+    for (let idx = 0; idx < driveFiles.length; idx++) {
+      while (isPausedRef.current) {
+        await new Promise((resolve) => setTimeout(resolve, 200));
+      }
+
+      // Preload future files
+      for (let ahead = 1; ahead <= PRELOAD_AHEAD; ahead++) {
+        const futureIdx = idx + ahead;
+        if (futureIdx < driveFiles.length) {
+          preloadDriveFile(driveFiles[futureIdx].id);
+        }
+      }
+
+      const photoStart = Date.now();
+      const file = driveFiles[idx];
+
+      try {
+        const fileBlob = await preloadDriveFile(file.id);
+        preloadCache.delete(file.id);
+
+        if (!fileBlob) continue;
+
+        // Process locally via client-side face-api.js
+        const { width, height, detections } = await processPhotoLocally(fileBlob);
+
+        // Add photo metadata to Firestore
+        const photoId = await addCloudPhoto(eventId, {
+          driveFileId: file.id,
+          fileName: file.name,
+          width,
+          height,
+          processed: true,
+        });
+
+        // Add face descriptors to the buffer
+        if (detections && detections.length > 0) {
+          const facesToAdd: CloudFaceEntry[] = detections.map((det) => ({
+            photoId,
+            driveFileId: file.id,
+            embedding: det.embedding,
+            box: det.box,
+            thumbnail: det.thumbnail,
+          }));
+
+          facesBuffer.push(...facesToAdd);
+          totalFacesFound += detections.length;
+        }
+
+        // Flush face descriptors buffer periodically to Firestore (every 15 photos or if buffer > 50 faces)
+        if (facesBuffer.length >= 50 || (progress > 0 && progress % 15 === 0)) {
+          await appendFaceDescriptors(eventId, facesBuffer);
+          facesBuffer = [];
+        }
+      } catch (err) {
+        console.error(`Error scanning Google Drive photo ${file.name}:`, err);
+      }
+
+      const duration = (Date.now() - photoStart) / 1000;
+      totalActiveTime += duration;
+
+      progress++;
+      setScannedCount(progress);
+
+      const avgTime = totalActiveTime / progress;
+      const remaining = driveFiles.length - progress;
+      setEtaSeconds(Math.round(remaining * avgTime));
+
+      // Update event progress in Firestore periodically
+      if (progress % 10 === 0 || progress === driveFiles.length) {
+        await updateCloudEvent(eventId, {
+          photoCount: progress,
+          faceCount: totalFacesFound,
+        });
+      }
+    }
+
+    // Flush any remaining buffered faces at the end of the scan
+    if (facesBuffer.length > 0) {
+      try {
+        await appendFaceDescriptors(eventId, facesBuffer);
+      } catch (err) {
+        console.error('Error flushing face descriptors buffer at end of scan:', err);
+      }
+    }
+
+    // Set final event state to ready
+    await updateCloudEvent(eventId, {
+      status: 'ready',
+      photoCount: progress,
+      faceCount: totalFacesFound,
+    });
+
+    setIsScanning(false);
+    setActiveScanningEventId(null);
+  };
+
   return (
-    <ScannerContext.Provider value={{ isScanning, isPaused, scannedCount, totalToScan, etaSeconds, activeScanningEventId, startScanning, togglePause }}>
+    <ScannerContext.Provider
+      value={{
+        isScanning,
+        isPaused,
+        scannedCount,
+        totalToScan,
+        etaSeconds,
+        activeScanningEventId,
+        startScanning,
+        startCloudScanning,
+        togglePause,
+      }}
+    >
       {children}
     </ScannerContext.Provider>
   );

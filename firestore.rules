@@ -1,0 +1,41 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Events collection
+    match /events/{eventId} {
+      // Anyone can read event data (needed for guest matching via share code)
+      allow read: if true;
+
+      // Only authenticated owner can create/update/delete their events
+      allow create: if request.auth != null
+        && request.resource.data.ownerId == request.auth.uid;
+
+      allow update: if request.auth != null
+        && resource.data.ownerId == request.auth.uid;
+
+      allow delete: if request.auth != null
+        && resource.data.ownerId == request.auth.uid;
+
+      // Photos subcollection
+      match /photos/{photoId} {
+        // Anyone can read photos (guests need this for matching)
+        allow read: if true;
+
+        // Only event owner can write
+        allow write: if request.auth != null
+          && get(/databases/$(database)/documents/events/$(eventId)).data.ownerId == request.auth.uid;
+      }
+
+      // Face batches subcollection
+      match /faceBatches/{batchId} {
+        // Anyone can read face descriptors (guests need this for matching)
+        allow read: if true;
+
+        // Only event owner can write
+        allow write: if request.auth != null
+          && get(/databases/$(database)/documents/events/$(eventId)).data.ownerId == request.auth.uid;
+      }
+    }
+  }
+}

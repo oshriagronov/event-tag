@@ -1,19 +1,28 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { db, type Face } from '../db';
-import { fileToImage } from '../ml';
 import { useScanner } from '../contexts/ScannerContext';
-import { assignFaceToCluster, mergeClusters } from '../clustering';
+import { mergeClusters } from '../clustering';
 import { PhotoImage } from './PhotoImage';
 import { 
   ArrowRight, FolderOpen, Image as ImageIcon, Users, Search, 
   Loader2, Check, AlertCircle, X, Maximize2,
   HelpCircle, CheckCircle2, Clock, Sparkles,
-  Pause, Play, Download
+  Pause, Play, Download, Copy, QrCode, ExternalLink, RefreshCw
 } from 'lucide-react';
+import { useAuth } from '../contexts/AuthContext';
+import {
+  getCloudEvent,
+  getCloudPhotos,
+  updateCloudEvent,
+  type CloudEvent,
+  type CloudPhoto,
+} from '../services/firestore';
+import { listPhotosInFolder, getPhotoBlob } from '../services/googleDrive';
+import { QRCodeSVG } from 'qrcode.react';
 
 interface EventViewProps {
-  eventId: number;
+  eventId: number | string;
   onBack: () => void;
 }
 
@@ -27,7 +36,435 @@ interface MergeSuggestion {
   photoIdB: number;
 }
 
+interface CloudPhotoImageProps {
+  driveFileId: string;
+  accessToken: string;
+  className?: string;
+  alt?: string;
+}
+
+function CloudPhotoImage({ driveFileId, accessToken, className = '', alt = '' }: CloudPhotoImageProps) {
+  const [src, setSrc] = useState<string>('');
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(false);
+
+  useEffect(() => {
+    let active = true;
+    let url = '';
+
+    async function load() {
+      if (!accessToken || !driveFileId) {
+        setLoading(false);
+        setError(true);
+        return;
+      }
+      setLoading(true);
+      setError(false);
+      try {
+        const blob = await getPhotoBlob(accessToken, driveFileId);
+        if (active) {
+          url = URL.createObjectURL(blob);
+          setSrc(url);
+          setLoading(false);
+        }
+      } catch (err) {
+        console.error("Failed to load cloud photo blob:", err);
+        if (active) {
+          setError(true);
+          setLoading(false);
+        }
+      }
+    }
+
+    load();
+
+    return () => {
+      active = false;
+      if (url) {
+        URL.revokeObjectURL(url);
+      }
+    };
+  }, [driveFileId, accessToken]);
+
+  if (error) {
+    return (
+      <div className={`flex flex-col items-center justify-center bg-slate-900 border border-slate-800 text-slate-500 p-2 text-center text-xs ${className}`}>
+        <AlertCircle className="w-4 h-4 text-red-500" />
+      </div>
+    );
+  }
+
+  if (loading) {
+    return <div className={`bg-slate-900 animate-pulse ${className}`} />;
+  }
+
+  return (
+    <img
+      src={src}
+      className={className}
+      alt={alt}
+      loading="lazy"
+    />
+  );
+}
+
+// ---- Cloud Event View ----
+
+interface CloudEventViewProps {
+  eventId: string;
+  onBack: () => void;
+}
+
+function CloudEventView({ eventId, onBack }: CloudEventViewProps) {
+  const { googleAccessToken } = useAuth();
+  const [event, setEvent] = useState<CloudEvent | null>(null);
+  const [photos, setPhotos] = useState<CloudPhoto[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [copied, setCopied] = useState(false);
+  const [showQr, setShowQr] = useState(false);
+
+  const {
+    isScanning,
+    isPaused,
+    scannedCount,
+    totalToScan,
+    etaSeconds,
+    activeScanningEventId,
+    startCloudScanning,
+    togglePause,
+  } = useScanner();
+
+  const isThisEventScanning = activeScanningEventId === eventId;
+
+  const loadEventDetails = async () => {
+    setLoading(true);
+    try {
+      const evData = await getCloudEvent(eventId);
+      if (evData) {
+        setEvent(evData);
+        if (evData.status === 'ready') {
+          const phData = await getCloudPhotos(eventId);
+          setPhotos(phData);
+        }
+      }
+    } catch (err) {
+      console.error('Failed to load cloud event details:', err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    loadEventDetails();
+  }, [eventId]);
+
+  useEffect(() => {
+    if (!isScanning && event?.status === 'scanning') {
+      loadEventDetails();
+    }
+  }, [isScanning, event?.status]);
+
+  const handleStartScan = async () => {
+    if (!googleAccessToken || !event) return;
+    try {
+      await updateCloudEvent(eventId, { status: 'scanning' });
+      setEvent(prev => prev ? { ...prev, status: 'scanning' } : null);
+
+      const driveFiles = await listPhotosInFolder(googleAccessToken, event.driveFolderId);
+      
+      if (driveFiles.length === 0) {
+        alert('לא נמצאו תמונות בתיקיית ה-Google Drive שנבחרה.');
+        await updateCloudEvent(eventId, { status: 'pending' });
+        setEvent(prev => prev ? { ...prev, status: 'pending' } : null);
+        return;
+      }
+
+      startCloudScanning(eventId, driveFiles, googleAccessToken);
+    } catch (err) {
+      console.error('Failed to start scanning:', err);
+      alert('שגיאה בהתחלת הסריקה: ' + (err as Error).message);
+      await updateCloudEvent(eventId, { status: 'pending' });
+      setEvent(prev => prev ? { ...prev, status: 'pending' } : null);
+    }
+  };
+
+  const handleCopyLink = async () => {
+    if (!event) return;
+    const link = `${window.location.origin}/event/${event.shareCode}`;
+    try {
+      await navigator.clipboard.writeText(link);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch {
+      prompt('העתק קישור:', link);
+    }
+  };
+
+  const formatETA = (seconds: number | null) => {
+    if (seconds === null) return 'מחשב זמן נותר...';
+    if (seconds === 0) return 'מסתיים כעת...';
+    if (seconds < 60) return `זמן נותר מוערך: כ-${seconds} שניות`;
+    const mins = Math.floor(seconds / 60);
+    const secs = seconds % 65;
+    return `זמן נותר מוערך: כ-${mins} דקות ו-${secs} שניות`;
+  };
+
+  if (loading) {
+    return (
+      <div className="max-w-6xl mx-auto px-4 py-16 flex justify-center items-center flex-grow text-right">
+        <div className="flex flex-col items-center gap-4">
+          <Loader2 className="w-10 h-10 animate-spin text-amber-500" />
+          <span className="text-slate-500 dark:text-slate-400">טוען פרטי אירוע...</span>
+        </div>
+      </div>
+    );
+  }
+
+  if (!event) {
+    return (
+      <div className="max-w-6xl mx-auto px-4 py-16 flex flex-col items-center gap-4 flex-grow text-right">
+        <AlertCircle className="w-12 h-12 text-red-500" />
+        <h3 className="text-xl font-bold">אירוע לא נמצא</h3>
+        <button onClick={onBack} className="px-4 py-2 bg-slate-800 text-white rounded-xl">חזרה ללוח הבקרה</button>
+      </div>
+    );
+  }
+
+  const shareLink = `${window.location.origin}/event/${event.shareCode}`;
+
+  return (
+    <div className="max-w-6xl mx-auto px-4 py-8 flex-grow flex flex-col gap-6 text-right transition-colors duration-300">
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-slate-200 dark:border-slate-800 pb-6">
+        <div className="flex items-center gap-4">
+          <button
+            onClick={onBack}
+            className="p-2 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-800 text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 transition-all cursor-pointer shadow-sm"
+            title="חזרה ללוח הבקרה"
+          >
+            <ArrowRight className="w-5 h-5" />
+          </button>
+          <div className="flex flex-col">
+            <h2 className="text-2xl font-bold text-slate-800 dark:text-slate-100 m-0 leading-tight">
+              {event.name}
+            </h2>
+            <p className="text-slate-500 text-sm">
+              אירוע בענן | תיקייה: {event.driveFolderName}
+            </p>
+          </div>
+        </div>
+
+        <div className="flex items-center gap-3">
+          <button
+            onClick={loadEventDetails}
+            className="p-2.5 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-800 text-slate-500 transition-all cursor-pointer"
+            title="רענן נתונים"
+          >
+            <RefreshCw className="w-4 h-4" />
+          </button>
+        </div>
+      </div>
+
+      {event.status === 'pending' && !isThisEventScanning && (
+        <div className="border border-dashed border-slate-300 dark:border-slate-800 rounded-3xl p-16 text-center flex flex-col items-center justify-center gap-6 bg-white/50 dark:bg-slate-900/10 flex-grow py-24 shadow-sm">
+          <div className="w-16 h-16 rounded-3xl bg-amber-500/10 flex items-center justify-center text-amber-500">
+            <FolderOpen className="w-8 h-8" />
+          </div>
+          <div className="max-w-md">
+            <h3 className="text-xl font-bold text-slate-800 dark:text-slate-100">האירוע מוכן לסריקה</h3>
+            <p className="text-slate-500 dark:text-slate-400 text-sm mt-2 leading-relaxed">
+              המערכת מוכנה לסרוק את התמונות בתיקיית ה-Google Drive שלך.
+              בתהליך זה, ה-AI יסרוק את התמונות וישמור את מזהי הפנים בענן.
+              לאחר מכן תוכל לשתף את הקישור עם האורחים.
+            </p>
+          </div>
+          <button
+            onClick={handleStartScan}
+            disabled={!googleAccessToken}
+            className="px-8 py-3.5 rounded-2xl bg-amber-500 hover:bg-amber-400 text-white dark:text-slate-950 font-bold text-base shadow-lg shadow-amber-500/20 active:scale-95 transition-all cursor-pointer disabled:opacity-50"
+          >
+            התחל סריקת תמונות
+          </button>
+          {!googleAccessToken && (
+            <p className="text-red-500 text-xs">יש להתחבר מחדש עם חשבון Google כדי לאפשר גישה לתיקייה.</p>
+          )}
+        </div>
+      )}
+
+      {(event.status === 'scanning' || isThisEventScanning) && (
+        <div className="bg-white dark:bg-slate-900/40 border border-slate-200 dark:border-slate-800 rounded-3xl p-8 flex flex-col gap-6 shadow-xl max-w-2xl mx-auto w-full my-8">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 text-sm border-b border-slate-100 dark:border-slate-800/80 pb-5">
+            <div className="flex items-center gap-3">
+              <Loader2 className="w-5 h-5 text-amber-500 animate-spin" />
+              <span className="font-bold text-slate-800 dark:text-slate-200 text-base">סורק תמונות ב-Google Drive...</span>
+            </div>
+            <div className="flex items-center gap-3.5">
+              <button
+                onClick={togglePause}
+                className={`w-10 h-10 rounded-xl flex items-center justify-center transition-all cursor-pointer shadow-sm ${
+                  isPaused
+                    ? 'bg-amber-100 dark:bg-amber-500 text-amber-900 dark:text-slate-950 border border-amber-200 dark:border-transparent'
+                    : 'bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-700'
+                }`}
+              >
+                {isPaused ? <Play className="w-4 h-4" /> : <Pause className="w-4 h-4" />}
+              </button>
+              <div className="text-xs bg-slate-50 dark:bg-slate-800 px-3 py-1.5 rounded-lg border border-slate-200 dark:border-slate-700">
+                {isPaused ? 'סריקה הושהתה' : formatETA(etaSeconds)}
+              </div>
+              <div className="font-mono bg-slate-50 dark:bg-slate-800 px-2.5 py-1 rounded-md border border-slate-200 dark:border-slate-700 text-xs">
+                {scannedCount} / {totalToScan || event.photoCount}
+              </div>
+            </div>
+          </div>
+
+          <div className="w-full bg-slate-100 dark:bg-slate-800 rounded-full h-3 overflow-hidden border border-slate-200 dark:border-slate-700">
+            <div
+              className="bg-amber-500 h-3 rounded-full transition-all duration-300 ease-out relative"
+              style={{
+                width: `${
+                  (totalToScan || event.photoCount) > 0
+                    ? (scannedCount / (totalToScan || event.photoCount)) * 100
+                    : 0
+                }%`,
+              }}
+            >
+              <div className="absolute inset-0 bg-white/20 animate-pulse"></div>
+            </div>
+          </div>
+
+          <p className="text-slate-500 dark:text-slate-400 text-xs leading-relaxed text-center">
+            אנא השאר את הדפדפן פתוח במהלך הסריקה. המערכת מעבדת את התמונות אחת אחרי השנייה.
+            התמונות אינן מועלות לשרת, העיבוד נעשה כולו במכשיר שלך!
+          </p>
+        </div>
+      )}
+
+      {event.status === 'ready' && !isThisEventScanning && (
+        <div className="flex flex-col gap-8">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            <div className="bg-white dark:bg-slate-900/40 border border-slate-200 dark:border-slate-800 rounded-3xl p-6 shadow-sm flex flex-col justify-between">
+              <div className="flex flex-col gap-2">
+                <h4 className="font-bold text-slate-400 text-xs uppercase tracking-wider">נתוני אירוע</h4>
+                <div className="flex items-baseline gap-2 mt-2">
+                  <span className="text-3xl font-black text-slate-800 dark:text-white">{event.photoCount}</span>
+                  <span className="text-slate-500 text-sm">תמונות נסרקו</span>
+                </div>
+                <div className="flex items-baseline gap-2">
+                  <span className="text-3xl font-black text-amber-500">{event.faceCount}</span>
+                  <span className="text-slate-500 text-sm">פנים זוהו</span>
+                </div>
+              </div>
+              <div className="border-t border-slate-100 dark:border-slate-800 pt-4 mt-6 flex items-center justify-between text-xs text-slate-500">
+                <span>תיקייה: {event.driveFolderName}</span>
+              </div>
+            </div>
+
+            <div className="md:col-span-2 bg-white dark:bg-slate-900/40 border border-slate-200 dark:border-slate-800 rounded-3xl p-6 shadow-sm flex flex-col justify-between">
+              <div className="flex flex-col gap-2">
+                <h4 className="font-bold text-slate-400 text-xs uppercase tracking-wider">שיתוף עם אורחים</h4>
+                <p className="text-slate-500 text-xs mt-1">
+                  העתק את הקישור או שתף את קוד ה-QR. האורחים יוכלו להעלות סלפי ולקבל מיידית את כל התמונות שלהם מתיקיית ה-Google Drive.
+                </p>
+
+                <div className="flex gap-2 mt-4">
+                  <input
+                    type="text"
+                    readOnly
+                    value={shareLink}
+                    className="flex-grow px-4 py-3 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-400 text-sm font-mono focus:outline-none"
+                  />
+                  <button
+                    onClick={handleCopyLink}
+                    className="px-5 py-3 rounded-xl bg-amber-500 text-slate-950 font-bold text-sm shadow-sm flex items-center gap-2 hover:bg-amber-400 transition-colors cursor-pointer active:scale-95"
+                  >
+                    {copied ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
+                    <span>{copied ? 'הועתק!' : 'העתק'}</span>
+                  </button>
+                  <button
+                    onClick={() => setShowQr(true)}
+                    className="p-3 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors cursor-pointer"
+                    title="הצג QR"
+                  >
+                    <QrCode className="w-5 h-5" />
+                  </button>
+                </div>
+              </div>
+              <div className="border-t border-slate-100 dark:border-slate-800 pt-4 mt-6 flex items-center gap-2">
+                <a
+                  href={shareLink}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="inline-flex items-center gap-1.5 text-xs text-amber-500 hover:underline"
+                >
+                  פתח עמוד אורח <ExternalLink className="w-3.5 h-3.5" />
+                </a>
+              </div>
+            </div>
+          </div>
+
+          <div className="flex flex-col gap-4">
+            <h3 className="text-xl font-bold text-slate-800 dark:text-slate-100">גלריית תמונות אירוע</h3>
+            {photos.length === 0 ? (
+              <div className="text-center py-12 text-slate-500">טוען תמונות...</div>
+            ) : (
+              <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4">
+                {photos.slice(0, 24).map((photo) => (
+                  <div
+                    key={photo.id}
+                    className="relative aspect-square border border-slate-200 dark:border-slate-800 rounded-2xl overflow-hidden shadow-sm bg-slate-100 dark:bg-slate-900/50"
+                  >
+                    <CloudPhotoImage
+                      driveFileId={photo.driveFileId}
+                      accessToken={googleAccessToken || ''}
+                      alt={photo.fileName}
+                      className="w-full h-full object-cover hover:scale-105 transition-transform duration-300"
+                    />
+                  </div>
+                ))}
+              </div>
+            )}
+            {photos.length > 24 && (
+              <p className="text-slate-500 text-xs text-center mt-2">
+                מציג 24 תמונות ראשונות מתוך {photos.length}.
+              </p>
+            )}
+          </div>
+        </div>
+      )}
+
+      {showQr && (
+        <div className="fixed inset-0 bg-slate-950/70 backdrop-blur-sm flex items-center justify-center z-50 p-4" onClick={() => setShowQr(false)}>
+          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl p-8 max-w-sm w-full shadow-2xl flex flex-col items-center gap-6" onClick={(e) => e.stopPropagation()}>
+            <h3 className="text-lg font-bold text-slate-800 dark:text-slate-100">{event.name}</h3>
+            <div className="bg-white p-4 rounded-2xl shadow-inner">
+              <QRCodeSVG
+                value={shareLink}
+                size={220}
+                level="M"
+                bgColor="#ffffff"
+                fgColor="#0f172a"
+              />
+            </div>
+            <p className="text-xs text-slate-500 dark:text-slate-400 text-center">האורחים יכולים לסרוק את הקישור כדי להעלות סלפי</p>
+            <button
+              onClick={() => setShowQr(false)}
+              className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 text-sm transition-colors cursor-pointer"
+            >
+              סגור
+            </button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ---- Local Event View ----
+
 export function EventView({ eventId, onBack }: EventViewProps) {
+  if (typeof eventId === 'string') {
+    return <CloudEventView eventId={eventId} onBack={onBack} />;
+  }
   const [activeTab, setActiveTab] = useState<'faces' | 'merges' | 'photos' | 'unidentified'>('faces');
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedClusterId, setSelectedClusterId] = useState<string | null>(null);
@@ -171,7 +608,10 @@ export function EventView({ eventId, onBack }: EventViewProps) {
       const file = filesList[i];
       const ext = file.name.split('.').pop()?.toLowerCase();
       if (ext && allowedExtensions.includes(ext)) {
-        filesToProcess.push(file);
+        filesToProcess.push({
+          fallbackBlob: file,
+          name: file.name,
+        });
       }
     }
 
@@ -180,39 +620,7 @@ export function EventView({ eventId, onBack }: EventViewProps) {
       return;
     }
 
-    const processedList = [];
-    for (let i = 0; i < filesToProcess.length; i++) {
-      const file = filesToProcess[i];
-      try {
-        const imgObj = await fileToImage(file);
-        const compressedBlob = await new Promise<Blob>((resolve) => {
-          const canvas = document.createElement('canvas');
-          const ctx = canvas.getContext('2d');
-          
-          let width = imgObj.width;
-          let height = imgObj.height;
-          const maxDim = 1200;
-          if (width > maxDim || height > maxDim) {
-            const ratio = Math.min(maxDim / width, maxDim / height);
-            width *= ratio;
-            height *= ratio;
-          }
-          canvas.width = width;
-          canvas.height = height;
-          ctx?.drawImage(imgObj, 0, 0, width, height);
-          
-          canvas.toBlob((blob) => resolve(blob!), 'image/jpeg', 0.85);
-        });
-        processedList.push({
-          fallbackBlob: compressedBlob,
-          name: file.name,
-        });
-      } catch (err) {
-        console.error('Failed to compress fallback file', file.name, err);
-      }
-    }
-
-    await startScanning(eventId, processedList);
+    await startScanning(eventId, filesToProcess);
   };
 
   const handleRenameCluster = async (clusterId: string, oldName: string, newName: string) => {
@@ -377,7 +785,7 @@ export function EventView({ eventId, onBack }: EventViewProps) {
 
           if (centerA && centerB) {
             const dist = getEuclideanDistance(centerA, centerB);
-            if (dist > 0.1 && dist < 0.45) {
+            if (dist > 0.85 && dist < 1.35) {
               list.push({
                 clusterA: { id: cA.id, name: cA.name },
                 clusterB: { id: cB.id, name: cB.name },
@@ -597,16 +1005,16 @@ export function EventView({ eventId, onBack }: EventViewProps) {
               >
                 {isPaused ? <Play className="w-5 h-5" /> : <Pause className="w-5 h-5" />}
               </button>
-              <div className="flex items-center gap-1.5 text-xs bg-white dark:bg-slate-800/80 border border-slate-200 dark:border-slate-750 px-3 py-1 rounded-lg">
+              <div className="flex items-center gap-1.5 text-xs bg-white dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 px-3 py-1 rounded-lg">
                 <Clock className="w-3.5 h-3.5 text-slate-400" />
                 <span>{isPaused ? 'סריקה הושהתה' : formatETA(etaSeconds)}</span>
               </div>
-              <span className="font-mono bg-white dark:bg-slate-800/80 border border-slate-200 dark:border-slate-750 px-2 py-0.5 rounded-md">
+              <span className="font-mono bg-white dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 px-2 py-0.5 rounded-md">
                 {scannedCount} / {totalToScan}
               </span>
             </div>
           </div>
-          <div className="w-full bg-slate-200 dark:bg-slate-800 rounded-full h-2.5 overflow-hidden border border-slate-300 dark:border-slate-750">
+          <div className="w-full bg-slate-200 dark:bg-slate-800 rounded-full h-2.5 overflow-hidden border border-slate-300 dark:border-slate-700">
             <div 
               className="bg-amber-400 dark:bg-amber-500 h-2.5 rounded-full transition-all duration-300 ease-out relative"
               style={{ width: `${totalToScan > 0 ? (scannedCount / totalToScan) * 100 : 0}%` }}
@@ -648,7 +1056,7 @@ export function EventView({ eventId, onBack }: EventViewProps) {
         <div className="flex flex-col gap-6">
           {!isScanning && !showSuccessBanner && !selectedClusterId && (
           <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
-              <div className="flex flex-wrap bg-white dark:bg-slate-950 p-1.5 rounded-xl border border-slate-200 dark:border-slate-850 self-start gap-1 shadow-sm">
+              <div className="flex flex-wrap bg-white dark:bg-slate-950 p-1.5 rounded-xl border border-slate-200 dark:border-slate-800 self-start gap-1 shadow-sm">
                 <button
                   onClick={() => setActiveTab('faces')}
                   className={`px-4 py-2 rounded-lg text-sm font-medium transition-all cursor-pointer ${
@@ -755,7 +1163,7 @@ export function EventView({ eventId, onBack }: EventViewProps) {
                   const faceInPhoto = selectedClusterFaces.find(f => f.photoId === pId);
                   return (
                     <div key={pId} className="group relative aspect-square border border-slate-200 dark:border-slate-800 rounded-2xl overflow-hidden shadow-lg transition-all">
-                      <button onClick={(e) => { e.stopPropagation(); handleRemoveFaceFromPerson(pId, selectedClusterId); }} className="absolute top-3 left-3 p-1.5 rounded-lg bg-red-500/90 hover:bg-red-650 text-white opacity-0 group-hover:opacity-100 transition-opacity z-10 cursor-pointer">
+                      <button onClick={(e) => { e.stopPropagation(); handleRemoveFaceFromPerson(pId, selectedClusterId); }} className="absolute top-3 left-3 p-1.5 rounded-lg bg-red-500/90 hover:bg-red-600 text-white opacity-0 group-hover:opacity-100 transition-opacity z-10 cursor-pointer">
                         <X className="w-4 h-4" />
                       </button>
                       <div onClick={() => toggleRevealPhoto(pId)} className="w-full h-full cursor-pointer relative">
@@ -834,10 +1242,10 @@ export function EventView({ eventId, onBack }: EventViewProps) {
                     <div key={i} className="bg-white dark:bg-slate-900/40 border border-slate-200 dark:border-slate-800/80 rounded-3xl p-6 flex flex-col gap-6 shadow-xl">
                       <div className="flex items-center justify-center gap-10">
                         <div className="flex flex-col items-center gap-3.5"><div onClick={() => setLightboxPhotoId(sug.photoIdA)} className="w-32 h-32 rounded-2xl overflow-hidden ring-4 ring-white dark:ring-slate-800 shadow-md cursor-pointer"><img src={sug.thumbA} className="w-full h-full object-cover" /></div><span className="font-extrabold text-base text-slate-800 dark:text-slate-200">{sug.clusterA.name}</span></div>
-                        <div className="flex flex-col items-center gap-1.5"><Sparkles className="w-6 h-6 text-amber-500 dark:text-amber-400" /><span className="text-sm bg-amber-100 dark:bg-amber-500/20 px-3 py-1 rounded-full border border-amber-200 dark:border-amber-500/30 text-amber-900 dark:text-amber-300 font-bold shadow-sm">{Math.round((1.0 - (sug.distance - 0.1) / 0.38) * 100)}%</span></div>
+                        <div className="flex flex-col items-center gap-1.5"><Sparkles className="w-6 h-6 text-amber-500 dark:text-amber-400" /><span className="text-sm bg-amber-100 dark:bg-amber-500/20 px-3 py-1 rounded-full border border-amber-200 dark:border-amber-500/30 text-amber-900 dark:text-amber-300 font-bold shadow-sm">{Math.max(0, Math.min(100, Math.round((1.35 - sug.distance) / 0.5 * 100)))}%</span></div>
                         <div className="flex flex-col items-center gap-3.5"><div onClick={() => setLightboxPhotoId(sug.photoIdB)} className="w-32 h-32 rounded-2xl overflow-hidden ring-4 ring-white dark:ring-slate-800 shadow-md cursor-pointer"><img src={sug.thumbB} className="w-full h-full object-cover" /></div><span className="font-extrabold text-base text-slate-800 dark:text-slate-200">{sug.clusterB.name}</span></div>
                       </div>
-                      <div className="flex gap-4 mt-2 border-t border-slate-100 dark:border-slate-850 pt-5">
+                      <div className="flex gap-4 mt-2 border-t border-slate-100 dark:border-slate-800 pt-5">
                         <button onClick={() => handleMergeSuggestion(sug.clusterA.id, sug.clusterB.id, sug.clusterA.name, sug.clusterB.name)} className="flex-1 py-2.5 rounded-xl bg-amber-100 hover:bg-amber-200 dark:bg-amber-500 dark:hover:bg-amber-400 text-amber-900 dark:text-slate-950 border border-amber-200 dark:border-transparent text-xs font-extrabold transition-all cursor-pointer shadow-sm">מזג אורחים</button>
                         <button onClick={() => handleDeclineSuggestion(sug.clusterA.id, sug.clusterB.id)} className="flex-1 py-2.5 rounded-xl bg-slate-50 hover:bg-slate-100 dark:bg-slate-900 dark:hover:bg-slate-800 border border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-400 text-xs font-bold transition-all cursor-pointer shadow-sm">התעלם</button>
                       </div>
@@ -893,7 +1301,7 @@ export function EventView({ eventId, onBack }: EventViewProps) {
                 >
                   {photo.id && <PhotoImage photoId={photo.id} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" />}
                   
-                  <div className="absolute top-3.5 right-3.5 p-1 rounded bg-slate-950/80 border border-slate-850 z-10">
+                  <div className="absolute top-3.5 right-3.5 p-1 rounded bg-slate-950/80 border border-slate-800 z-10">
                     {photo.processed ? (
                       <Check className="w-3 h-3 text-emerald-400" />
                     ) : (
@@ -918,14 +1326,14 @@ export function EventView({ eventId, onBack }: EventViewProps) {
         <div className="fixed inset-0 bg-slate-950/95 flex items-center justify-center z-50 p-4 transition-all duration-300">
           <button
             onClick={() => setLightboxPhotoId(null)}
-            className="absolute top-4 left-4 p-2.5 rounded-full bg-slate-900 border border-slate-850 text-slate-400 hover:text-slate-200 transition-colors cursor-pointer"
+            className="absolute top-4 left-4 p-2.5 rounded-full bg-slate-900 border border-slate-800 text-slate-400 hover:text-slate-200 transition-colors cursor-pointer"
             title="סגור"
           >
             <X className="w-6 h-6" />
           </button>
 
           <div className="max-w-4xl max-h-[85vh] flex flex-col items-center gap-4 relative">
-            <div className="relative inline-block max-w-full max-h-[80vh] rounded-2xl overflow-hidden ring-1 ring-slate-850 shadow-2xl">
+            <div className="relative inline-block max-w-full max-h-[80vh] rounded-2xl overflow-hidden ring-1 ring-slate-800 shadow-2xl">
               {lightboxPhoto.id && (
                 <PhotoImage 
                   photoId={lightboxPhoto.id} 
