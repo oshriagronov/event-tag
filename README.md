@@ -1,11 +1,11 @@
 <p align="center">
-  <img src="public/logo.png" alt="EventTag Logo" width="120" />
+  <img src="public/logo.png" alt="EventTag Logo" width="350" style="border-radius: 16px;"/>
 </p>
 
 <h1 align="center">EventTag</h1>
 
 <p align="center">
-  <strong>ארגון תמונות חכם | Smart Event Photo Organizer</strong>
+  <strong>Smart Event Photo Organizer</strong>
 </p>
 
 <p align="center">
@@ -193,4 +193,4 @@ EventTag is built with a **zero-backend, zero-cloud** architecture:
 
 ## 📄 License
 
-This project is private. All rights reserved.
+This project is licensed under the MIT License.
