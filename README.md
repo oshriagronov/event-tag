@@ -7,7 +7,7 @@
 </p>
 
 <p align="center">
-  A privacy-first web application that uses on-device AI to automatically detect, recognize, and group faces in event photos — with images loaded directly from Google Drive and face descriptors synced securely in the cloud.
+  A privacy-first web application that lets event owners upload event photos and allows guests to upload a selfie to instantly find and download all their photos from the event pool.
 </p>
 
 <p align="center">
@@ -21,7 +21,11 @@
 
 ## ✨ What is EventTag?
 
-EventTag is a standalone Single Page Application designed for event photographers, wedding planners, and anyone who needs to quickly sort through hundreds (or thousands) of event photos and organize them by the people who appear in them.
+EventTag is a smart event photo sharing and retrieval application designed to eliminate the tedious process of searching through thousands of event photos. It allows event owners/photographers to upload their photos, and enables guests to simply upload a single selfie to instantly find and retrieve all photos they appear in.
+
+### 🎯 The Goal
+- **For Guests:** Instant, self-service access to all their photos from the event without scrolling through endless folders.
+- **For Event Owners:** Save hours of manual effort searching, filtering, and sending individual photos to different guests.
 
 **The key differentiator:** All face detection, recognition, and clustering happens **entirely inside your browser** using on-device machine learning. Photos are loaded directly from your Google Drive into browser memory, and only mathematical face descriptors are stored securely in Firestore. No actual photos are ever sent to or stored on EventTag's servers.
 
@@ -29,29 +33,28 @@ EventTag is a standalone Single Page Application designed for event photographer
 
 ## 🎯 Features
 
-### Core
-- **🧠 On-Device Face AI** — SSD MobileNet v1 for detection, 68-point landmark model, and a 128-dimensional face recognition network, all running locally via WebGL
-- **👥 Automatic Face Clustering** — Incremental clustering with drift protection automatically groups detected faces into guest profiles
-- **☁️ Cloud-Only Integration** — Integrates with Google Drive API for secure photo picking, and uses Firebase Firestore to sync event metadata and face descriptors
-- **🔍 Real-Time Search** — Instantly filter guests by name across all recognized profiles
-- **✏️ Inline Renaming** — Click on any guest name to rename it; assigning the same name to two profiles automatically merges them
+### 👤 Guest Experience
+- **📸 Selfie Search** — Guests can upload a quick selfie to instantly query the event photo pool and find all images they are in.
+- **⚡ Instant Retrieval & Download** — Guests retrieve their photos directly without having to ask the host or scroll through the whole gallery.
 - **📦 ZIP Export** — Export all photos of a specific person as a downloadable ZIP file
 
-### Smart Organization
-- **🔗 Merge Suggestions** — AI-powered suggestions for profiles that may be the same person, with accept/decline controls
-- **🤝 Manual Merge Mode** — Select multiple guest profiles and merge them with one click
-- **❓ Unidentified Faces** — A dedicated tab for faces that couldn't be confidently assigned, with manual assignment controls
+### 🔑 Event Owner Experience
+- **📤 Effortless Photo Management** — Connect event photos directly from Google Drive.
+- **👥 Automatic Face Clustering** — On-device AI scans and groups faces automatically, creating distinct guest profiles.
+- **🕒 Time-Saving Automation** — No more manual sorting or sending photos to guests; let guest self-service handle the distribution.
+- **📦 Smart Merging & Editing** — Merge suggested profiles, rename guests, and resolve unidentified faces easily.
 - **🖼️ Full Gallery View** — Browse all imported photos with a lightbox viewer showing face annotations
+- **⏸️ Pause/Resume Scanning** — Pause the scanning process at any time and resume where you left off
+- **⏱️ ETA Display** — Real-time estimated time remaining during photo scanning
+- **🏷️ Multi-Event Support** — Create and manage multiple isolated events, each with its own photos, faces, and clusters
+
 
 ### User Experience
 - **🌙 Dark & Light Themes** — Elegant dark mode by default, with a toggleable light mode
 - **🔤 Adjustable Font Size** — Normal, large, and extra-large text sizes for accessibility
-- **⏸️ Pause/Resume Scanning** — Pause the scanning process at any time and resume where you left off
-- **⏱️ ETA Display** — Real-time estimated time remaining during photo scanning
-- **🏷️ Multi-Event Support** — Create and manage multiple isolated events, each with its own photos, faces, and clusters
 - **🇮🇱 Hebrew RTL Interface** — Fully localized Hebrew UI with proper right-to-left layout
 
----
+
 
 ## 🏗️ Architecture
 
