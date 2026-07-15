@@ -7,7 +7,7 @@
 </p>
 
 <p align="center">
-  A privacy-first web application that uses on-device AI to automatically detect, recognize, and group faces in event photos — entirely in the browser, with zero server involvement.
+  A privacy-first web application that uses on-device AI to automatically detect, recognize, and group faces in event photos — with images loaded directly from Google Drive and face descriptors synced securely in the cloud.
 </p>
 
 <p align="center">
@@ -15,7 +15,6 @@
   <img src="https://img.shields.io/badge/typescript-6-blue?logo=typescript" alt="TypeScript" />
   <img src="https://img.shields.io/badge/vite-8-purple?logo=vite" alt="Vite 8" />
   <img src="https://img.shields.io/badge/tailwind-4-blue?logo=tailwindcss" alt="Tailwind CSS 4" />
-  <img src="https://img.shields.io/badge/privacy-100%25_local-green" alt="100% Local" />
 </p>
 
 
@@ -24,7 +23,7 @@
 
 EventTag is a standalone Single Page Application designed for event photographers, wedding planners, and anyone who needs to quickly sort through hundreds (or thousands) of event photos and organize them by the people who appear in them.
 
-**The key differentiator:** All face detection, recognition, and clustering happens **entirely inside your browser** using on-device machine learning. No images are ever uploaded, no data leaves your machine, and no external APIs are called.
+**The key differentiator:** All face detection, recognition, and clustering happens **entirely inside your browser** using on-device machine learning. Photos are loaded directly from your Google Drive into browser memory, and only mathematical face descriptors are stored securely in Firestore. No actual photos are ever sent to or stored on EventTag's servers.
 
 
 
@@ -33,7 +32,7 @@ EventTag is a standalone Single Page Application designed for event photographer
 ### Core
 - **🧠 On-Device Face AI** — SSD MobileNet v1 for detection, 68-point landmark model, and a 128-dimensional face recognition network, all running locally via WebGL
 - **👥 Automatic Face Clustering** — Incremental clustering with drift protection automatically groups detected faces into guest profiles
-- **📁 Direct Folder Access** — Uses the File System Access API (`showDirectoryPicker`) to read photos directly from local folders without uploading
+- **☁️ Cloud-Only Integration** — Integrates with Google Drive API for secure photo picking, and uses Firebase Firestore to sync event metadata and face descriptors
 - **🔍 Real-Time Search** — Instantly filter guests by name across all recognized profiles
 - **✏️ Inline Renaming** — Click on any guest name to rename it; assigning the same name to two profiles automatically merges them
 - **📦 ZIP Export** — Export all photos of a specific person as a downloadable ZIP file
@@ -62,11 +61,11 @@ src/
 ├── main.tsx                   # React entry point
 ├── ml.ts                      # Face detection, landmark, and recognition pipeline
 ├── clustering.ts              # Incremental face clustering with drift protection
-├── db.ts                      # IndexedDB schema (Dexie.js ORM)
+├── db.ts                      # Local DB helper
 ├── components/
-│   ├── Dashboard.tsx          # Event list with create/delete
+│   ├── Dashboard.tsx          # Event list with create/delete (Google Drive + Firestore sync)
 │   ├── EventView.tsx          # Main event workspace (tabs, gallery, merges)
-│   ├── PhotoImage.tsx         # Lazy image loader from FileHandle or Blob
+│   ├── PhotoImage.tsx         # Lazy image loader from Drive or Blob
 │   ├── PrivacyBanner.tsx      # Privacy assurance banner
 │   └── SettingsModal.tsx      # Theme & font size settings
 ├── contexts/
@@ -78,22 +77,22 @@ src/
 ### Data Flow
 
 ```
-Local Folder → File System Access API → Sequential Processing Queue
+Google Drive → Browser Memory Ingest Queue
   → face-api.js (SSD MobileNet v1 + Landmarks + Recognition)
     → 128-dim embedding vector per face
       → Incremental Clustering (Euclidean distance + drift guard)
-        → IndexedDB (Dexie.js) persistence
-          → Reactive UI (dexie-react-hooks)
+        → Firebase Firestore persistence (descriptors & metadata only)
+          → Reactive UI
 ```
 
-### Database Schema (IndexedDB)
+### Database Schema (Firestore)
 
-| Table      | Key Fields                                          |
+| Collection | Key Fields                                          |
 |------------|-----------------------------------------------------|
-| `events`   | `id`, `name`, `createdAt`, `directoryHandle`        |
-| `photos`   | `id`, `eventId`, `fileName`, `fileHandle`, `processed` |
-| `faces`    | `id`, `eventId`, `photoId`, `clusterId`, `embedding`, `thumbnail` |
-| `clusters` | `id`, `eventId`, `name`                             |
+| `events`   | `id`, `name`, `createdAt`, `status`, `ownerId`      |
+| `photos`   | `id`, `driveFileId`, `fileName`, `processed`        |
+| `faces`    | `id`, `photoId`, `clusterId`, `descriptor`, `thumbnail` |
+| `clusters` | `id`, `name`                                        |
 
 ### ⚡ Ingest & Scanning Optimizations
 
@@ -101,7 +100,7 @@ To support scanning large event libraries (hundreds or thousands of high-res pho
 
 - **In-Memory Image Downscaling:** Images with dimensions exceeding `1600px` are downscaled to a maximum boundary of `1600px` using an offscreen canvas prior to face detection. This reduces pixel computational area by over 90% on raw camera files, significantly accelerating inference and preventing WebGL out-of-memory crashes while retaining high-precision landmarks.
 - **Tuned Detection Confidence:** The SSD MobileNet V1 face detector runs with a customized `minConfidence = 0.45` (tuned down from the default `0.50`) to increase recall, successfully detecting faces at steep angles, in partial shadow, or under minor motion blur.
-- **Batched Firestore Face Descriptors:** In cloud-synced events, face metadata is buffered in memory and flushed to Firestore in chunks (every 15 photos or 50 faces) instead of saving them sequentially. This eliminates the \(O(N^2)\) read-then-write database overhead, decreasing database loading delays by over 90%.
+- **Batched Firestore Face Descriptors:** Face metadata is buffered in memory and flushed to Firestore in chunks (every 15 photos or 50 faces) instead of saving them sequentially. This eliminates the \(O(N^2)\) read-then-write database overhead, decreasing database loading delays by over 90%.
 - **Tightened Clustering Tolerances:** The incremental clustering engine matches faces with a strict Euclidean distance threshold of `0.65` and group average threshold of `0.75` (aligned with face-api's `0.55` search tolerance). This prevents different individuals from being incorrectly merged into the same profile.
 
 ---
@@ -110,13 +109,14 @@ To support scanning large event libraries (hundreds or thousands of high-res pho
 
 ### Prerequisites
 - **Node.js** 18+ and **npm**
-- A modern browser with WebGL support (Chrome/Edge recommended for File System Access API)
+- A modern browser with WebGL support (Chrome/Edge recommended)
 
 ### Installation
 
 ```bash
 # Clone the repository
 git clone https://github.com/your-username/event-tag.git
+# Go to workspace directory
 cd event-tag
 
 # Install dependencies
@@ -145,11 +145,11 @@ No additional downloads are required.
 |-----------------|---------------------------------------------------------------------------|
 | **Framework**   | [React 19](https://react.dev) + [TypeScript 6](https://typescriptlang.org) |
 | **Build Tool**  | [Vite 8](https://vite.dev)                                                |
-| **Styling**     | [Tailwind CSS 4](https://tailwindcss.com)                                 |
+| **Styling**     | Vanilla CSS + Tailwind CSS                                                |
 | **Icons**       | [Lucide React](https://lucide.dev)                                        |
 | **ML Engine**   | [@vladmandic/face-api](https://github.com/nicolo-ribaudo/face-api.js) (WebGL-accelerated) |
-| **Database**    | [Dexie.js](https://dexie.org) (IndexedDB wrapper)                        |
-| **File Access** | [File System Access API](https://developer.mozilla.org/en-US/docs/Web/API/File_System_Access_API) |
+| **Database/Sync**| [Firebase Firestore](https://firebase.google.com/)                        |
+| **File Access** | [Google Drive API](https://developers.google.com/drive)                   |
 | **ZIP Export**  | [JSZip](https://stuk.github.io/jszip/)                                    |
 
 
@@ -167,25 +167,13 @@ No additional downloads are required.
 
 ## 🔒 Privacy
 
-EventTag is built with a **zero-backend, zero-cloud** architecture:
+EventTag is designed with a strong focus on user privacy:
 
-- ✅ All face detection and recognition runs **locally in your browser** via WebGL
-- ✅ Photos are read directly from your filesystem — **never uploaded**
-- ✅ All data (faces, clusters, embeddings) is stored in **browser-local IndexedDB**
-- ✅ No analytics, no tracking, no cookies, no external network requests
-- ✅ Works completely **offline** after initial load
+- ✅ All face detection and recognition runs **locally in your browser** via WebGL.
+- ✅ Photos are processed in-memory directly from Google Drive — they are **never uploaded to or stored on EventTag's servers**.
+- ✅ Only mathematical face descriptors (embeddings) are saved in the cloud (Firebase Firestore) to sync event profiles.
+- ✅ No analytics, no tracking, and no third-party sharing of your media.
 
-
-
-## 🌐 Browser Compatibility
-
-| Feature                 | Chrome/Edge | Firefox | Safari |
-|-------------------------|:-----------:|:-------:|:------:|
-| Face Detection (WebGL)  | ✅          | ✅      | ✅     |
-| File System Access API  | ✅          | ❌ (fallback) | ❌ (fallback) |
-| IndexedDB persistence   | ✅          | ✅      | ✅     |
-
-> **Note:** On browsers that don't support the File System Access API, EventTag falls back to a standard file input with `webkitdirectory`, storing compressed image blobs directly in IndexedDB.
 
 
 ## 📄 License

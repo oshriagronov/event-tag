@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { useTranslation } from '../services/translations';
@@ -19,7 +19,8 @@ import {
 export function LandingPage() {
   const { user, loading, signIn } = useAuth();
   const navigate = useNavigate();
-  const { t, isRtl } = useTranslation();
+  const { t, isRtl, language } = useTranslation();
+  const [openFaq, setOpenFaq] = useState<number | null>(null);
 
   // Redirect to dashboard if already logged in
   useEffect(() => {
@@ -231,6 +232,85 @@ export function LandingPage() {
                 ))}
               </div>
             </div>
+          </div>
+        </div>
+      </section>
+
+      {/* FAQ Section */}
+      <section className="relative py-24 px-6 border-t border-slate-200/60 dark:border-slate-800/60 bg-slate-50/30 dark:bg-slate-900/10 backdrop-blur-sm">
+        <div className="max-w-4xl mx-auto" dir={isRtl ? 'rtl' : 'ltr'}>
+          <div className="text-center mb-16">
+            <h2 className="text-3xl md:text-4xl font-extrabold text-slate-800 dark:text-white m-0">
+              {t('landing.faqTitle')}
+            </h2>
+            <p className="text-slate-500 dark:text-slate-400 mt-3 text-lg">
+              {t('landing.faqSub')}
+            </p>
+          </div>
+
+          <div className="space-y-4 text-start">
+            {[
+              { q: 'landing.q1', a: 'landing.a1' },
+              { q: 'landing.q2', a: 'landing.a2' },
+              { q: 'landing.q3', a: 'landing.a3' },
+            ].map((item, idx) => {
+              const isOpen = openFaq === idx;
+              return (
+                <div
+                  key={idx}
+                  className="rounded-3xl border border-slate-200/60 dark:border-slate-800/60 bg-white/70 dark:bg-slate-900/50 backdrop-blur-xl overflow-hidden transition-all duration-300 shadow-sm hover:shadow-md hover:border-amber-300/60 dark:hover:border-amber-500/30"
+                >
+                  <button
+                    onClick={() => setOpenFaq(isOpen ? null : idx)}
+                    className="w-full flex items-center justify-between p-6 text-start font-bold text-lg text-slate-800 dark:text-white cursor-pointer select-none gap-4"
+                  >
+                    <span>{t(item.q)}</span>
+                    <ChevronDown
+                      className={`w-5 h-5 text-slate-500 dark:text-slate-400 transition-transform duration-300 shrink-0 ${
+                        isOpen ? 'transform rotate-180' : ''
+                      }`}
+                    />
+                  </button>
+                  <div
+                    className={`transition-all duration-300 ease-in-out ${
+                      isOpen ? 'max-h-[500px] border-t border-slate-100 dark:border-slate-800/60' : 'max-h-0'
+                    } overflow-hidden`}
+                  >
+                    <p className="p-6 text-slate-600 dark:text-slate-300 leading-relaxed text-base m-0 bg-slate-50/20 dark:bg-slate-900/10">
+                      {t(item.a)}
+                    </p>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+
+          <div className="mt-12 text-center text-sm text-slate-500 dark:text-slate-400">
+            {language === 'he' ? (
+              <p className="m-0">
+                למידע נוסף ומפורט, אנא קראו את{' '}
+                <Link to="/privacy" className="font-semibold text-amber-500 dark:text-amber-400 hover:underline hover:text-amber-600 dark:hover:text-amber-300 transition-colors">
+                  מדיניות הפרטיות
+                </Link>{' '}
+                ואת{' '}
+                <Link to="/terms" className="font-semibold text-amber-500 dark:text-amber-400 hover:underline hover:text-amber-600 dark:hover:text-amber-300 transition-colors">
+                  תנאי השימוש בשירות
+                </Link>
+                .
+              </p>
+            ) : (
+              <p className="m-0">
+                For more detailed information, please review our{' '}
+                <Link to="/privacy" className="font-semibold text-amber-500 dark:text-amber-400 hover:underline hover:text-amber-600 dark:hover:text-amber-300 transition-colors">
+                  Privacy Policy
+                </Link>{' '}
+                and{' '}
+                <Link to="/terms" className="font-semibold text-amber-500 dark:text-amber-400 hover:underline hover:text-amber-600 dark:hover:text-amber-300 transition-colors">
+                  Terms of Service
+                </Link>
+                .
+              </p>
+            )}
           </div>
         </div>
       </section>

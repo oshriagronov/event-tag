@@ -13,6 +13,7 @@ interface AuthContextType {
   googleAccessToken: string | null;
   signIn: () => Promise<void>;
   signOut: () => Promise<void>;
+  clearGoogleToken: () => void;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -64,8 +65,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     sessionStorage.removeItem('google_access_token');
   };
 
+  const clearGoogleToken = () => {
+    setGoogleAccessToken(null);
+    sessionStorage.removeItem('google_access_token');
+  };
+
   return (
-    <AuthContext.Provider value={{ user, loading, googleAccessToken, signIn, signOut }}>
+    <AuthContext.Provider value={{ user, loading, googleAccessToken, signIn, signOut, clearGoogleToken }}>
       {children}
     </AuthContext.Provider>
   );

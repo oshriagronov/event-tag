@@ -1,3 +1,4 @@
+import { useCallback } from 'react';
 import { useSettings } from '../contexts/SettingsContext';
 
 export const translations = {
@@ -51,6 +52,15 @@ export const translations = {
       readyTitle: 'מוכנים להתחיל?',
       readySub: 'צרו אירוע ראשון בחינם תוך דקה',
       copyright: 'EventTag — כל הזכויות שמורות',
+      faqTitle: 'שאלות ותשובות',
+      faqSub: 'כל מה שחשוב לדעת על הפעילות, הפרטיות ואבטחת המידע שלכם',
+      q1: 'איך המערכת עובדת?',
+      a1: 'בעל האירוע מחבר תיקיית תמונות מ-Google Drive. המערכת מנתחת את הפנים מקומית בדפדפן ומקבצת אותן. האורחים מצלמים סלפי קצר כדי למצוא את כל התמונות שלהם ישירות מתוך התיקייה המקורית.',
+      q2: 'האם התמונות והפנים שלי בטוחים ופרטיים?',
+      a2: 'בהחלט. כל עיבוד התמונות, זיהוי וסריקת הפנים מתבצעים מקומית לחלוטין על גבי המכשיר שלכם (On-Device). התמונות שלכם אינן מועלות לשרתים של המערכת או לצד שלישי כלשהו.',
+      q3: 'איזה מידע נשמר במערכת ואיזה לא?',
+      a3: 'אנו לא שומרים את התמונות שלכם או מידע ביומטרי מזהה. אנו שומרים רק מזהי קבצים (File IDs) של Google Drive ואת וקטורי הפנים המתמטיים (Face Descriptors) הנדרשים לביצוע החיפוש. נתונים אלו מאוחסנים בענן Firebase מאובטח.',
+      faqMoreDetails: 'למידע נוסף ומפורט, אנא קראו את {privacy} ואת {terms}.',
     },
     dashboard: {
       myDashboard: 'לוח הבקרה שלי',
@@ -173,7 +183,7 @@ export const translations = {
       privacySection2Title: 'חיבור ל-Google Picker וגישה ל-Google Drive',
       privacySection2Text: 'האפליקציה משתמשת בממשק Google Picker API הרשמי כדי לאפשר לבעל האירוע לבחור תיקייה מתוך ה-Google Drive האישי שלו המכילה את תמונות האירוע.',
       privacySection2Bullets: [
-        'הגישה ל-Google Drive היא לקריאה בלבד (Read-only) ומבוצעת ישירות מהדפדפן של המשתמש אל שרתי Google באמצעות קוד גישה מאובטח (OAuth Token) המאוחסן זמנית בדפדפן המשתמש.',
+        'הגישה ל-Google Drive מוגבלת אך ורק לקבצים ותיקיות שנבחרו על ידך (drive.file) ומבוצעת ישירות מהדפדפן של המשתמש אל שרתי Google באמצעות קוד גישה מאובטח (OAuth Token) המאוחסן זמנית בדפדפן המשתמש.',
         'התמונות נקראות ישירות מ-Google Drive אל זיכרון הדפדפן המקומי לצורך עיבוד זיהוי הפנים המקומי, ולא מועברות לשום שרת של EventTag או שרת צד שלישי אחר.'
       ],
       privacySection3Title: 'שמירת נתונים וסנכרון ענן מאובטח',
@@ -260,6 +270,15 @@ export const translations = {
       readyTitle: 'Ready to start?',
       readySub: 'Create your first event for free in one minute',
       copyright: 'EventTag — All rights reserved',
+      faqTitle: 'Frequently Asked Questions',
+      faqSub: 'Everything you need to know about how EventTag works and protects your privacy',
+      q1: 'How does EventTag work?',
+      a1: 'The event host connects a Google Drive folder. EventTag analyzes and groups faces locally in the browser. Guests take a quick selfie to find all their photos directly from the source folder.',
+      q2: 'Is my data secure and private?',
+      a2: 'Absolutely. All photo analysis and face recognition happen locally on your device (On-Device). Your actual photos are never uploaded to our servers or any third parties.',
+      q3: "What data is saved and what isn't?",
+      a3: 'We never store your actual photos or identifiable biometric data. We only save Google Drive File IDs and numerical face descriptors (mathematical vectors) needed for search matching, stored securely in Firebase.',
+      faqMoreDetails: 'For more detailed information, please review our {privacy} and {terms}.',
     },
     dashboard: {
       myDashboard: 'My Dashboard',
@@ -382,7 +401,7 @@ export const translations = {
       privacySection2Title: 'Google Picker and Google Drive Integration',
       privacySection2Text: 'The Application utilizes the official Google Picker API to allow event hosts to select a folder from their personal Google Drive containing event photos.',
       privacySection2Bullets: [
-        'This read-only access is established directly from the user\'s browser to Google\'s servers using a secure OAuth Access Token stored temporarily in the browser session.',
+        'This access is restricted only to files and folders selected by the user (drive.file) and is established directly from the user\'s browser to Google\'s servers using a secure OAuth Access Token stored temporarily in the browser session.',
         'Photos are fetched directly from Google Drive into local browser memory for local face analysis, and are never sent to EventTag\'s servers or any third-party servers.'
       ],
       privacySection3Title: 'Data Storage and Cloud Sync',
@@ -424,7 +443,7 @@ export const translations = {
 export function useTranslation() {
   const { language } = useSettings();
 
-  const t = (key: string, replacements?: Record<string, string | number>) => {
+  const t = useCallback((key: string, replacements?: Record<string, string | number>) => {
     const keys = key.split('.');
     let value: any = translations[language];
 
@@ -445,7 +464,7 @@ export function useTranslation() {
     }
 
     return value;
-  };
+  }, [language]);
 
   return { t, language, isRtl: language === 'he' };
 }

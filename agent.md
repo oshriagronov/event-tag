@@ -1,39 +1,35 @@
-# Agent Context: GuestID (Local Event Face-Sorting Web App)
+# Agent Context: GuestID (Cloud Event Face-Sorting Web App)
 
-You are an expert Frontend Engineer and Client-Side Machine Learning specialist. Your role is to help develop **GuestID**, a privacy-first web application designed to help users sort event photos by recognized faces completely locally in the browser.
+You are an expert Frontend Engineer and Client-Side Machine Learning specialist. Your role is to help develop **GuestID**, a privacy-first web application designed to help users sort event photos by recognized faces using images loaded from Google Drive, with face descriptors synced securely in the cloud.
 
 
 ## Project Core Concept & Goal
-- **What it is:** A standalone Single Page Application (SPA) where users select a local folder of event photos (e.g., weddings, parties), and the browser automatically detects, encodes, and groups (clusters) faces.
-- **The Goal:** Allow users to organize photo galleries by guests, assign names, search for specific people, and switch between multiple isolated events.
-- **The Ultimate Constraint:** **100% Local.** No server, no backend APIs, no data collection. Privacy by design.
-
+- **What it is:** A web application where users select event photos from Google Drive using the native Google Picker (`drive.file` scope), and the browser automatically detects, encodes, and groups (clusters) faces.
+- **The Goal:** Allow users to organize photo galleries by guests, assign names, search for specific people, and manage multiple events.
+- **The Ultimate Constraint:** **Cloud Ingest with Local Processing.** Images are read directly from Google Drive into browser memory, all face detection and recognition happens locally in the user's browser, and only mathematical face descriptors are stored in Firebase Firestore. No actual photo files are uploaded to or stored on our servers.
 
 
 ## Tech Stack & Constraints
 - **Framework:** React 19 + TypeScript 6 + Vite 8.
-- **Project Structure:** Single root repository. All source files are located in `/src` directly under the root (no separate `frontend` or `backend` folder).
-- **Styling:** Tailwind CSS 4 (Clean, minimalist, modern dark-themed aesthetic).
+- **Project Structure:** Single root repository. All source files are located in `/src` directly under the root.
+- **Styling:** Vanilla CSS + Tailwind CSS (Clean, minimalist, modern dark-themed aesthetic).
 - **Icons:** Lucide React.
 - **Client-Side ML:** `face-api.js` (WebGL-accelerated via `@vladmandic/face-api`) executing entirely client-side.
-- **Local Persistence:** **IndexedDB** (via Dexie.js) to store local event metadata, face coordinates, clusters, and guest names.
-- **Cloud Integration:** **Google Drive API** (ingestion via read-only folder scopes) + **Firebase Firestore** (storage of metadata, file IDs, and face descriptors in batched collections).
-- **File Ingestion:** File System Access API (`showDirectoryPicker`) for direct local folder access without uploading files.
+- **Cloud Integration:** **Google Picker API** (ingestion via the non-restricted `drive.file` scope, avoiding restricted-scope CASA audits) + **Firebase Firestore** (storage of metadata, file IDs, and face descriptors in batched collections).
 
 ---
 
 ## Core Development Rules & Guidelines
 
-### 1. Hybrid Storage Architecture (Local & Cloud)
-- GuestID supports both:
-  - **Local Events:** Entirely offline, stored in browser-local IndexedDB (Dexie).
-  - **Cloud Events:** Read from Google Drive directories and metadata syncs to Firebase Firestore.
-- Keep the interface completely consistent across both event types.
+### 1. Storage Architecture (Cloud-Only)
+- GuestID supports **Cloud Events only**.
+- Local events (browser-local IndexedDB offline-only) are not supported/offered on the dashboard.
+- All metadata, image lists, and face clusters sync to Firebase Firestore.
 
 ### 2. Ingest Performance & Memory Safety
 - **Image Downscaling:** To prevent WebGL out-of-memory crashes and speed up inference, images must be conditionally downscaled to a maximum dimension of `1600px` using an offscreen canvas prior to passing to `face-api.js` (implemented in `processPhotoLocally`).
-- **Sequential Ingestion:** Never keep multiple full-res images in memory simultaneously. Use object URLs and clean them up (`URL.revokeObjectURL`) immediately after processing.
-- **Firestore Write Buffering:** For cloud events, face descriptors must be buffered in memory and written to Firestore in chunks (every 15 photos or 50 faces) instead of awaiting sequential updates, preventing `\(O(N^2)\)` database reads on the batches collection.
+- **Sequential Ingestion:** Never keep multiple full-res images in memory simultaneously. Clean up object URLs immediately after processing.
+- **Firestore Write Buffering:** Face descriptors must be buffered in memory and written to Firestore in chunks (every 15 photos or 50 faces) instead of awaiting sequential updates, preventing database write performance degradation.
 
 ### 3. Model Accuracy & Clustering Thresholds
 - **Detection recall:** Keep SSD MobileNet V1's `minConfidence` at `0.45` to ensure side profiles and shadows are successfully detected.

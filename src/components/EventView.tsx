@@ -15,6 +15,7 @@ import {
   getCloudEvent,
   getCloudPhotos,
   updateCloudEvent,
+  addCloudPhotosBatch,
   type CloudEvent,
   type CloudPhoto,
 } from '../services/firestore';
@@ -48,6 +49,7 @@ function CloudPhotoImage({ driveFileId, accessToken, className = '', alt = '' }:
   const [src, setSrc] = useState<string>('');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
+  const { clearGoogleToken } = useAuth();
 
   useEffect(() => {
     let active = true;
@@ -70,6 +72,9 @@ function CloudPhotoImage({ driveFileId, accessToken, className = '', alt = '' }:
         }
       } catch (err) {
         console.error("Failed to load cloud photo blob:", err);
+        if (err instanceof Error && err.message.includes('401')) {
+          clearGoogleToken();
+        }
         if (active) {
           setError(true);
           setLoading(false);
@@ -117,13 +122,14 @@ interface CloudEventViewProps {
 }
 
 function CloudEventView({ eventId, onBack }: CloudEventViewProps) {
-  const { googleAccessToken } = useAuth();
+  const { googleAccessToken, signIn } = useAuth();
   const { t, isRtl, language } = useTranslation();
   const [event, setEvent] = useState<CloudEvent | null>(null);
   const [photos, setPhotos] = useState<CloudPhoto[]>([]);
   const [loading, setLoading] = useState(true);
   const [copied, setCopied] = useState(false);
   const [showQr, setShowQr] = useState(false);
+  const [visibleCount, setVisibleCount] = useState(24);
 
   const {
     isScanning,
@@ -172,22 +178,35 @@ function CloudEventView({ eventId, onBack }: CloudEventViewProps) {
       await updateCloudEvent(eventId, { status: 'scanning' });
       setEvent(prev => prev ? { ...prev, status: 'scanning' } : null);
 
-      const driveFiles = await listPhotosInFolder(googleAccessToken, event.driveFolderId);
+      let photosToScan: CloudPhoto[] = [];
+      const existingPhotos = await getCloudPhotos(eventId);
       
-      if (driveFiles.length === 0) {
-        alert(language === 'he' ? 'לא נמצאו תמונות בתיקיית ה-Google Drive שנבחרה.' : 'No photos found in selected Google Drive folder.');
+      if (existingPhotos.length > 0) {
+        photosToScan = existingPhotos;
+      } else if (event.driveFolderId && event.driveFolderId !== 'selected_files') {
+        const driveFiles = await listPhotosInFolder(googleAccessToken, event.driveFolderId);
+        if (driveFiles.length > 0) {
+          const basePhotos = driveFiles.map(file => ({
+            driveFileId: file.id,
+            fileName: file.name,
+            width: 0,
+            height: 0,
+            processed: false
+          }));
+          const photoIds = await addCloudPhotosBatch(eventId, basePhotos);
+          photosToScan = basePhotos.map((photo, index) => ({
+            ...photo,
+            id: photoIds[index]
+          }));
+        }
+      }
+
+      if (photosToScan.length === 0) {
+        alert(language === 'he' ? 'לא נמצאו תמונות לסריקה.' : 'No photos found to scan.');
         await updateCloudEvent(eventId, { status: 'pending' });
         setEvent(prev => prev ? { ...prev, status: 'pending' } : null);
         return;
       }
-
-      const photosToScan: CloudPhoto[] = driveFiles.map(file => ({
-        driveFileId: file.id,
-        fileName: file.name,
-        width: 0,
-        height: 0,
-        processed: false
-      }));
 
       startCloudScanning(eventId, photosToScan, googleAccessToken);
     } catch (err) {
@@ -295,7 +314,15 @@ function CloudEventView({ eventId, onBack }: CloudEventViewProps) {
             {t('eventView.startAIScan')}
           </button>
           {!googleAccessToken && (
-            <p className="text-red-500 text-xs m-0">יש להתחבר מחדש עם חשבון Google כדי לאפשר גישה לתיקייה.</p>
+            <div className="flex flex-col items-center gap-3">
+              <p className="text-red-500 text-xs m-0">יש להתחבר מחדש עם חשבון Google כדי לאפשר גישה לתיקייה.</p>
+              <button
+                onClick={signIn}
+                className="px-6 py-2.5 rounded-xl bg-amber-500 hover:bg-amber-400 text-white dark:text-slate-950 font-bold text-xs shadow-sm transition-all cursor-pointer active:scale-95"
+              >
+                {language === 'he' ? 'התחבר לחשבון Google' : 'Connect Google Account'}
+              </button>
+            </div>
           )}
         </div>
       )}
@@ -413,11 +440,26 @@ function CloudEventView({ eventId, onBack }: CloudEventViewProps) {
 
           <div className="flex flex-col gap-4 text-start">
             <h3 className="text-xl font-bold text-slate-800 dark:text-slate-100 m-0">{language === 'he' ? 'גלריית תמונות אירוע' : 'Event Photo Gallery'}</h3>
-            {photos.length === 0 ? (
+            {!googleAccessToken ? (
+              <div className="text-center py-12 px-6 border border-dashed border-slate-200 dark:border-slate-800 rounded-3xl flex flex-col items-center gap-4 bg-slate-50 dark:bg-slate-900/10">
+                <AlertCircle className="w-8 h-8 text-amber-500 animate-pulse" />
+                <p className="text-slate-650 dark:text-slate-400 text-sm max-w-sm m-0 leading-relaxed text-center">
+                  {language === 'he'
+                    ? 'פג תוקף החיבור לחשבון Google. יש להתחבר מחדש כדי לצפות בתמונות שבתיקייה.'
+                    : 'Google account connection expired. Please reconnect to view the folder photos.'}
+                </p>
+                <button
+                  onClick={signIn}
+                  className="px-6 py-2.5 rounded-xl bg-amber-500 hover:bg-amber-400 text-white dark:text-slate-950 font-bold text-sm shadow-sm transition-all cursor-pointer active:scale-95"
+                >
+                  {language === 'he' ? 'התחבר לחשבון Google' : 'Connect Google Account'}
+                </button>
+              </div>
+            ) : photos.length === 0 ? (
               <div className="text-center py-12 text-slate-500">{t('common.loading')}</div>
             ) : (
               <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4">
-                {photos.slice(0, 24).map((photo) => (
+                {photos.slice(0, visibleCount).map((photo) => (
                   <div
                     key={photo.id}
                     className="relative aspect-square border border-slate-200 dark:border-slate-800 rounded-2xl overflow-hidden shadow-sm bg-slate-100 dark:bg-slate-900/50"
@@ -433,9 +475,39 @@ function CloudEventView({ eventId, onBack }: CloudEventViewProps) {
               </div>
             )}
             {photos.length > 24 && (
-              <p className="text-slate-500 text-xs text-center mt-2 m-0">
-                {language === 'he' ? `מציג 24 תמונות ראשונות מתוך ${photos.length}.` : `Showing first 24 photos out of ${photos.length}.`}
-              </p>
+              <div className="flex flex-col items-center gap-3 mt-4 border-t border-slate-100 dark:border-slate-800/80 pt-6">
+                <p className="text-slate-500 dark:text-slate-400 text-xs text-center m-0">
+                  {language === 'he'
+                    ? `מציג ${Math.min(visibleCount, photos.length)} תמונות מתוך ${photos.length}.`
+                    : `Showing ${Math.min(visibleCount, photos.length)} photos out of ${photos.length}.`}
+                </p>
+                <div className="flex items-center gap-3">
+                  {visibleCount < photos.length && (
+                    <button
+                      onClick={() => setVisibleCount((prev) => prev + 24)}
+                      className="px-5 py-2.5 rounded-xl bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 border border-slate-200 dark:border-slate-700 font-bold text-xs transition-all cursor-pointer active:scale-95"
+                    >
+                      {language === 'he' ? 'הצג עוד' : 'Show More'}
+                    </button>
+                  )}
+                  {visibleCount < photos.length && (
+                    <button
+                      onClick={() => setVisibleCount(photos.length)}
+                      className="px-5 py-2.5 rounded-xl bg-amber-500 hover:bg-amber-400 text-white dark:text-slate-950 font-bold text-xs shadow-sm transition-all cursor-pointer active:scale-95"
+                    >
+                      {language === 'he' ? 'הצג הכל' : 'Show All'}
+                    </button>
+                  )}
+                  {visibleCount > 24 && (
+                    <button
+                      onClick={() => setVisibleCount(24)}
+                      className="px-5 py-2.5 rounded-xl bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 border border-slate-200 dark:border-slate-700 font-bold text-xs transition-all cursor-pointer active:scale-95"
+                    >
+                      {language === 'he' ? 'הצג פחות' : 'Show Less'}
+                    </button>
+                  )}
+                </div>
+              </div>
             )}
           </div>
         </div>

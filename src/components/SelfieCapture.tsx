@@ -43,10 +43,10 @@ async function ensureModelsLoaded(): Promise<void> {
 /**
  * Create a base64 thumbnail from an image, capped at given max dimension.
  */
-function createThumbnail(img: HTMLImageElement | HTMLVideoElement, maxSize = 256): string {
+function createThumbnail(img: HTMLImageElement | HTMLVideoElement | HTMLCanvasElement, maxSize = 256): string {
   const canvas = document.createElement('canvas');
-  const w = img instanceof HTMLVideoElement ? img.videoWidth : img.naturalWidth;
-  const h = img instanceof HTMLVideoElement ? img.videoHeight : img.naturalHeight;
+  const w = img instanceof HTMLVideoElement ? img.videoWidth : (img instanceof HTMLCanvasElement ? img.width : img.naturalWidth);
+  const h = img instanceof HTMLVideoElement ? img.videoHeight : (img instanceof HTMLCanvasElement ? img.height : img.naturalHeight);
   const scale = Math.min(maxSize / w, maxSize / h, 1);
   canvas.width = Math.round(w * scale);
   canvas.height = Math.round(h * scale);
@@ -75,6 +75,7 @@ export function SelfieCapture({ onCapture }: SelfieCaptureProps) {
   const [pendingResult, setPendingResult] = useState<{
     descriptor: number[];
     thumbnail: string;
+    previewSrc: string;
   } | null>(null);
 
   // Stop camera on unmount
@@ -123,22 +124,45 @@ export function SelfieCapture({ onCapture }: SelfieCaptureProps) {
     }
   };
 
-  const processSelfieImage = async (imageElement: HTMLImageElement | HTMLVideoElement) => {
+  const processSelfieImage = async (
+    imageElement: HTMLImageElement | HTMLVideoElement,
+    originalSrc?: string
+  ) => {
     setLoading(true);
     setError(null);
 
     try {
       await ensureModelsLoaded();
 
+      // Downscale image if it is too large to prevent out-of-memory crashes on mobile browsers
+      const maxDim = 1024;
+      let detectionSource: HTMLImageElement | HTMLVideoElement | HTMLCanvasElement = imageElement;
+      
+      if (imageElement instanceof HTMLImageElement) {
+        const w = imageElement.naturalWidth;
+        const h = imageElement.naturalHeight;
+        if (Math.max(w, h) > maxDim) {
+          const scale = maxDim / Math.max(w, h);
+          const canvas = document.createElement('canvas');
+          canvas.width = Math.round(w * scale);
+          canvas.height = Math.round(h * scale);
+          const ctx = canvas.getContext('2d');
+          if (ctx) {
+            ctx.drawImage(imageElement, 0, 0, canvas.width, canvas.height);
+            detectionSource = canvas;
+          }
+        }
+      }
+
       // Find face descriptor
       const detection = await faceapi
-        .detectSingleFace(imageElement)
+        .detectSingleFace(detectionSource)
         .withFaceLandmarks()
         .withFaceDescriptor();
 
       if (!detection) {
         // Run general face count check if single detection failed, to give specific error
-        const detections = await faceapi.detectAllFaces(imageElement);
+        const detections = await faceapi.detectAllFaces(detectionSource);
         if (detections.length > 1) {
           setError(t('selfieCapture.multipleFacesDetected', { count: detections.length }));
         } else {
@@ -147,10 +171,11 @@ export function SelfieCapture({ onCapture }: SelfieCaptureProps) {
         return;
       }
 
-      const thumbnail = createThumbnail(imageElement);
+      const thumbnail = createThumbnail(detectionSource);
       const descriptor = Array.from(detection.descriptor);
+      const previewSrc = originalSrc || thumbnail;
 
-      setPendingResult({ descriptor, thumbnail });
+      setPendingResult({ descriptor, thumbnail, previewSrc });
       setValidated(true);
       setMode('preview');
       stopCamera();
@@ -164,7 +189,21 @@ export function SelfieCapture({ onCapture }: SelfieCaptureProps) {
 
   const handleCapture = async () => {
     if (!videoRef.current || !streamRef.current) return;
-    await processSelfieImage(videoRef.current);
+    
+    const video = videoRef.current;
+    const canvas = document.createElement('canvas');
+    canvas.width = video.videoWidth;
+    canvas.height = video.videoHeight;
+    const ctx = canvas.getContext('2d');
+    let originalSrc = '';
+    if (ctx) {
+      ctx.translate(canvas.width, 0);
+      ctx.scale(-1, 1);
+      ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+      originalSrc = canvas.toDataURL('image/jpeg', 0.95);
+    }
+    
+    await processSelfieImage(video, originalSrc || undefined);
   };
 
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -176,15 +215,16 @@ export function SelfieCapture({ onCapture }: SelfieCaptureProps) {
 
     const reader = new FileReader();
     reader.onload = (event) => {
+      const originalSrc = event.target?.result as string;
       const img = new Image();
       img.onload = async () => {
-        await processSelfieImage(img);
+        await processSelfieImage(img, originalSrc);
       };
       img.onerror = () => {
         setError(t('selfieCapture.noFaceDetected'));
         setLoading(false);
       };
-      img.src = event.target?.result as string;
+      img.src = originalSrc;
     };
     reader.readAsDataURL(file);
   };
@@ -219,6 +259,7 @@ export function SelfieCapture({ onCapture }: SelfieCaptureProps) {
       {mode === 'select' && (
         <div className="flex flex-col gap-4">
           <button
+            type="button"
             onClick={startCamera}
             className="group relative flex items-center gap-4 p-5 rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900/60 hover:border-amber-300 dark:hover:border-amber-500/40 transition-all duration-300 cursor-pointer shadow-sm hover:shadow-lg active:scale-[0.98]"
           >
@@ -234,6 +275,7 @@ export function SelfieCapture({ onCapture }: SelfieCaptureProps) {
           </button>
 
           <button
+            type="button"
             onClick={() => fileInputRef.current?.click()}
             className="group relative flex items-center gap-4 p-5 rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900/60 hover:border-amber-300 dark:hover:border-amber-500/40 transition-all duration-300 cursor-pointer shadow-sm hover:shadow-lg active:scale-[0.98]"
           >
@@ -279,6 +321,7 @@ export function SelfieCapture({ onCapture }: SelfieCaptureProps) {
           {/* Action HUD */}
           <div className="relative z-10 p-5 bg-gradient-to-t from-slate-950 to-transparent flex gap-3 items-center">
             <button
+              type="button"
               onClick={handleCapture}
               disabled={loading}
               className="flex-1 py-3 rounded-2xl bg-amber-500 hover:bg-amber-400 text-white dark:text-slate-950 font-bold text-sm transition-all cursor-pointer shadow-lg active:scale-95 disabled:opacity-50"
@@ -286,6 +329,7 @@ export function SelfieCapture({ onCapture }: SelfieCaptureProps) {
               {t('selfieCapture.captureBtn')}
             </button>
             <button
+              type="button"
               onClick={handleCancel}
               className="px-6 py-3 rounded-2xl bg-white/10 hover:bg-white/20 text-white font-medium text-sm transition-all cursor-pointer"
             >
@@ -299,7 +343,7 @@ export function SelfieCapture({ onCapture }: SelfieCaptureProps) {
       {mode === 'preview' && pendingResult && (
         <div className="relative aspect-[3/4] rounded-3xl overflow-hidden border border-slate-200 dark:border-slate-800 bg-slate-950 flex flex-col justify-end">
           <img
-            src={pendingResult.thumbnail}
+            src={pendingResult.previewSrc}
             alt="Preview"
             className="absolute inset-0 w-full h-full object-cover"
           />
@@ -322,12 +366,14 @@ export function SelfieCapture({ onCapture }: SelfieCaptureProps) {
           {/* Action HUD */}
           <div className="relative z-10 p-5 bg-gradient-to-t from-slate-950 to-transparent flex gap-3 items-center">
             <button
+              type="button"
               onClick={handleConfirm}
               className="flex-1 py-3 rounded-2xl bg-emerald-500 hover:bg-emerald-450 text-white font-bold text-sm transition-all cursor-pointer shadow-lg active:scale-95"
             >
               {t('common.save')}
             </button>
             <button
+              type="button"
               onClick={handleRetake}
               className="p-3 rounded-2xl bg-white/10 hover:bg-white/20 text-white transition-all cursor-pointer"
               title={t('selfieCapture.retakeBtn')}
@@ -335,6 +381,7 @@ export function SelfieCapture({ onCapture }: SelfieCaptureProps) {
               <RotateCcw className="w-4 h-4" />
             </button>
             <button
+              type="button"
               onClick={handleCancel}
               className="p-3 rounded-2xl bg-white/10 hover:bg-white/20 text-white transition-all cursor-pointer"
               title={t('common.cancel')}

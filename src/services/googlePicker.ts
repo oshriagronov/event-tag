@@ -117,3 +117,68 @@ export async function openGooglePhotoPicker({
     if (onCancel) onCancel();
   }
 }
+
+export interface SelectedDriveFolder {
+  id: string;
+  name: string;
+}
+
+interface OpenFolderPickerOptions {
+  accessToken: string;
+  apiKey: string;
+  clientId: string;
+  onSelected: (folder: SelectedDriveFolder) => void;
+  onCancel?: () => void;
+}
+
+export async function openGoogleFolderPicker({
+  accessToken,
+  apiKey,
+  clientId,
+  onSelected,
+  onCancel,
+}: OpenFolderPickerOptions): Promise<void> {
+  try {
+    await loadPickerLibrary();
+
+    const google = (window as any).google;
+    if (!google || !google.picker) {
+      throw new Error('Google Picker library is not loaded');
+    }
+
+    const appId = clientId.split('-')[0];
+
+    const view = new google.picker.DocsView(google.picker.ViewId.DOCS)
+      .setIncludeFolders(true)
+      .setMimeTypes('application/vnd.google-apps.folder,image/jpeg,image/png,image/webp,image/heic')
+      .setSelectFolderEnabled(true);
+
+    const picker = new google.picker.PickerBuilder()
+      .addView(view)
+      .setOAuthToken(accessToken)
+      .setDeveloperKey(apiKey)
+      .setAppId(appId)
+      .setCallback((data: any) => {
+        if (data.action === google.picker.Action.PICKED) {
+          const docs = data[google.picker.Response.DOCUMENTS] || [];
+          if (docs.length > 0) {
+            const folder = {
+              id: docs[0][google.picker.Document.ID],
+              name: docs[0][google.picker.Document.NAME],
+            };
+            onSelected(folder);
+          }
+        } else if (data.action === google.picker.Action.CANCEL) {
+          if (onCancel) onCancel();
+        }
+      })
+      .build();
+
+    picker.setVisible(true);
+  } catch (err) {
+    console.error('Failed to open Google Picker:', err);
+    alert('שגיאה בפתיחת Google Picker. אנא ודא שחוסם הפופ-אפים שלך מבוטל.');
+    if (onCancel) onCancel();
+  }
+}
+

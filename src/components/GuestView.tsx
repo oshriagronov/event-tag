@@ -252,6 +252,7 @@ export function GuestView({ shareCode }: GuestViewProps) {
             <p className="text-sm text-slate-600 dark:text-slate-400 leading-relaxed m-0">{errorMessage}</p>
           </div>
           <button
+            type="button"
             onClick={() => window.location.reload()}
             className="mt-2 px-6 py-2.5 rounded-xl bg-amber-500 hover:bg-amber-400 text-white font-bold text-sm transition-all shadow-lg shadow-amber-500/30 cursor-pointer active:scale-[0.98]"
           >
@@ -350,6 +351,7 @@ export function GuestView({ shareCode }: GuestViewProps) {
             </p>
           </div>
           <button
+            type="button"
             onClick={handleRetake}
             className="mt-2 flex items-center gap-2 px-6 py-2.5 rounded-xl bg-amber-500 hover:bg-amber-400 text-white font-bold text-sm transition-all shadow-lg shadow-amber-500/30 cursor-pointer active:scale-[0.98]"
           >
@@ -383,6 +385,7 @@ export function GuestView({ shareCode }: GuestViewProps) {
           <div className="flex flex-wrap gap-3 items-center justify-between">
             {downloadableMatches.length > 0 && (
               <button
+                type="button"
                 onClick={handleDownloadAll}
                 disabled={downloadingAll}
                 className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-amber-500 hover:bg-amber-400 text-white font-bold text-sm transition-all shadow-md shadow-amber-500/20 cursor-pointer active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed"
@@ -405,6 +408,7 @@ export function GuestView({ shareCode }: GuestViewProps) {
 
             {hiddenPhotoIds.length > 0 && (
               <button
+                type="button"
                 onClick={handleRestoreHidden}
                 className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-300 text-sm font-semibold transition-all cursor-pointer"
               >
@@ -413,6 +417,7 @@ export function GuestView({ shareCode }: GuestViewProps) {
             )}
 
             <button
+              type="button"
               onClick={handleRetake}
               className={`flex items-center gap-1.5 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 text-sm transition-colors cursor-pointer font-medium ${downloadableMatches.length > 0 ? '' : (isRtl ? 'mr-auto' : 'ml-auto')}`}
             >
@@ -456,6 +461,7 @@ export function GuestView({ shareCode }: GuestViewProps) {
 
               <div className="absolute inset-0 bg-slate-950/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2">
                 <button
+                  type="button"
                   onClick={(e) => {
                     e.stopPropagation();
                     handleDownloadSingle(match.driveFileId);
@@ -466,6 +472,7 @@ export function GuestView({ shareCode }: GuestViewProps) {
                   <Download className="w-4 h-4" />
                 </button>
                 <button
+                  type="button"
                   onClick={(e) => {
                     e.stopPropagation();
                     handleHidePhoto(match.driveFileId);
@@ -491,6 +498,7 @@ export function GuestView({ shareCode }: GuestViewProps) {
               onClick={(e) => e.stopPropagation()}
             >
               <button
+                type="button"
                 onClick={() => setSelectedPhotoId(null)}
                 className="absolute -top-12 right-0 p-2 rounded-xl bg-white/10 text-white hover:bg-white/20 transition-all cursor-pointer"
               >
@@ -506,6 +514,7 @@ export function GuestView({ shareCode }: GuestViewProps) {
 
               <div className="flex justify-between items-center gap-4 bg-slate-900/60 backdrop-blur-md border border-slate-800 p-4 rounded-2xl">
                 <button
+                  type="button"
                   onClick={() => handleHidePhoto(selectedPhotoId)}
                   className="flex items-center gap-2 px-4 py-2 rounded-lg bg-red-500/10 hover:bg-red-500/20 text-red-500 text-sm font-semibold border border-red-500/20 transition-colors cursor-pointer"
                 >
@@ -514,6 +523,7 @@ export function GuestView({ shareCode }: GuestViewProps) {
                 </button>
 
                 <button
+                  type="button"
                   onClick={() => handleDownloadSingle(selectedPhotoId)}
                   className="flex items-center gap-2 px-4 py-2 rounded-lg bg-amber-500 hover:bg-amber-400 text-white text-sm font-bold transition-colors shadow-lg cursor-pointer"
                 >
