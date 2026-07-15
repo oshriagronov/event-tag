@@ -19,11 +19,11 @@
 
 
 
-## ✨ What is EventTag?
+## What is EventTag?
 
 EventTag is a smart event photo sharing and retrieval application designed to eliminate the tedious process of searching through thousands of event photos. It allows event owners/photographers to upload their photos, and enables guests to simply upload a single selfie to instantly find and retrieve all photos they appear in.
 
-### 🎯 The Goal
+###  The Goal
 - **For Guests:** Instant, self-service access to all their photos from the event without scrolling through endless folders.
 - **For Event Owners:** Save hours of manual effort searching, filtering, and sending individual photos to different guests.
 
@@ -31,32 +31,32 @@ EventTag is a smart event photo sharing and retrieval application designed to el
 
 
 
-## 🎯 Features
+## Features
 
-### 👤 Guest Experience
-- **📸 Selfie Search** — Guests can upload a quick selfie to instantly query the event photo pool and find all images they are in.
-- **⚡ Instant Retrieval & Download** — Guests retrieve their photos directly without having to ask the host or scroll through the whole gallery.
-- **📦 ZIP Export** — Export all photos of a specific person as a downloadable ZIP file
+###  Guest Experience
+- **Selfie Search** — Guests can upload a quick selfie to instantly query the event photo pool and find all images they are in.
+- **Instant Retrieval & Download** — Guests retrieve their photos directly without having to ask the host or scroll through the whole gallery.
+- **ZIP Export** — Export all photos of a specific person as a downloadable ZIP file
 
-### 🔑 Event Owner Experience
-- **📤 Effortless Photo Management** — Connect event photos directly from Google Drive.
-- **👥 Automatic Face Clustering** — On-device AI scans and groups faces automatically, creating distinct guest profiles.
-- **🕒 Time-Saving Automation** — No more manual sorting or sending photos to guests; let guest self-service handle the distribution.
-- **📦 Smart Merging & Editing** — Merge suggested profiles, rename guests, and resolve unidentified faces easily.
-- **🖼️ Full Gallery View** — Browse all imported photos with a lightbox viewer showing face annotations
-- **⏸️ Pause/Resume Scanning** — Pause the scanning process at any time and resume where you left off
-- **⏱️ ETA Display** — Real-time estimated time remaining during photo scanning
-- **🏷️ Multi-Event Support** — Create and manage multiple isolated events, each with its own photos, faces, and clusters
+### Event Owner Experience
+- **Effortless Photo Management** — Connect event photos directly from Google Drive.
+- **Automatic Face Clustering** — On-device AI scans and groups faces automatically, creating distinct guest profiles.
+- **Time-Saving Automation** — No more manual sorting or sending photos to guests; let guest self-service handle the distribution.
+- **Smart Merging & Editing** — Merge suggested profiles, rename guests, and resolve unidentified faces easily.
+- **Full Gallery View** — Browse all imported photos with a lightbox viewer showing face annotations
+- **Pause/Resume Scanning** — Pause the scanning process at any time and resume where you left off
+- **ETA Display** — Real-time estimated time remaining during photo scanning
+- **Multi-Event Support** — Create and manage multiple isolated events, each with its own photos, faces, and clusters
 
 
 ### User Experience
-- **🌙 Dark & Light Themes** — Elegant dark mode by default, with a toggleable light mode
-- **🔤 Adjustable Font Size** — Normal, large, and extra-large text sizes for accessibility
-- **🇮🇱 Hebrew RTL Interface** — Fully localized Hebrew UI with proper right-to-left layout
+- **Dark & Light Themes** — Elegant dark mode by default, with a toggleable light mode
+- **Adjustable Font Size** — Normal, large, and extra-large text sizes for accessibility
+- **Hebrew RTL Interface** — Fully localized Hebrew UI with proper right-to-left layout
 
 
 
-## 🏗️ Architecture
+## Architecture
 
 ```
 src/
@@ -106,9 +106,9 @@ To support scanning large event libraries (hundreds or thousands of high-res pho
 - **Batched Firestore Face Descriptors:** Face metadata is buffered in memory and flushed to Firestore in chunks (every 15 photos or 50 faces) instead of saving them sequentially. This eliminates the \(O(N^2)\) read-then-write database overhead, decreasing database loading delays by over 90%.
 - **Tightened Clustering Tolerances:** The incremental clustering engine matches faces with a strict Euclidean distance threshold of `0.65` and group average threshold of `0.75` (aligned with face-api's `0.55` search tolerance). This prevents different individuals from being incorrectly merged into the same profile.
 
----
 
-## 🚀 Getting Started
+
+## Getting Started
 
 ### Prerequisites
 - **Node.js** 18+ and **npm**
@@ -142,7 +142,7 @@ No additional downloads are required.
 
 
 
-## 🛠️ Tech Stack
+## Tech Stack
 
 | Layer           | Technology                                                                 |
 |-----------------|---------------------------------------------------------------------------|
@@ -157,7 +157,7 @@ No additional downloads are required.
 
 
 
-## 📜 Available Scripts
+## Available Scripts
 
 | Command          | Description                        |
 |------------------|------------------------------------|
@@ -168,7 +168,7 @@ No additional downloads are required.
 
 
 
-## 🔒 Privacy
+## Privacy
 
 EventTag is designed with a strong focus on user privacy:
 
@@ -176,9 +176,3 @@ EventTag is designed with a strong focus on user privacy:
 - ✅ Photos are processed in-memory directly from Google Drive — they are **never uploaded to or stored on EventTag's servers**.
 - ✅ Only mathematical face descriptors (embeddings) are saved in the cloud (Firebase Firestore) to sync event profiles.
 - ✅ No analytics, no tracking, and no third-party sharing of your media.
-
-
-
-## 📄 License
-
-This project is licensed under the MIT License.
