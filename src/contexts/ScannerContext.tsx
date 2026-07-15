@@ -2,12 +2,13 @@ import { createContext, useContext, useState, useRef, type ReactNode } from 'rea
 import * as faceapi from '@vladmandic/face-api';
 import { db } from '../db';
 import { IncrementalClusterer } from '../clustering';
-import { getPhotoBlob, type DriveFile } from '../services/googleDrive';
+import { getPhotoBlob } from '../services/googleDrive';
 import {
-  addCloudPhoto,
+  updateCloudPhoto,
   appendFaceDescriptors,
   updateCloudEvent,
   type CloudFaceEntry,
+  type CloudPhoto,
 } from '../services/firestore';
 
 interface ScannerContextType {
@@ -20,7 +21,7 @@ interface ScannerContextType {
   startScanning: (eventId: number, filesList: any[]) => Promise<void>;
   startCloudScanning: (
     eventId: string,
-    driveFiles: DriveFile[],
+    photos: CloudPhoto[],
     googleAccessToken: string
   ) => Promise<void>;
   togglePause: () => void;
@@ -316,7 +317,7 @@ export function ScannerProvider({ children }: { children: ReactNode }) {
    */
   const startCloudScanning = async (
     eventId: string,
-    driveFiles: DriveFile[],
+    photos: CloudPhoto[],
     googleAccessToken: string
   ) => {
     if (isScanning) {
@@ -325,7 +326,7 @@ export function ScannerProvider({ children }: { children: ReactNode }) {
     }
 
     setIsScanning(true);
-    setTotalToScan(driveFiles.length);
+    setTotalToScan(photos.length);
     setScannedCount(0);
     setEtaSeconds(null);
     setActiveScanningEventId(eventId);
@@ -357,7 +358,7 @@ export function ScannerProvider({ children }: { children: ReactNode }) {
       return promise;
     }
 
-    for (let idx = 0; idx < driveFiles.length; idx++) {
+    for (let idx = 0; idx < photos.length; idx++) {
       while (isPausedRef.current) {
         await new Promise((resolve) => setTimeout(resolve, 200));
       }
@@ -365,27 +366,25 @@ export function ScannerProvider({ children }: { children: ReactNode }) {
       // Preload future files
       for (let ahead = 1; ahead <= PRELOAD_AHEAD; ahead++) {
         const futureIdx = idx + ahead;
-        if (futureIdx < driveFiles.length) {
-          preloadDriveFile(driveFiles[futureIdx].id);
+        if (futureIdx < photos.length) {
+          preloadDriveFile(photos[futureIdx].driveFileId);
         }
       }
 
       const photoStart = Date.now();
-      const file = driveFiles[idx];
+      const photo = photos[idx];
 
       try {
-        const fileBlob = await preloadDriveFile(file.id);
-        preloadCache.delete(file.id);
+        const fileBlob = await preloadDriveFile(photo.driveFileId);
+        preloadCache.delete(photo.driveFileId);
 
         if (!fileBlob) continue;
 
         // Process locally via client-side face-api.js
         const { width, height, detections } = await processPhotoLocally(fileBlob);
 
-        // Add photo metadata to Firestore
-        const photoId = await addCloudPhoto(eventId, {
-          driveFileId: file.id,
-          fileName: file.name,
+        // Update photo metadata in Firestore
+        await updateCloudPhoto(eventId, photo.id!, {
           width,
           height,
           processed: true,
@@ -394,8 +393,8 @@ export function ScannerProvider({ children }: { children: ReactNode }) {
         // Add face descriptors to the buffer
         if (detections && detections.length > 0) {
           const facesToAdd: CloudFaceEntry[] = detections.map((det) => ({
-            photoId,
-            driveFileId: file.id,
+            photoId: photo.id!,
+            driveFileId: photo.driveFileId,
             embedding: det.embedding,
             box: det.box,
             thumbnail: det.thumbnail,
@@ -411,7 +410,7 @@ export function ScannerProvider({ children }: { children: ReactNode }) {
           facesBuffer = [];
         }
       } catch (err) {
-        console.error(`Error scanning Google Drive photo ${file.name}:`, err);
+        console.error(`Error scanning Google Drive photo ${photo.fileName}:`, err);
       }
 
       const duration = (Date.now() - photoStart) / 1000;
@@ -421,11 +420,11 @@ export function ScannerProvider({ children }: { children: ReactNode }) {
       setScannedCount(progress);
 
       const avgTime = totalActiveTime / progress;
-      const remaining = driveFiles.length - progress;
+      const remaining = photos.length - progress;
       setEtaSeconds(Math.round(remaining * avgTime));
 
       // Update event progress in Firestore periodically
-      if (progress % 10 === 0 || progress === driveFiles.length) {
+      if (progress % 10 === 0 || progress === photos.length) {
         await updateCloudEvent(eventId, {
           photoCount: progress,
           faceCount: totalFacesFound,

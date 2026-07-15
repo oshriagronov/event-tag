@@ -5,7 +5,7 @@ import { useScanner } from '../contexts/ScannerContext';
 import { mergeClusters } from '../clustering';
 import { PhotoImage } from './PhotoImage';
 import { 
-  ArrowRight, FolderOpen, Image as ImageIcon, Users, Search, 
+  ArrowRight, ArrowLeft, FolderOpen, Image as ImageIcon, Users, Search, 
   Loader2, Check, AlertCircle, X, Maximize2,
   HelpCircle, CheckCircle2, Clock, Sparkles,
   Pause, Play, Download, Copy, QrCode, ExternalLink, RefreshCw
@@ -20,6 +20,7 @@ import {
 } from '../services/firestore';
 import { listPhotosInFolder, getPhotoBlob } from '../services/googleDrive';
 import { QRCodeSVG } from 'qrcode.react';
+import { useTranslation } from '../services/translations';
 
 interface EventViewProps {
   eventId: number | string;
@@ -117,6 +118,7 @@ interface CloudEventViewProps {
 
 function CloudEventView({ eventId, onBack }: CloudEventViewProps) {
   const { googleAccessToken } = useAuth();
+  const { t, isRtl, language } = useTranslation();
   const [event, setEvent] = useState<CloudEvent | null>(null);
   const [photos, setPhotos] = useState<CloudPhoto[]>([]);
   const [loading, setLoading] = useState(true);
@@ -173,16 +175,24 @@ function CloudEventView({ eventId, onBack }: CloudEventViewProps) {
       const driveFiles = await listPhotosInFolder(googleAccessToken, event.driveFolderId);
       
       if (driveFiles.length === 0) {
-        alert('לא נמצאו תמונות בתיקיית ה-Google Drive שנבחרה.');
+        alert(language === 'he' ? 'לא נמצאו תמונות בתיקיית ה-Google Drive שנבחרה.' : 'No photos found in selected Google Drive folder.');
         await updateCloudEvent(eventId, { status: 'pending' });
         setEvent(prev => prev ? { ...prev, status: 'pending' } : null);
         return;
       }
 
-      startCloudScanning(eventId, driveFiles, googleAccessToken);
+      const photosToScan: CloudPhoto[] = driveFiles.map(file => ({
+        driveFileId: file.id,
+        fileName: file.name,
+        width: 0,
+        height: 0,
+        processed: false
+      }));
+
+      startCloudScanning(eventId, photosToScan, googleAccessToken);
     } catch (err) {
       console.error('Failed to start scanning:', err);
-      alert('שגיאה בהתחלת הסריקה: ' + (err as Error).message);
+      alert((language === 'he' ? 'שגיאה בהתחלת הסריקה: ' : 'Error starting scan: ') + (err as Error).message);
       await updateCloudEvent(eventId, { status: 'pending' });
       setEvent(prev => prev ? { ...prev, status: 'pending' } : null);
     }
@@ -211,10 +221,10 @@ function CloudEventView({ eventId, onBack }: CloudEventViewProps) {
 
   if (loading) {
     return (
-      <div className="max-w-6xl mx-auto px-4 py-16 flex justify-center items-center flex-grow text-right">
+      <div className="max-w-6xl mx-auto px-4 py-16 flex justify-center items-center flex-grow text-start animate-pulse" dir={isRtl ? 'rtl' : 'ltr'}>
         <div className="flex flex-col items-center gap-4">
           <Loader2 className="w-10 h-10 animate-spin text-amber-500" />
-          <span className="text-slate-500 dark:text-slate-400">טוען פרטי אירוע...</span>
+          <span className="text-slate-500 dark:text-slate-400">{t('common.loading')}</span>
         </div>
       </div>
     );
@@ -222,10 +232,12 @@ function CloudEventView({ eventId, onBack }: CloudEventViewProps) {
 
   if (!event) {
     return (
-      <div className="max-w-6xl mx-auto px-4 py-16 flex flex-col items-center gap-4 flex-grow text-right">
+      <div className="max-w-6xl mx-auto px-4 py-16 flex flex-col items-center gap-4 flex-grow text-center" dir={isRtl ? 'rtl' : 'ltr'}>
         <AlertCircle className="w-12 h-12 text-red-500" />
-        <h3 className="text-xl font-bold">אירוע לא נמצא</h3>
-        <button onClick={onBack} className="px-4 py-2 bg-slate-800 text-white rounded-xl">חזרה ללוח הבקרה</button>
+        <h3 className="text-xl font-bold m-0">{language === 'he' ? 'אירוע לא נמצא' : 'Event not found'}</h3>
+        <button onClick={onBack} className="px-5 py-2.5 bg-slate-800 hover:bg-slate-700 text-white rounded-xl font-bold transition-all cursor-pointer">
+          {t('eventView.backToDashboard')}
+        </button>
       </div>
     );
   }
@@ -233,22 +245,22 @@ function CloudEventView({ eventId, onBack }: CloudEventViewProps) {
   const shareLink = `${window.location.origin}/event/${event.shareCode}`;
 
   return (
-    <div className="max-w-6xl mx-auto px-4 py-8 flex-grow flex flex-col gap-6 text-right transition-colors duration-300">
+    <div className="max-w-6xl w-full mx-auto px-4 py-8 flex-grow flex flex-col gap-6 text-start transition-colors duration-300" dir={isRtl ? 'rtl' : 'ltr'}>
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-slate-200 dark:border-slate-800 pb-6">
         <div className="flex items-center gap-4">
           <button
             onClick={onBack}
             className="p-2 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-800 text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 transition-all cursor-pointer shadow-sm"
-            title="חזרה ללוח הבקרה"
+            title={t('eventView.backToDashboard')}
           >
-            <ArrowRight className="w-5 h-5" />
+            {isRtl ? <ArrowRight className="w-5 h-5" /> : <ArrowLeft className="w-5 h-5" />}
           </button>
-          <div className="flex flex-col">
+          <div className="flex flex-col text-start">
             <h2 className="text-2xl font-bold text-slate-800 dark:text-slate-100 m-0 leading-tight">
               {event.name}
             </h2>
-            <p className="text-slate-500 text-sm">
-              אירוע בענן | תיקייה: {event.driveFolderName}
+            <p className="text-slate-500 text-sm m-0 mt-1">
+              {language === 'he' ? `אירוע בענן | תיקייה: ${event.driveFolderName}` : `Cloud Event | Folder: ${event.driveFolderName}`}
             </p>
           </div>
         </div>
@@ -257,7 +269,7 @@ function CloudEventView({ eventId, onBack }: CloudEventViewProps) {
           <button
             onClick={loadEventDetails}
             className="p-2.5 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-800 text-slate-500 transition-all cursor-pointer"
-            title="רענן נתונים"
+            title={language === 'he' ? 'רענן נתונים' : 'Refresh data'}
           >
             <RefreshCw className="w-4 h-4" />
           </button>
@@ -270,11 +282,9 @@ function CloudEventView({ eventId, onBack }: CloudEventViewProps) {
             <FolderOpen className="w-8 h-8" />
           </div>
           <div className="max-w-md">
-            <h3 className="text-xl font-bold text-slate-800 dark:text-slate-100">האירוע מוכן לסריקה</h3>
-            <p className="text-slate-500 dark:text-slate-400 text-sm mt-2 leading-relaxed">
-              המערכת מוכנה לסרוק את התמונות בתיקיית ה-Google Drive שלך.
-              בתהליך זה, ה-AI יסרוק את התמונות וישמור את מזהי הפנים בענן.
-              לאחר מכן תוכל לשתף את הקישור עם האורחים.
+            <h3 className="text-xl font-bold text-slate-800 dark:text-slate-100 m-0">{language === 'he' ? 'האירוע מוכן לסריקה' : 'Event ready to scan'}</h3>
+            <p className="text-slate-500 dark:text-slate-400 text-sm mt-2 leading-relaxed m-0">
+              {t('eventView.localProcessingNotice')}
             </p>
           </div>
           <button
@@ -282,10 +292,10 @@ function CloudEventView({ eventId, onBack }: CloudEventViewProps) {
             disabled={!googleAccessToken}
             className="px-8 py-3.5 rounded-2xl bg-amber-500 hover:bg-amber-400 text-white dark:text-slate-950 font-bold text-base shadow-lg shadow-amber-500/20 active:scale-95 transition-all cursor-pointer disabled:opacity-50"
           >
-            התחל סריקת תמונות
+            {t('eventView.startAIScan')}
           </button>
           {!googleAccessToken && (
-            <p className="text-red-500 text-xs">יש להתחבר מחדש עם חשבון Google כדי לאפשר גישה לתיקייה.</p>
+            <p className="text-red-500 text-xs m-0">יש להתחבר מחדש עם חשבון Google כדי לאפשר גישה לתיקייה.</p>
           )}
         </div>
       )}
@@ -295,7 +305,7 @@ function CloudEventView({ eventId, onBack }: CloudEventViewProps) {
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 text-sm border-b border-slate-100 dark:border-slate-800/80 pb-5">
             <div className="flex items-center gap-3">
               <Loader2 className="w-5 h-5 text-amber-500 animate-spin" />
-              <span className="font-bold text-slate-800 dark:text-slate-200 text-base">סורק תמונות ב-Google Drive...</span>
+              <span className="font-bold text-slate-800 dark:text-slate-200 text-base">{t('eventView.scanningPhotos')}</span>
             </div>
             <div className="flex items-center gap-3.5">
               <button
@@ -309,7 +319,7 @@ function CloudEventView({ eventId, onBack }: CloudEventViewProps) {
                 {isPaused ? <Play className="w-4 h-4" /> : <Pause className="w-4 h-4" />}
               </button>
               <div className="text-xs bg-slate-50 dark:bg-slate-800 px-3 py-1.5 rounded-lg border border-slate-200 dark:border-slate-700">
-                {isPaused ? 'סריקה הושהתה' : formatETA(etaSeconds)}
+                {isPaused ? t('dashboard.statusPaused') : formatETA(etaSeconds)}
               </div>
               <div className="font-mono bg-slate-50 dark:bg-slate-800 px-2.5 py-1 rounded-md border border-slate-200 dark:border-slate-700 text-xs">
                 {scannedCount} / {totalToScan || event.photoCount}
@@ -332,9 +342,8 @@ function CloudEventView({ eventId, onBack }: CloudEventViewProps) {
             </div>
           </div>
 
-          <p className="text-slate-500 dark:text-slate-400 text-xs leading-relaxed text-center">
-            אנא השאר את הדפדפן פתוח במהלך הסריקה. המערכת מעבדת את התמונות אחת אחרי השנייה.
-            התמונות אינן מועלות לשרת, העיבוד נעשה כולו במכשיר שלך!
+          <p className="text-slate-500 dark:text-slate-400 text-xs leading-relaxed text-center m-0">
+            {language === 'he' ? 'אנא השאר את הדפדפן פתוח במהלך הסריקה. המערכת מעבדת את התמונות אחת אחרי השנייה. התמונות אינן מועלות לשרת, העיבוד נעשה כולו במכשיר שלך!' : 'Please keep the browser window open during scanning. The system is processing photos one by one. Photos are not uploaded to servers, the processing happens entirely on your device!'}
           </p>
         </div>
       )}
@@ -344,26 +353,26 @@ function CloudEventView({ eventId, onBack }: CloudEventViewProps) {
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
             <div className="bg-white dark:bg-slate-900/40 border border-slate-200 dark:border-slate-800 rounded-3xl p-6 shadow-sm flex flex-col justify-between">
               <div className="flex flex-col gap-2">
-                <h4 className="font-bold text-slate-400 text-xs uppercase tracking-wider">נתוני אירוע</h4>
+                <h4 className="font-bold text-slate-400 text-xs uppercase tracking-wider m-0">{language === 'he' ? 'נתוני אירוע' : 'Event Data'}</h4>
                 <div className="flex items-baseline gap-2 mt-2">
                   <span className="text-3xl font-black text-slate-800 dark:text-white">{event.photoCount}</span>
-                  <span className="text-slate-500 text-sm">תמונות נסרקו</span>
+                  <span className="text-slate-500 text-sm">{language === 'he' ? 'תמונות נסרקו' : 'Photos Scanned'}</span>
                 </div>
                 <div className="flex items-baseline gap-2">
                   <span className="text-3xl font-black text-amber-500">{event.faceCount}</span>
-                  <span className="text-slate-500 text-sm">פנים זוהו</span>
+                  <span className="text-slate-500 text-sm">{language === 'he' ? 'פנים זוהו' : 'Faces Detected'}</span>
                 </div>
               </div>
               <div className="border-t border-slate-100 dark:border-slate-800 pt-4 mt-6 flex items-center justify-between text-xs text-slate-500">
-                <span>תיקייה: {event.driveFolderName}</span>
+                <span>{language === 'he' ? `תיקייה: ${event.driveFolderName}` : `Folder: ${event.driveFolderName}`}</span>
               </div>
             </div>
 
-            <div className="md:col-span-2 bg-white dark:bg-slate-900/40 border border-slate-200 dark:border-slate-800 rounded-3xl p-6 shadow-sm flex flex-col justify-between">
-              <div className="flex flex-col gap-2">
-                <h4 className="font-bold text-slate-400 text-xs uppercase tracking-wider">שיתוף עם אורחים</h4>
-                <p className="text-slate-500 text-xs mt-1">
-                  העתק את הקישור או שתף את קוד ה-QR. האורחים יוכלו להעלות סלפי ולקבל מיידית את כל התמונות שלהם מתיקיית ה-Google Drive.
+            <div className="md:col-span-2 bg-white dark:bg-slate-900/40 border border-slate-200 dark:border-slate-800 rounded-3xl p-6 shadow-sm flex flex-col justify-between text-start">
+              <div className="flex flex-col gap-2 text-start">
+                <h4 className="font-bold text-slate-400 text-xs uppercase tracking-wider m-0">{t('eventView.sharingWithGuests')}</h4>
+                <p className="text-slate-500 text-xs mt-1 m-0">
+                  {t('eventView.sharingDesc')}
                 </p>
 
                 <div className="flex gap-2 mt-4">
@@ -378,12 +387,12 @@ function CloudEventView({ eventId, onBack }: CloudEventViewProps) {
                     className="px-5 py-3 rounded-xl bg-amber-500 text-slate-950 font-bold text-sm shadow-sm flex items-center gap-2 hover:bg-amber-400 transition-colors cursor-pointer active:scale-95"
                   >
                     {copied ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
-                    <span>{copied ? 'הועתק!' : 'העתק'}</span>
+                    <span>{copied ? t('common.copied') : t('common.copy')}</span>
                   </button>
                   <button
                     onClick={() => setShowQr(true)}
                     className="p-3 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors cursor-pointer"
-                    title="הצג QR"
+                    title={language === 'he' ? 'הצג QR' : 'Show QR'}
                   >
                     <QrCode className="w-5 h-5" />
                   </button>
@@ -394,18 +403,18 @@ function CloudEventView({ eventId, onBack }: CloudEventViewProps) {
                   href={shareLink}
                   target="_blank"
                   rel="noreferrer"
-                  className="inline-flex items-center gap-1.5 text-xs text-amber-500 hover:underline"
+                  className="inline-flex items-center gap-1.5 text-xs text-amber-500 hover:underline font-bold"
                 >
-                  פתח עמוד אורח <ExternalLink className="w-3.5 h-3.5" />
+                  {t('eventView.openGuestPage')} <ExternalLink className="w-3.5 h-3.5" />
                 </a>
               </div>
             </div>
           </div>
 
-          <div className="flex flex-col gap-4">
-            <h3 className="text-xl font-bold text-slate-800 dark:text-slate-100">גלריית תמונות אירוע</h3>
+          <div className="flex flex-col gap-4 text-start">
+            <h3 className="text-xl font-bold text-slate-800 dark:text-slate-100 m-0">{language === 'he' ? 'גלריית תמונות אירוע' : 'Event Photo Gallery'}</h3>
             {photos.length === 0 ? (
-              <div className="text-center py-12 text-slate-500">טוען תמונות...</div>
+              <div className="text-center py-12 text-slate-500">{t('common.loading')}</div>
             ) : (
               <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4">
                 {photos.slice(0, 24).map((photo) => (
@@ -424,8 +433,8 @@ function CloudEventView({ eventId, onBack }: CloudEventViewProps) {
               </div>
             )}
             {photos.length > 24 && (
-              <p className="text-slate-500 text-xs text-center mt-2">
-                מציג 24 תמונות ראשונות מתוך {photos.length}.
+              <p className="text-slate-500 text-xs text-center mt-2 m-0">
+                {language === 'he' ? `מציג 24 תמונות ראשונות מתוך ${photos.length}.` : `Showing first 24 photos out of ${photos.length}.`}
               </p>
             )}
           </div>
@@ -434,8 +443,8 @@ function CloudEventView({ eventId, onBack }: CloudEventViewProps) {
 
       {showQr && (
         <div className="fixed inset-0 bg-slate-950/70 backdrop-blur-sm flex items-center justify-center z-50 p-4" onClick={() => setShowQr(false)}>
-          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl p-8 max-w-sm w-full shadow-2xl flex flex-col items-center gap-6" onClick={(e) => e.stopPropagation()}>
-            <h3 className="text-lg font-bold text-slate-800 dark:text-slate-100">{event.name}</h3>
+          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl p-8 max-w-sm w-full shadow-2xl flex flex-col items-center gap-6" onClick={(e) => e.stopPropagation()} dir={isRtl ? 'rtl' : 'ltr'}>
+            <h3 className="text-lg font-bold text-slate-800 dark:text-slate-100 m-0">{event.name}</h3>
             <div className="bg-white p-4 rounded-2xl shadow-inner">
               <QRCodeSVG
                 value={shareLink}
@@ -445,12 +454,12 @@ function CloudEventView({ eventId, onBack }: CloudEventViewProps) {
                 fgColor="#0f172a"
               />
             </div>
-            <p className="text-xs text-slate-500 dark:text-slate-400 text-center">האורחים יכולים לסרוק את הקישור כדי להעלות סלפי</p>
+            <p className="text-xs text-slate-500 dark:text-slate-400 text-center m-0">{language === 'he' ? 'האורחים יכולים לסרוק את הקישור כדי להעלות סלפי' : 'Guests can scan the link to upload a selfie'}</p>
             <button
               onClick={() => setShowQr(false)}
               className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 text-sm transition-colors cursor-pointer"
             >
-              סגור
+              {t('common.close')}
             </button>
           </div>
         </div>
@@ -465,6 +474,7 @@ export function EventView({ eventId, onBack }: EventViewProps) {
   if (typeof eventId === 'string') {
     return <CloudEventView eventId={eventId} onBack={onBack} />;
   }
+  const { t, isRtl, language } = useTranslation();
   const [activeTab, setActiveTab] = useState<'faces' | 'merges' | 'photos' | 'unidentified'>('faces');
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedClusterId, setSelectedClusterId] = useState<string | null>(null);
@@ -548,7 +558,7 @@ export function EventView({ eventId, onBack }: EventViewProps) {
         setPermissionGranted(status === 'granted');
       } catch (err) {
         console.error('Failed to grant folder permission', err);
-        alert('לא ניתן לקבל גישה לתיקייה ללא אישור דפדפן.');
+        alert(language === 'he' ? 'לא ניתן לקבל גישה לתיקייה ללא אישור דפדפן.' : 'Cannot access folder without browser permission.');
       }
     }
   };
@@ -578,7 +588,7 @@ export function EventView({ eventId, onBack }: EventViewProps) {
       await scanDirectory(dirHandle);
 
       if (fileHandles.length === 0) {
-        alert('לא נמצאו תמונות תואמות (JPG, PNG, WEBP) בתיקייה שנבחרה.');
+        alert(language === 'he' ? 'לא נמצאו תמונות תואמות (JPG, PNG, WEBP) בתיקייה שנבחרה.' : 'No matching images (JPG, PNG, WEBP) found in selected folder.');
         return;
       }
 
@@ -592,7 +602,7 @@ export function EventView({ eventId, onBack }: EventViewProps) {
     } catch (err: any) {
       if (err.name !== 'AbortError') {
         console.error('Folder selection error', err);
-        alert('שגיאה בבחירת התיקייה: ' + err.message);
+        alert((language === 'he' ? 'שגיאה בבחירת התיקייה: ' : 'Error selecting folder: ') + err.message);
       }
     }
   };
@@ -616,7 +626,7 @@ export function EventView({ eventId, onBack }: EventViewProps) {
     }
 
     if (filesToProcess.length === 0) {
-      alert('לא נמצאו תמונות בפורמט תואם.');
+      alert(language === 'he' ? 'לא נמצאו תמונות בפורמט תואם.' : 'No photos found in compatible format.');
       return;
     }
 
@@ -629,7 +639,7 @@ export function EventView({ eventId, onBack }: EventViewProps) {
 
     const existing = clusters.find(c => c.name.toLowerCase() === val.toLowerCase() && c.id !== clusterId);
     if (existing) {
-      const wantMerge = confirm(`כבר קיים אורח בשם "${val}".\nהאם ברצונך למזג את "${oldName}" עם "${val}"?`);
+      const wantMerge = confirm(t('eventView.mergeConfirm', { val, oldName }));
       if (wantMerge) {
         try {
           await mergeClusters(existing.id, clusterId);
@@ -648,8 +658,8 @@ export function EventView({ eventId, onBack }: EventViewProps) {
 
   const handleRemoveFaceFromPerson = async (photoId: number, clusterId: string) => {
     const cluster = clusters.find(c => c.id === clusterId);
-    const displayName = cluster?.name || 'דמות זו';
-    if (!confirm(`האם ברצונך להסיר תמונה זו מהפרופיל של "${displayName}"?\nהתמונה לא תימחק, והפנים יועברו ללשונית "לא מזוהים".`)) {
+    const displayName = cluster?.name || 'Guest';
+    if (!confirm(t('eventView.removePhotoConfirm', { name: displayName }))) {
       return;
     }
 
@@ -662,41 +672,46 @@ export function EventView({ eventId, onBack }: EventViewProps) {
       }
     } catch (err) {
       console.error('Failed to remove face', err);
-      alert('שגיאה בהסרת התמונה.');
+      alert(language === 'he' ? 'שגיאה בהסרת התמונה.' : 'Error removing photo.');
     }
   };
 
   const handleManualMergeSelected = async () => {
     if (selectedForMerge.size < 2) return;
-    
+
     const ids = Array.from(selectedForMerge);
     const firstCluster = clusters.find(c => c.id === ids[0]);
     const defaultName = firstCluster?.name || '';
-    
-    const newName = prompt(`אתה עומד למזג ${ids.length} דמויות.\nהכנס שם לדמות המאוחדת:`, defaultName);
-    
+
+    const newName = prompt(
+      language === 'he' 
+        ? `אתה עומד למזג ${ids.length} דמויות.\nהכנס שם לדמות המאוחדת:` 
+        : `You are merging ${ids.length} guests.\nEnter name for the merged guest:`, 
+      defaultName
+    );
+
     if (newName === null) return; // User cancelled
-    
+
     try {
       // Keep the first ID as the primary, merge all others into it
       const primaryId = ids[0];
-      
+
       for (let i = 1; i < ids.length; i++) {
         await mergeClusters(ids[i], primaryId);
       }
-      
+
       // Rename the primary cluster if a new name was provided
       if (newName.trim()) {
         await db.clusters.update(primaryId, { name: newName.trim() });
       }
-      
+
       // Exit merge mode
       setIsMergeMode(false);
       setSelectedForMerge(new Set());
-      
+
     } catch (err) {
       console.error('Manual merge failed', err);
-      alert('שגיאה במיזוג הדמויות.');
+      alert(language === 'he' ? 'שגיאה במיזוג הדמויות.' : 'Error merging guests.');
     }
   };
 
@@ -708,7 +723,7 @@ export function EventView({ eventId, onBack }: EventViewProps) {
         await db.clusters.add({
           id: newClusterId,
           eventId,
-          name: `דמות ${count}`,
+          name: language === 'he' ? `דמות ${count}` : `Guest ${count}`,
         });
         await db.faces.update(faceId, { clusterId: newClusterId });
       } else if (targetClusterId) {
@@ -866,7 +881,7 @@ export function EventView({ eventId, onBack }: EventViewProps) {
       }
 
       if (successCount === 0) {
-        alert('לא ניתן היה לקרוא את קובצי התמונות לייצוא.');
+        alert(language === 'he' ? 'לא ניתן היה לקרוא את קובצי התמונות לייצוא.' : 'Could not read any photo files for export.');
         return;
       }
 
@@ -874,14 +889,14 @@ export function EventView({ eventId, onBack }: EventViewProps) {
       const url = URL.createObjectURL(zipBlob);
       const link = document.createElement('a');
       link.href = url;
-      link.download = `${selectedCluster.name || 'דמות_ללא_שם'}.zip`;
+      link.download = `${selectedCluster.name || (language === 'he' ? 'דמות_ללא_שם' : 'unnamed_guest')}.zip`;
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
       URL.revokeObjectURL(url);
     } catch (err) {
       console.error('Failed to generate ZIP', err);
-      alert('שגיאה במהלך יצירת קובץ ה-ZIP לייצוא.');
+      alert(language === 'he' ? 'שגיאה במהלך יצירת קובץ ה-ZIP לייצוא.' : 'Error generating ZIP file for export.');
     } finally {
       setIsExportingZip(false);
     }
@@ -920,31 +935,31 @@ export function EventView({ eventId, onBack }: EventViewProps) {
   };
 
   const formatETA = (seconds: number | null) => {
-    if (seconds === null) return 'מחשב זמן נותר...';
-    if (seconds === 0) return 'מסתיים כעת...';
-    if (seconds < 60) return `זמן נותר מוערך: כ-${seconds} שניות`;
+    if (seconds === null) return language === 'he' ? 'מחשב זמן נותר...' : 'Calculating time remaining...';
+    if (seconds === 0) return language === 'he' ? 'מסתיים כעת...' : 'Finishing...';
+    if (seconds < 60) return language === 'he' ? `זמן נותר מוערך: כ-${seconds} שניות` : `Estimated time remaining: about ${seconds} seconds`;
     const mins = Math.floor(seconds / 60);
     const secs = seconds % 60;
-    return `זמן נותר מוערך: כ-${mins} דקות ו-${secs} שניות`;
+    return language === 'he' ? `זמן נותר מוערך: כ-${mins} דקות ו-${secs} שניות` : `Estimated time remaining: about ${mins}m ${secs}s`;
   };
 
   return (
-    <div className="max-w-6xl mx-auto px-4 py-8 flex-grow flex flex-col gap-6 text-right transition-colors duration-300">
+    <div className="max-w-6xl w-full mx-auto px-4 py-8 flex-grow flex flex-col gap-6 text-start transition-colors duration-300" dir={isRtl ? 'rtl' : 'ltr'}>
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-slate-200 dark:border-slate-800 pb-6">
-        <div className="flex items-center gap-4">
+        <div className="flex items-center gap-4 text-start">
           <button
             onClick={handleMainBackClick}
             className="p-2 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-800 text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 transition-all cursor-pointer shadow-sm"
-            title={selectedClusterId ? "חזרה לגלריית האורחים" : "חזרה ללוח האירועים"}
+            title={selectedClusterId ? t('eventView.backToGallery') : t('eventView.backToDashboard')}
           >
-            <ArrowRight className="w-5 h-5" />
+            {isRtl ? <ArrowRight className="w-5 h-5" /> : <ArrowLeft className="w-5 h-5" />}
           </button>
-          <div className="flex flex-col">
+          <div className="flex flex-col text-start">
             <h2 className="text-2xl font-bold text-slate-800 dark:text-slate-100 m-0 leading-tight">
-              {event?.name || 'טוען אירוע...'}
+              {event?.name || t('common.loading')}
             </h2>
-            <p className="text-slate-500 text-sm">
-              {photos.length} תמונות | {clusters.length} אורחים מזוהים
+            <p className="text-slate-500 text-sm m-0 mt-1">
+              {t('eventView.photosCount', { count: photos.length })} | {t('eventView.recognizedGuestsCount', { count: clusters.length })}
             </p>
           </div>
         </div>
@@ -953,12 +968,12 @@ export function EventView({ eventId, onBack }: EventViewProps) {
           {event?.folderPath && !permissionGranted && (
             <div className="flex items-center gap-3 bg-amber-500/10 border border-amber-500/20 text-amber-800 dark:text-amber-300 text-xs px-4 py-2.5 rounded-xl shadow-lg">
               <AlertCircle className="w-4 h-4 shrink-0" />
-              <span>נדרש אישור גישה מחדש לתיקיית המקור</span>
+              <span>{language === 'he' ? 'נדרש אישור גישה לתיקיית המקור' : 'Folder access authorization required'}</span>
               <button
                 onClick={handleRequestPermission}
                 className="bg-amber-500 hover:bg-amber-400 text-slate-950 font-semibold px-2.5 py-1 rounded-lg transition-colors cursor-pointer"
               >
-                אשר גישה
+                {language === 'he' ? 'אשר גישה' : 'Authorize'}
               </button>
             </div>
           )}
@@ -973,8 +988,8 @@ export function EventView({ eventId, onBack }: EventViewProps) {
                   : 'bg-amber-100 dark:bg-amber-500 border-amber-200 dark:border-amber-600/30 text-amber-900 dark:text-slate-950 hover:bg-amber-200 dark:hover:bg-amber-400 cursor-pointer'
               }`}
             >
-              {isUnsupportedBrowser ? <FolderOpen className="w-4 h-4" /> : <FolderOpen className="w-4 h-4" />}
-              <span>{isThisEventScanning ? 'סורק...' : 'בחירת תיקיית תמונות'}</span>
+              <FolderOpen className="w-4 h-4" />
+              <span>{isThisEventScanning ? t('common.loading') : (language === 'he' ? 'בחירת תיקיית תמונות' : 'Select Folder')}</span>
             </button>
             <input
               type="file"
@@ -989,11 +1004,11 @@ export function EventView({ eventId, onBack }: EventViewProps) {
       </div>
 
       {isThisEventScanning && (
-        <div className="bg-white/50 dark:bg-slate-900/40 border-y border-slate-200 dark:border-slate-800 px-6 py-6 mb-6 flex flex-col gap-4 shadow-sm">
+        <div className="bg-white/50 dark:bg-slate-900/40 border-y border-slate-200 dark:border-slate-800 px-6 py-6 mb-6 flex flex-col gap-4 shadow-sm text-start">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-sm">
             <div className="flex items-center gap-2.5">
               <Loader2 className="w-5 h-5 text-amber-600 dark:text-amber-400 animate-spin" />
-              <span className="font-bold text-slate-800 dark:text-slate-200">סורק תמונות ומאתר פנים...</span>
+              <span className="font-bold text-slate-800 dark:text-slate-200">{t('eventView.scanningPhotos')}</span>
             </div>
             <div className="flex items-center gap-4 text-slate-500">
               <button
@@ -1001,13 +1016,13 @@ export function EventView({ eventId, onBack }: EventViewProps) {
                 className={`w-10 h-10 rounded-xl flex items-center justify-center transition-all cursor-pointer shadow-sm ${
                   isPaused ? 'bg-amber-100 dark:bg-amber-500 text-amber-900 dark:text-slate-950 border border-amber-200 dark:border-transparent' : 'bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-700'
                 }`}
-                title={isPaused ? 'המשך סריקה' : 'השהה סריקה'}
+                title={isPaused ? t('eventView.isResumed') : t('eventView.isPaused')}
               >
                 {isPaused ? <Play className="w-5 h-5" /> : <Pause className="w-5 h-5" />}
               </button>
               <div className="flex items-center gap-1.5 text-xs bg-white dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 px-3 py-1 rounded-lg">
                 <Clock className="w-3.5 h-3.5 text-slate-400" />
-                <span>{isPaused ? 'סריקה הושהתה' : formatETA(etaSeconds)}</span>
+                <span>{isPaused ? t('dashboard.statusPaused') : formatETA(etaSeconds)}</span>
               </div>
               <span className="font-mono bg-white dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 px-2 py-0.5 rounded-md">
                 {scannedCount} / {totalToScan}
@@ -1026,13 +1041,13 @@ export function EventView({ eventId, onBack }: EventViewProps) {
       )}
 
       {showSuccessBanner && !isThisEventScanning && (
-        <div className="bg-emerald-500/10 border border-emerald-500/25 rounded-2xl p-5 flex items-start justify-between gap-4 text-right shadow-sm animate-fade-in">
+        <div className="bg-emerald-500/10 border border-emerald-500/25 rounded-2xl p-5 flex items-start justify-between gap-4 text-start shadow-sm animate-fade-in">
           <div className="flex items-start gap-3.5">
             <CheckCircle2 className="w-6 h-6 text-emerald-600 dark:text-emerald-400 shrink-0 mt-0.5" />
             <div>
-              <h4 className="font-bold text-emerald-800 dark:text-emerald-300 text-base">תהליך הסריקה והזיהוי הושלם!</h4>
-              <p className="text-emerald-700/80 dark:text-emerald-400/80 text-sm mt-1">
-                סרקנו בהצלחה {lastScannedCount} תמונות. המערכת זיהתה וסידרה את כל הפנים שנמצאו לקבוצות אורחים.
+              <h4 className="font-bold text-emerald-800 dark:text-emerald-300 text-base m-0">{t('common.success')}</h4>
+              <p className="text-emerald-700/80 dark:text-emerald-400/80 text-sm mt-1 m-0">
+                {t('eventView.scanComplete', { count: lastScannedCount })}
               </p>
             </div>
           </div>
@@ -1049,13 +1064,13 @@ export function EventView({ eventId, onBack }: EventViewProps) {
         <div className="border border-dashed border-slate-300 dark:border-slate-800 rounded-3xl p-16 text-center flex flex-col items-center justify-center gap-4 bg-white/50 dark:bg-slate-900/10 flex-grow py-24 shadow-sm">
           <ImageIcon className="w-16 h-16 text-slate-300 dark:text-slate-700" />
           <div className="text-slate-500 max-w-sm">
-            לא נטענו תמונות. בחר תיקייה עם תמונות כדי להתחיל למיין ולזהות פנים באמצעות ה-AI.
+            {t('eventView.noPhotosDesc')}
           </div>
         </div>
       ) : (
         <div className="flex flex-col gap-6">
           {!isScanning && !showSuccessBanner && !selectedClusterId && (
-          <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
+            <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
               <div className="flex flex-wrap bg-white dark:bg-slate-950 p-1.5 rounded-xl border border-slate-200 dark:border-slate-800 self-start gap-1 shadow-sm">
                 <button
                   onClick={() => setActiveTab('faces')}
@@ -1063,7 +1078,7 @@ export function EventView({ eventId, onBack }: EventViewProps) {
                     activeTab === 'faces' ? 'bg-amber-100 dark:bg-amber-500/20 text-amber-900 dark:text-amber-400 shadow-sm' : 'text-slate-500 dark:text-slate-400'
                   }`}
                 >
-                  <div className="flex items-center gap-2"><Users className="w-4 h-4" /><span>אורחים זוהו ({clusters.length})</span></div>
+                  <div className="flex items-center gap-2"><Users className="w-4 h-4" /><span>{t('eventView.guestsDetected', { count: clusters.length })}</span></div>
                 </button>
                 <button
                   onClick={() => setActiveTab('merges')}
@@ -1071,7 +1086,10 @@ export function EventView({ eventId, onBack }: EventViewProps) {
                     activeTab === 'merges' ? 'bg-amber-100 dark:bg-amber-500/20 text-amber-900 dark:text-amber-400 shadow-sm' : 'text-slate-500 dark:text-slate-400'
                   }`}
                 >
-                  <div className="flex items-center gap-2"><Sparkles className="w-4 h-4" /><span>הצעות למיזוג ({mergeSuggestions.length})</span></div>
+                  <div className="flex items-center gap-2">
+                    <Sparkles className="w-4 h-4" />
+                    <span>{language === 'he' ? `הצעות למיזוג (${mergeSuggestions.length})` : `Merge Suggestions (${mergeSuggestions.length})`}</span>
+                  </div>
                 </button>
                 <button
                   onClick={() => setActiveTab('unidentified')}
@@ -1079,7 +1097,7 @@ export function EventView({ eventId, onBack }: EventViewProps) {
                     activeTab === 'unidentified' ? 'bg-amber-100 dark:bg-amber-500/20 text-amber-900 dark:text-amber-400 shadow-sm' : 'text-slate-500 dark:text-slate-400'
                   }`}
                 >
-                  <div className="flex items-center gap-2"><HelpCircle className="w-4 h-4" /><span>לא מזוהים ({unidentifiedFaces.length})</span></div>
+                  <div className="flex items-center gap-2"><HelpCircle className="w-4 h-4" /><span>{t('eventView.unidentifiedTab')} ({unidentifiedFaces.length})</span></div>
                 </button>
                 <button
                   onClick={() => setActiveTab('photos')}
@@ -1087,20 +1105,23 @@ export function EventView({ eventId, onBack }: EventViewProps) {
                     activeTab === 'photos' ? 'bg-amber-100 dark:bg-amber-500/20 text-amber-900 dark:text-amber-400 shadow-sm' : 'text-slate-500 dark:text-slate-400'
                   }`}
                 >
-                  <div className="flex items-center gap-2"><ImageIcon className="w-4 h-4" /><span>כל התמונות ({photos.length})</span></div>
+                  <div className="flex items-center gap-2">
+                    <ImageIcon className="w-4 h-4" />
+                    <span>{language === 'he' ? `כל התמונות (${photos.length})` : `All Photos (${photos.length})`}</span>
+                  </div>
                 </button>
               </div>
 
               {activeTab === 'faces' && (
                 <div className="flex items-center gap-3 w-full lg:w-auto">
                   <div className="relative w-full lg:w-72">
-                    <Search className="absolute right-3.5 top-3.5 w-4 h-4 text-slate-400 dark:text-slate-500" />
+                    <Search className={`absolute ${isRtl ? 'right-3.5' : 'left-3.5'} top-3.5 w-4 h-4 text-slate-400 dark:text-slate-500`} />
                     <input
                       type="text"
                       value={searchQuery}
                       onChange={(e) => setSearchQuery(e.target.value)}
-                      placeholder="חפש אורחים לפי שם..."
-                      className="w-full pr-10 pl-4 py-2.5 rounded-xl bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800 focus:border-amber-400 dark:focus:border-amber-500 focus:outline-none text-slate-800 dark:text-slate-200 text-sm placeholder:text-slate-400 dark:placeholder:text-slate-600 transition-all shadow-sm"
+                      placeholder={t('eventView.searchPlaceholder')}
+                      className={`w-full ${isRtl ? 'pr-10 pl-4' : 'pl-10 pr-4'} py-2.5 rounded-xl bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800 focus:border-amber-400 dark:focus:border-amber-500 focus:outline-none text-slate-800 dark:text-slate-200 text-sm placeholder:text-slate-400 dark:placeholder:text-slate-650 transition-all shadow-sm`}
                     />
                   </div>
                   <button
@@ -1115,7 +1136,7 @@ export function EventView({ eventId, onBack }: EventViewProps) {
                     }`}
                   >
                     <Sparkles className="w-4 h-4" />
-                    <span>מיזוג</span>
+                    <span>{t('eventView.mergeGuestsBtn')}</span>
                   </button>
                 </div>
               )}
@@ -1123,8 +1144,8 @@ export function EventView({ eventId, onBack }: EventViewProps) {
           )}
 
           {selectedClusterId && selectedCluster && (
-            <div className="flex items-center justify-between bg-white dark:bg-slate-900/40 border border-slate-200 dark:border-slate-800/80 rounded-2xl p-5 shadow-sm">
-              <div className="flex items-center gap-4">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-5 bg-white dark:bg-slate-900/40 border border-slate-200 dark:border-slate-800/80 rounded-2xl p-5 shadow-sm text-start">
+              <div className="flex items-center gap-4 text-start">
                 {selectedClusterFaces[0] && (
                   <img 
                     src={selectedClusterFaces[0].thumbnail} 
@@ -1139,31 +1160,33 @@ export function EventView({ eventId, onBack }: EventViewProps) {
                     defaultValue={selectedCluster.name}
                     onBlur={(e) => handleRenameCluster(selectedCluster.id, selectedCluster.name, e.target.value)}
                     onKeyDown={(e) => { if (e.key === 'Enter') e.currentTarget.blur(); }}
-                    className="text-right text-xl font-bold bg-transparent border-b border-transparent hover:border-slate-300 dark:hover:border-slate-700 focus:border-amber-400 dark:focus:border-amber-500 text-slate-800 dark:text-slate-100 placeholder:text-slate-400 dark:placeholder:text-slate-700 focus:outline-none pb-1 transition-all rounded-md max-w-[200px]"
+                    className="text-start text-xl font-bold bg-transparent border-b border-transparent hover:border-slate-300 dark:hover:border-slate-700 focus:border-amber-400 dark:focus:border-amber-500 text-slate-800 dark:text-slate-100 placeholder:text-slate-400 dark:placeholder:text-slate-700 focus:outline-none pb-1 transition-all rounded-md max-w-[200px]"
                   />
-                  <p className="text-slate-500 dark:text-slate-400 text-xs">סה"כ {selectedClusterPhotoIds.length} תמונות שבהן מופיעה דמות זו</p>
+                  <p className="text-slate-500 dark:text-slate-400 text-xs m-0">
+                    {language === 'he' ? `סה"כ ${selectedClusterPhotoIds.length} תמונות שבהן מופיעה דמות זו` : `Total ${selectedClusterPhotoIds.length} photos containing this face`}
+                  </p>
                 </div>
               </div>
               <button
                 onClick={handleExportPersonPhotos}
                 disabled={isExportingZip}
-                className="px-4 py-2.5 rounded-xl bg-amber-500 hover:bg-amber-400 disabled:bg-slate-300 dark:bg-amber-500 dark:hover:bg-amber-400 text-white dark:text-slate-950 text-xs font-semibold flex items-center gap-2 transition-all cursor-pointer shadow active:scale-95 disabled:pointer-events-none"
+                className="px-4 py-2.5 rounded-xl bg-amber-500 hover:bg-amber-400 disabled:bg-slate-300 dark:bg-amber-50 dark:hover:bg-amber-400 text-white dark:text-slate-950 text-xs font-semibold flex items-center gap-2 transition-all cursor-pointer shadow active:scale-95 disabled:pointer-events-none self-start sm:self-auto"
               >
-                {isExportingZip ? <><Loader2 className="w-3.5 h-3.5 animate-spin" /><span>מייצא...</span></> : <><Download className="w-3.5 h-3.5" /><span>ייצוא ל-ZIP</span></>}
+                {isExportingZip ? <><Loader2 className="w-3.5 h-3.5 animate-spin" /><span>{language === 'he' ? 'מייצא...' : 'Exporting...'}</span></> : <><Download className="w-3.5 h-3.5" /><span>{language === 'he' ? 'ייצוא ל-ZIP' : 'Export to ZIP'}</span></>}
               </button>
             </div>
           )}
 
           {selectedClusterId ? (
             selectedClusterPhotoIds.length === 0 ? (
-              <div className="text-center py-16 text-slate-500 dark:text-slate-400">אין תמונות משויכות לדמות זו.</div>
+              <div className="text-center py-16 text-slate-500 dark:text-slate-400">{language === 'he' ? 'אין תמונות משויכות לדמות זו.' : 'No photos associated with this face.'}</div>
             ) : (
               <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-6">
                 {selectedClusterPhotoIds.map(pId => {
                   const faceInPhoto = selectedClusterFaces.find(f => f.photoId === pId);
                   return (
                     <div key={pId} className="group relative aspect-square border border-slate-200 dark:border-slate-800 rounded-2xl overflow-hidden shadow-lg transition-all">
-                      <button onClick={(e) => { e.stopPropagation(); handleRemoveFaceFromPerson(pId, selectedClusterId); }} className="absolute top-3 left-3 p-1.5 rounded-lg bg-red-500/90 hover:bg-red-600 text-white opacity-0 group-hover:opacity-100 transition-opacity z-10 cursor-pointer">
+                      <button onClick={(e) => { e.stopPropagation(); handleRemoveFaceFromPerson(pId, selectedClusterId); }} className={`absolute top-3 ${isRtl ? 'left-3' : 'right-3'} p-1.5 rounded-lg bg-red-500/90 hover:bg-red-600 text-white opacity-0 group-hover:opacity-100 transition-opacity z-10 cursor-pointer`}>
                         <X className="w-4 h-4" />
                       </button>
                       <div onClick={() => toggleRevealPhoto(pId)} className="w-full h-full cursor-pointer relative">
@@ -1183,7 +1206,7 @@ export function EventView({ eventId, onBack }: EventViewProps) {
             )
           ) : activeTab === 'faces' ? (
             filteredClusters.length === 0 ? (
-              <div className="text-center py-20 text-slate-500 dark:text-slate-400">אין אורחים מזוהים.</div>
+              <div className="text-center py-20 text-slate-500 dark:text-slate-400">{t('eventView.noGuests')}</div>
             ) : (
               <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-8">
                 {filteredClusters.map((cluster) => {
@@ -1216,13 +1239,13 @@ export function EventView({ eventId, onBack }: EventViewProps) {
                         isSelectedForMerge ? 'ring-amber-400 dark:ring-amber-500' : 'ring-white dark:ring-slate-800/80 group-hover:ring-amber-200 dark:group-hover:ring-amber-500/40'
                       }`}>
                         {firstFace ? (
-                          <img src={firstFace.thumbnail} className="w-full h-full object-cover group-hover:scale-105 transition-transform" />
+                          <img src={firstFace.thumbnail} className="w-full h-full object-cover group-hover:scale-105 transition-transform" alt="" />
                         ) : (
                           <div className="w-full h-full bg-slate-100 dark:bg-slate-800 flex items-center justify-center">
                             <Loader2 className="w-6 h-6 animate-spin text-slate-400" />
                           </div>
                         )}
-                        <span className="absolute bottom-2 right-2 bg-white/90 dark:bg-slate-950/80 text-amber-700 dark:text-amber-400 text-[10px] font-extrabold px-2.5 py-1 rounded-full shadow-sm dark:shadow">{clusterFaces.length} תמונות</span>
+                        <span className={`absolute bottom-2 ${isRtl ? 'right-2' : 'left-2'} bg-white/90 dark:bg-slate-950/80 text-amber-700 dark:text-amber-400 text-[10px] font-extrabold px-2.5 py-1 rounded-full shadow-sm dark:shadow`}>{clusterFaces.length} {language === 'he' ? 'תמונות' : 'photos'}</span>
                       </div>
                       <input type="text" defaultValue={cluster.name} onBlur={(e) => handleRenameCluster(cluster.id, cluster.name, e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter') e.currentTarget.blur(); }} className="w-full text-center text-base font-bold bg-transparent border-b border-transparent hover:border-slate-300 dark:hover:border-slate-700 focus:border-amber-400 dark:focus:border-amber-500 text-slate-800 dark:text-slate-100 focus:outline-none py-1.5" />
                     </div>
@@ -1233,33 +1256,33 @@ export function EventView({ eventId, onBack }: EventViewProps) {
           ) : activeTab === 'merges' ? (
             mergeSuggestions.length === 0 ? (
               <div className="border border-dashed border-slate-300 dark:border-slate-800 rounded-3xl p-16 text-center text-slate-500 max-w-lg mx-auto bg-white/50 dark:bg-transparent shadow-sm">
-                אין הצעות למאגרים דומים למיזוג כרגע.
+                {language === 'he' ? 'אין הצעות למאגרים דומים למיזוג כרגע.' : 'No merge suggestions available at this time.'}
               </div>
             ) : (
-             <div className="flex flex-col gap-6 max-w-2xl mx-auto">
+              <div className="flex flex-col gap-6 max-w-2xl mx-auto text-start">
                 <div className="grid grid-cols-1 gap-8">
                   {mergeSuggestions.slice(0, 15).map((sug, i) => (
                     <div key={i} className="bg-white dark:bg-slate-900/40 border border-slate-200 dark:border-slate-800/80 rounded-3xl p-6 flex flex-col gap-6 shadow-xl">
                       <div className="flex items-center justify-center gap-10">
-                        <div className="flex flex-col items-center gap-3.5"><div onClick={() => setLightboxPhotoId(sug.photoIdA)} className="w-32 h-32 rounded-2xl overflow-hidden ring-4 ring-white dark:ring-slate-800 shadow-md cursor-pointer"><img src={sug.thumbA} className="w-full h-full object-cover" /></div><span className="font-extrabold text-base text-slate-800 dark:text-slate-200">{sug.clusterA.name}</span></div>
+                        <div className="flex flex-col items-center gap-3.5"><div onClick={() => setLightboxPhotoId(Number(sug.photoIdA))} className="w-32 h-32 rounded-2xl overflow-hidden ring-4 ring-white dark:ring-slate-800 shadow-md cursor-pointer"><img src={sug.thumbA} className="w-full h-full object-cover" alt="" /></div><span className="font-extrabold text-base text-slate-800 dark:text-slate-200">{sug.clusterA.name}</span></div>
                         <div className="flex flex-col items-center gap-1.5"><Sparkles className="w-6 h-6 text-amber-500 dark:text-amber-400" /><span className="text-sm bg-amber-100 dark:bg-amber-500/20 px-3 py-1 rounded-full border border-amber-200 dark:border-amber-500/30 text-amber-900 dark:text-amber-300 font-bold shadow-sm">{Math.max(0, Math.min(100, Math.round((1.35 - sug.distance) / 0.5 * 100)))}%</span></div>
-                        <div className="flex flex-col items-center gap-3.5"><div onClick={() => setLightboxPhotoId(sug.photoIdB)} className="w-32 h-32 rounded-2xl overflow-hidden ring-4 ring-white dark:ring-slate-800 shadow-md cursor-pointer"><img src={sug.thumbB} className="w-full h-full object-cover" /></div><span className="font-extrabold text-base text-slate-800 dark:text-slate-200">{sug.clusterB.name}</span></div>
+                        <div className="flex flex-col items-center gap-3.5"><div onClick={() => setLightboxPhotoId(Number(sug.photoIdB))} className="w-32 h-32 rounded-2xl overflow-hidden ring-4 ring-white dark:ring-slate-800 shadow-md cursor-pointer"><img src={sug.thumbB} className="w-full h-full object-cover" alt="" /></div><span className="font-extrabold text-base text-slate-800 dark:text-slate-200">{sug.clusterB.name}</span></div>
                       </div>
                       <div className="flex gap-4 mt-2 border-t border-slate-100 dark:border-slate-800 pt-5">
-                        <button onClick={() => handleMergeSuggestion(sug.clusterA.id, sug.clusterB.id, sug.clusterA.name, sug.clusterB.name)} className="flex-1 py-2.5 rounded-xl bg-amber-100 hover:bg-amber-200 dark:bg-amber-500 dark:hover:bg-amber-400 text-amber-900 dark:text-slate-950 border border-amber-200 dark:border-transparent text-xs font-extrabold transition-all cursor-pointer shadow-sm">מזג אורחים</button>
-                        <button onClick={() => handleDeclineSuggestion(sug.clusterA.id, sug.clusterB.id)} className="flex-1 py-2.5 rounded-xl bg-slate-50 hover:bg-slate-100 dark:bg-slate-900 dark:hover:bg-slate-800 border border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-400 text-xs font-bold transition-all cursor-pointer shadow-sm">התעלם</button>
+                        <button onClick={() => handleMergeSuggestion(sug.clusterA.id, sug.clusterB.id, sug.clusterA.name, sug.clusterB.name)} className="flex-1 py-2.5 rounded-xl bg-amber-100 hover:bg-amber-200 dark:bg-amber-500 dark:hover:bg-amber-400 text-amber-900 dark:text-slate-950 border border-amber-200 dark:border-transparent text-xs font-extrabold transition-all cursor-pointer shadow-sm">{t('eventView.mergeGuestsBtn')}</button>
+                        <button onClick={() => handleDeclineSuggestion(sug.clusterA.id, sug.clusterB.id)} className="flex-1 py-2.5 rounded-xl bg-slate-50 hover:bg-slate-100 dark:bg-slate-900 dark:hover:bg-slate-800 border border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-400 text-xs font-bold transition-all cursor-pointer shadow-sm">{language === 'he' ? 'התעלם' : 'Ignore'}</button>
                       </div>
                     </div>
                   ))}
                 </div>
                 {mergeSuggestions.length > 15 && (
-                  <div className="mt-4 p-5 rounded-3xl bg-amber-50 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-900/30 flex items-center justify-between gap-4 shadow-sm">
+                  <div className="mt-4 p-5 rounded-3xl bg-amber-50 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-900/30 flex items-center justify-between gap-4 shadow-sm text-start" dir={isRtl ? 'rtl' : 'ltr'}>
                     <div className="flex items-center gap-3">
                       <Sparkles className="w-5 h-5 text-amber-600 dark:text-amber-400 shrink-0" />
-                      <div className="text-right">
-                        <h5 className="font-bold text-slate-800 dark:text-slate-200 text-sm">נמצאו הצעות מיזוג נוספות</h5>
-                        <p className="text-slate-600 dark:text-slate-400 text-xs mt-0.5">
-                          מציג את 15 ההצעות הדומות ביותר. סה"כ קיימות {mergeSuggestions.length} הצעות מיזוג.
+                      <div className="text-start">
+                        <h5 className="font-bold text-slate-800 dark:text-slate-200 text-sm m-0">{language === 'he' ? 'נמצאו הצעות מיזוג נוספות' : 'Additional merge suggestions found'}</h5>
+                        <p className="text-slate-600 dark:text-slate-400 text-xs mt-0.5 m-0">
+                          {language === 'he' ? `מציג את 15 ההצעות הדומות ביותר. סה"כ קיימות ${mergeSuggestions.length} הצעות מיזוג.` : `Showing 15 most similar suggestions. Total of ${mergeSuggestions.length} suggestions.`}
                         </p>
                       </div>
                     </div>
@@ -1268,19 +1291,19 @@ export function EventView({ eventId, onBack }: EventViewProps) {
                     </span>
                   </div>
                 )}
-             </div>
+              </div>
             )
           ) : activeTab === 'unidentified' ? (
             <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-6">
                 {unidentifiedFaces.map((face) => (
                   <div key={face.id} className="bg-slate-900/30 border border-slate-800/85 rounded-2xl p-4 flex flex-col items-center gap-3.5 shadow">
-                    <div className="relative w-28 h-28 rounded-xl overflow-hidden ring-2 ring-slate-800"><img src={face.thumbnail} className="w-full h-full object-cover" /></div>
-                    <div className="w-full flex flex-col gap-1.5 text-right">
-                      <span className="text-[10px] text-slate-500 font-semibold pr-1">שייך לאורח:</span>
+                    <div className="relative w-28 h-28 rounded-xl overflow-hidden ring-2 ring-slate-800"><img src={face.thumbnail} className="w-full h-full object-cover" alt="" /></div>
+                    <div className="w-full flex flex-col gap-1.5 text-start">
+                      <span className={`text-[10px] text-slate-500 font-semibold ${isRtl ? 'pr-1' : 'pl-1'}`}>{t('eventView.belongsToGuest')}</span>
                       <select onChange={(e) => face.id !== undefined && handleAssignFace(face.id, e.target.value)} defaultValue="" className="w-full bg-slate-950 border border-slate-800 rounded-lg px-2 py-1 text-xs text-slate-200 focus:outline-none focus:border-amber-500 cursor-pointer">
-                        <option value="" disabled>בחר אדם...</option>
+                        <option value="" disabled>{language === 'he' ? 'בחר אדם...' : 'Select person...'}</option>
                         {clusters.map(c => (<option key={c.id} value={c.id}>{c.name}</option>))}
-                        <option value="new" className="text-amber-400 font-semibold">+ פרופיל חדש</option>
+                        <option value="new" className="text-amber-400 font-semibold">{language === 'he' ? '+ פרופיל חדש' : '+ New Profile'}</option>
                       </select>
                     </div>
                   </div>
@@ -1295,13 +1318,13 @@ export function EventView({ eventId, onBack }: EventViewProps) {
                   onClick={() => photo.processed && photo.id && setLightboxPhotoId(photo.id)}
                   className={`group relative aspect-square border rounded-2xl overflow-hidden transition-all ${
                     photo.processed 
-                      ? 'border-slate-800 cursor-pointer hover:border-amber-500/50' 
-                      : 'border-slate-900 opacity-60 cursor-not-allowed'
+                      ? 'border-slate-200 dark:border-slate-850 cursor-pointer hover:border-amber-500/50' 
+                      : 'border-slate-200/40 dark:border-slate-900 opacity-60 cursor-not-allowed'
                   }`}
                 >
                   {photo.id && <PhotoImage photoId={photo.id} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" />}
                   
-                  <div className="absolute top-3.5 right-3.5 p-1 rounded bg-slate-950/80 border border-slate-800 z-10">
+                  <div className={`absolute top-3.5 ${isRtl ? 'right-3.5' : 'left-3.5'} p-1 rounded bg-slate-950/80 border border-slate-800 z-10`}>
                     {photo.processed ? (
                       <Check className="w-3 h-3 text-emerald-400" />
                     ) : (
@@ -1327,7 +1350,7 @@ export function EventView({ eventId, onBack }: EventViewProps) {
           <button
             onClick={() => setLightboxPhotoId(null)}
             className="absolute top-4 left-4 p-2.5 rounded-full bg-slate-900 border border-slate-800 text-slate-400 hover:text-slate-200 transition-colors cursor-pointer"
-            title="סגור"
+            title={t('common.close')}
           >
             <X className="w-6 h-6" />
           </button>
@@ -1353,21 +1376,21 @@ export function EventView({ eventId, onBack }: EventViewProps) {
                     height: `${face.box.height * 100}%`,
                   }}
                 >
-                  <div className="absolute bottom-full right-0 mb-1.5 bg-amber-500/90 text-slate-950 text-[10px] font-semibold px-2 py-0.5 rounded shadow-lg whitespace-nowrap opacity-0 group-hover/face:opacity-100 transition-opacity pointer-events-none">
-                    {clusterNamesMap[face.clusterId || ''] || 'דמות ללא שם'}
+                  <div className={`absolute bottom-full ${isRtl ? 'right-0' : 'left-0'} mb-1.5 bg-amber-500/90 text-slate-950 text-[10px] font-semibold px-2 py-0.5 rounded shadow-lg whitespace-nowrap opacity-0 group-hover/face:opacity-100 transition-opacity pointer-events-none`}>
+                    {clusterNamesMap[face.clusterId || ''] || t('eventView.unknownGuest')}
                   </div>
                 </div>
               ))}
             </div>
 
             <div className="text-center">
-              <p className="text-slate-300 font-semibold text-sm">{lightboxPhoto.fileName}</p>
+              <p className="text-slate-300 font-semibold text-sm m-0">{lightboxPhoto.fileName}</p>
               {lightboxFaces.length > 0 ? (
-                <p className="text-amber-400 text-xs mt-1">
-                  זוהו {lightboxFaces.length} דמויות בתמונה זו (רחף מעל הריבועים כדי לראות שמות)
+                <p className="text-amber-400 text-xs mt-1 m-0">
+                  {language === 'he' ? `זוהו ${lightboxFaces.length} דמויות בתמונה זו (רחף מעל הריבועים כדי לראות שמות)` : `Detected ${lightboxFaces.length} characters in this photo (hover to see names)`}
                 </p>
               ) : (
-                <p className="text-slate-500 text-xs mt-1">לא זוהו דמויות בתמונה זו</p>
+                <p className="text-slate-500 text-xs mt-1 m-0">{language === 'he' ? 'לא זוהו דמויות בתמונה זו' : 'No characters detected in this photo'}</p>
               )}
             </div>
           </div>
@@ -1378,7 +1401,7 @@ export function EventView({ eventId, onBack }: EventViewProps) {
       {isMergeMode && selectedForMerge.size > 0 && (
         <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 bg-white/95 dark:bg-slate-900/95 backdrop-blur-md border border-slate-200 dark:border-slate-700 p-4 rounded-3xl shadow-2xl flex items-center gap-6">
           <div className="text-slate-800 dark:text-slate-200 font-bold">
-            {selectedForMerge.size} אורחים נבחרו
+            {t('eventView.selectedForMerge', { count: selectedForMerge.size })}
           </div>
           <div className="flex items-center gap-3">
             <button

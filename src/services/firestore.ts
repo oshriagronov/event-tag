@@ -275,7 +275,7 @@ export async function appendFaceDescriptors(
   
   // Find the last batch — if it has room, append to it first
   batches.sort((a, b) => a.batchIndex - b.batchIndex);
-  let remaining = [...newFaces];
+  const remaining = [...newFaces];
   
   if (batches.length > 0) {
     const lastBatch = batches[batches.length - 1];

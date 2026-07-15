@@ -2,10 +2,12 @@
  * GuestView — Full guest-facing page for finding photos at an event.
  *
  * Flow: Load event → Selfie capture → Face matching → Results grid
- * No login required. Designed for mobile-first, Hebrew RTL.
+ * No login required. Designed for mobile-first.
  */
 
 import { useState, useEffect, useCallback } from 'react';
+import { Link } from 'react-router-dom';
+import { useTranslation } from '../services/translations';
 import {
   Camera,
   Download,
@@ -16,7 +18,6 @@ import {
   Search,
   Users,
   AlertCircle,
-  Sparkles,
   PartyPopper,
   Frown,
   Lock,
@@ -40,6 +41,8 @@ type ViewState =
   | 'error';
 
 export function GuestView({ shareCode }: GuestViewProps) {
+  const { t, isRtl, language } = useTranslation();
+  
   const [viewState, setViewState] = useState<ViewState>('loading-event');
   const [event, setEvent] = useState<CloudEvent | null>(null);
   const [matches, setMatches] = useState<MatchResult[]>([]);
@@ -67,13 +70,13 @@ export function GuestView({ shareCode }: GuestViewProps) {
         if (cancelled) return;
 
         if (!eventData) {
-          setErrorMessage('הקישור אינו תקף או שהאירוע לא נמצא.');
+          setErrorMessage(t('guestView.errorLoadingDesc'));
           setViewState('error');
           return;
         }
 
         if (eventData.status !== 'ready') {
-          setErrorMessage('האירוע עדיין בתהליך עיבוד. נסה/י שוב מאוחר יותר.');
+          setErrorMessage(language === 'he' ? 'האירוע עדיין בתהליך עיבוד. נסה/י שוב מאוחר יותר.' : 'The event is still processing. Please try again later.');
           setViewState('error');
           return;
         }
@@ -83,7 +86,7 @@ export function GuestView({ shareCode }: GuestViewProps) {
       } catch (err) {
         if (cancelled) return;
         console.error('Error loading event:', err);
-        setErrorMessage('שגיאה בטעינת האירוע. בדוק/י את החיבור לאינטרנט ונסה/י שוב.');
+        setErrorMessage(language === 'he' ? 'שגיאה בטעינת האירוע. בדוק/י את החיבור לאינטרנט ונסה/י שוב.' : 'Error loading event. Please check your internet connection and try again.');
         setViewState('error');
       }
     }
@@ -92,7 +95,7 @@ export function GuestView({ shareCode }: GuestViewProps) {
     return () => {
       cancelled = true;
     };
-  }, [shareCode]);
+  }, [shareCode, t, language]);
 
   // ---- Selfie captured → match ----
   const handleSelfieCapture = useCallback(
@@ -116,11 +119,11 @@ export function GuestView({ shareCode }: GuestViewProps) {
         }
       } catch (err) {
         console.error('Matching error:', err);
-        setErrorMessage('שגיאה בחיפוש התמונות. נסה/י שוב.');
+        setErrorMessage(t('guestView.errorSearching'));
         setViewState('error');
       }
     },
-    [event]
+    [event, t]
   );
 
   // ---- Retake selfie ----
@@ -184,12 +187,12 @@ export function GuestView({ shareCode }: GuestViewProps) {
       URL.revokeObjectURL(url);
     } catch (err) {
       console.error('ZIP download error:', err);
-      alert('שגיאה בהורדת התמונות. נסה/י שוב.');
+      alert(t('guestView.errorDownloading'));
     } finally {
       setDownloadingAll(false);
       setDownloadProgress(0);
     }
-  }, [downloadableMatches, event?.name]);
+  }, [downloadableMatches, event?.name, t]);
 
   // ---- Download single photo ----
   const handleDownloadSingle = useCallback((driveFileId: string) => {
@@ -208,12 +211,12 @@ export function GuestView({ shareCode }: GuestViewProps) {
         <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-amber-200 to-amber-400 dark:from-amber-500 dark:to-amber-700 flex items-center justify-center shadow-lg shadow-amber-500/20 dark:shadow-amber-600/30 shrink-0">
           <Users className="w-5 h-5 text-amber-900 dark:text-white" />
         </div>
-        <div className="min-w-0">
+        <div className="min-w-0 text-start">
           <h1 className="text-lg font-extrabold tracking-tight text-slate-800 dark:text-white m-0 leading-tight">
             EventTag
           </h1>
           {event && (
-            <p className="text-xs text-slate-500 dark:text-slate-400 truncate">{event.name}</p>
+            <p className="text-xs text-slate-500 dark:text-slate-400 truncate m-0">{event.name}</p>
           )}
         </div>
       </div>
@@ -223,13 +226,13 @@ export function GuestView({ shareCode }: GuestViewProps) {
   // ---- Loading event state ----
   if (viewState === 'loading-event') {
     return (
-      <div dir="rtl" className="min-h-screen bg-slate-50 dark:bg-[#111113] text-slate-900 dark:text-slate-100 flex flex-col">
+      <div className="min-h-screen bg-slate-50 dark:bg-[#111113] text-slate-900 dark:text-slate-100 flex flex-col text-start" dir={isRtl ? 'rtl' : 'ltr'}>
         {renderHeader()}
         <div className="flex-1 flex flex-col items-center justify-center gap-4 p-6">
           <div className="w-16 h-16 rounded-2xl bg-amber-100 dark:bg-amber-500/10 flex items-center justify-center">
             <Loader2 className="w-8 h-8 text-amber-500 animate-spin" />
           </div>
-          <p className="text-slate-600 dark:text-slate-400 text-sm font-medium">טוען את האירוע...</p>
+          <p className="text-slate-600 dark:text-slate-400 text-sm font-medium m-0">{t('guestView.loadingEvent')}</p>
         </div>
       </div>
     );
@@ -238,21 +241,21 @@ export function GuestView({ shareCode }: GuestViewProps) {
   // ---- Error state ----
   if (viewState === 'error') {
     return (
-      <div dir="rtl" className="min-h-screen bg-slate-50 dark:bg-[#111113] text-slate-900 dark:text-slate-100 flex flex-col">
+      <div className="min-h-screen bg-slate-50 dark:bg-[#111113] text-slate-900 dark:text-slate-100 flex flex-col text-start" dir={isRtl ? 'rtl' : 'ltr'}>
         {renderHeader()}
         <div className="flex-1 flex flex-col items-center justify-center gap-5 p-6">
           <div className="w-16 h-16 rounded-2xl bg-red-100 dark:bg-red-500/10 flex items-center justify-center">
             <AlertCircle className="w-8 h-8 text-red-500" />
           </div>
           <div className="text-center max-w-xs">
-            <h2 className="text-lg font-bold text-slate-800 dark:text-white mb-2">אופס!</h2>
-            <p className="text-sm text-slate-600 dark:text-slate-400 leading-relaxed">{errorMessage}</p>
+            <h2 className="text-lg font-bold text-slate-800 dark:text-white mb-2 m-0">{t('common.error')}</h2>
+            <p className="text-sm text-slate-600 dark:text-slate-400 leading-relaxed m-0">{errorMessage}</p>
           </div>
           <button
             onClick={() => window.location.reload()}
             className="mt-2 px-6 py-2.5 rounded-xl bg-amber-500 hover:bg-amber-400 text-white font-bold text-sm transition-all shadow-lg shadow-amber-500/30 cursor-pointer active:scale-[0.98]"
           >
-            נסה שוב
+            {language === 'he' ? 'נסה שוב' : 'Try again'}
           </button>
         </div>
       </div>
@@ -262,20 +265,16 @@ export function GuestView({ shareCode }: GuestViewProps) {
   // ---- Selfie input state ----
   if (viewState === 'selfie-input') {
     return (
-      <div dir="rtl" className="min-h-screen bg-slate-50 dark:bg-[#111113] text-slate-900 dark:text-slate-100 flex flex-col">
+      <div className="min-h-screen bg-slate-50 dark:bg-[#111113] text-slate-900 dark:text-slate-100 flex flex-col text-start" dir={isRtl ? 'rtl' : 'ltr'}>
         {renderHeader()}
         <div className="flex-1 flex flex-col p-4 max-w-lg mx-auto w-full">
           {/* Event info card */}
           <div className="mb-6 p-5 rounded-2xl bg-white/50 dark:bg-slate-900/40 backdrop-blur-sm border border-slate-200/60 dark:border-slate-800/60 shadow-sm">
-            <h2 className="text-xl font-bold text-slate-800 dark:text-white mb-1">{event?.name}</h2>
+            <h2 className="text-xl font-bold text-slate-800 dark:text-white mb-1 m-0">{event?.name}</h2>
             <div className="flex items-center gap-4 text-sm text-slate-500 dark:text-slate-400">
               <span className="flex items-center gap-1.5">
                 <ImageIcon className="w-4 h-4" />
-                {event?.photoCount} תמונות
-              </span>
-              <span className="flex items-center gap-1.5">
-                <Users className="w-4 h-4" />
-                {event?.faceCount} פנים מזוהות
+                {t('guestView.photosCount', { count: event?.photoCount || 0 })}
               </span>
             </div>
           </div>
@@ -284,7 +283,7 @@ export function GuestView({ shareCode }: GuestViewProps) {
           <div className="mb-6 text-center">
             <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-amber-50 dark:bg-amber-500/10 text-amber-700 dark:text-amber-400 text-sm font-medium border border-amber-200/50 dark:border-amber-500/20">
               <Camera className="w-4 h-4" />
-              <span>צלם/י סלפי ונמצא את התמונות שלך!</span>
+              <span>{t('guestView.selfieInstruction')}</span>
             </div>
           </div>
 
@@ -292,10 +291,10 @@ export function GuestView({ shareCode }: GuestViewProps) {
           <SelfieCapture onCapture={handleSelfieCapture} />
 
           {/* Privacy note */}
-          <p className="mt-6 text-xs text-slate-400 dark:text-slate-500 text-center leading-relaxed">
-            התמונה שלך מעובדת על המכשיר בלבד ואינה נשמרת בשרתים.
-            <br />
-            פרטיותך חשובה לנו.
+          <p className="mt-6 text-xs text-slate-400 dark:text-slate-500 text-center leading-relaxed m-0">
+            {language === 'he' 
+              ? 'התמונה שלך מעובדת על המכשיר בלבד ואינה נשמרת בשרתים. פרטיותך חשובה לנו.' 
+              : 'Your photo is processed locally and never saved on servers. We value your privacy.'}
           </p>
         </div>
       </div>
@@ -305,7 +304,7 @@ export function GuestView({ shareCode }: GuestViewProps) {
   // ---- Matching state ----
   if (viewState === 'matching') {
     return (
-      <div dir="rtl" className="min-h-screen bg-slate-50 dark:bg-[#111113] text-slate-900 dark:text-slate-100 flex flex-col">
+      <div className="min-h-screen bg-slate-50 dark:bg-[#111113] text-slate-900 dark:text-slate-100 flex flex-col text-start" dir={isRtl ? 'rtl' : 'ltr'}>
         {renderHeader()}
         <div className="flex-1 flex flex-col items-center justify-center gap-5 p-6">
           <div className="relative w-20 h-20">
@@ -315,8 +314,8 @@ export function GuestView({ shareCode }: GuestViewProps) {
             </div>
           </div>
           <div className="text-center">
-            <h2 className="text-lg font-bold text-slate-800 dark:text-white mb-1">מחפש את התמונות שלך...</h2>
-            <p className="text-sm text-slate-500 dark:text-slate-400">סורק {event?.photoCount} תמונות מהאירוע</p>
+            <h2 className="text-lg font-bold text-slate-800 dark:text-white mb-1 m-0">{t('guestView.searchingTitle')}</h2>
+            <p className="text-sm text-slate-500 dark:text-slate-400 m-0">{t('guestView.scanningCount', { count: event?.photoCount || 0 })}</p>
           </div>
           <div className="flex gap-1.5 mt-2">
             {[0, 1, 2].map((i) => (
@@ -338,16 +337,16 @@ export function GuestView({ shareCode }: GuestViewProps) {
   // ---- No matches state ----
   if (viewState === 'no-matches') {
     return (
-      <div dir="rtl" className="min-h-screen bg-slate-50 dark:bg-[#111113] text-slate-900 dark:text-slate-100 flex flex-col">
+      <div className="min-h-screen bg-slate-50 dark:bg-[#111113] text-slate-900 dark:text-slate-100 flex flex-col text-start" dir={isRtl ? 'rtl' : 'ltr'}>
         {renderHeader()}
         <div className="flex-1 flex flex-col items-center justify-center gap-5 p-6">
           <div className="w-16 h-16 rounded-2xl bg-slate-100 dark:bg-slate-800/50 flex items-center justify-center">
             <Frown className="w-8 h-8 text-slate-400 dark:text-slate-500" />
           </div>
           <div className="text-center max-w-xs">
-            <h2 className="text-lg font-bold text-slate-800 dark:text-white mb-2">לא נמצאו תמונות</h2>
-            <p className="text-sm text-slate-600 dark:text-slate-400 leading-relaxed">
-              לא הצלחנו למצוא תמונות שלך באירוע. ייתכן שלא צולמת, או שכדאי לנסות סלפי עם תאורה טובה יותר.
+            <h2 className="text-lg font-bold text-slate-800 dark:text-white mb-2 m-0">{t('guestView.noPhotosTitle')}</h2>
+            <p className="text-sm text-slate-600 dark:text-slate-400 leading-relaxed m-0">
+              {t('guestView.noPhotosDesc')}
             </p>
           </div>
           <button
@@ -355,7 +354,7 @@ export function GuestView({ shareCode }: GuestViewProps) {
             className="mt-2 flex items-center gap-2 px-6 py-2.5 rounded-xl bg-amber-500 hover:bg-amber-400 text-white font-bold text-sm transition-all shadow-lg shadow-amber-500/30 cursor-pointer active:scale-[0.98]"
           >
             <RotateCcw className="w-4 h-4" />
-            נסה שוב עם סלפי אחר
+            {language === 'he' ? 'נסה שוב עם סלפי אחר' : 'Try again with another selfie'}
           </button>
         </div>
       </div>
@@ -364,7 +363,7 @@ export function GuestView({ shareCode }: GuestViewProps) {
 
   // ---- Results state ----
   return (
-    <div dir="rtl" className="min-h-screen bg-slate-50 dark:bg-[#111113] text-slate-900 dark:text-slate-100 flex flex-col">
+    <div className="min-h-screen bg-slate-50 dark:bg-[#111113] text-slate-900 dark:text-slate-100 flex flex-col text-start" dir={isRtl ? 'rtl' : 'ltr'}>
       {renderHeader()}
 
       <div className="flex-1 flex flex-col p-4 max-w-2xl mx-auto w-full">
@@ -375,174 +374,151 @@ export function GuestView({ shareCode }: GuestViewProps) {
               <PartyPopper className="w-5 h-5 text-white" />
             </div>
             <div>
-              <h2 className="text-base font-bold text-slate-800 dark:text-white">
-                מצאנו {matchCount} תמונות שלך!
+              <h2 className="text-base font-bold text-slate-800 dark:text-white m-0">
+                {t('guestView.foundMatches', { count: matchCount })}
               </h2>
-              <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
-                מתוך {event?.name}
-              </p>
             </div>
           </div>
 
-          {/* Action bar */}
-          <div className="flex flex-col gap-2">
-            <div className="flex gap-2">
+          <div className="flex flex-wrap gap-3 items-center justify-between">
+            {downloadableMatches.length > 0 && (
               <button
                 onClick={handleDownloadAll}
-                disabled={downloadingAll || downloadableMatches.length === 0}
-                className="flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl bg-amber-500 hover:bg-amber-400 disabled:bg-amber-500/60 text-white font-bold text-sm transition-all shadow-lg shadow-amber-500/30 cursor-pointer disabled:cursor-not-allowed active:scale-[0.98]"
+                disabled={downloadingAll}
+                className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-amber-500 hover:bg-amber-400 text-white font-bold text-sm transition-all shadow-md shadow-amber-500/20 cursor-pointer active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 {downloadingAll ? (
                   <>
                     <Loader2 className="w-4 h-4 animate-spin" />
-                    <span>יוצר קובץ ZIP... {downloadProgress}%</span>
+                    <span>
+                      {language === 'he' ? `מוריד... (${downloadProgress}%)` : `Downloading... (${downloadProgress}%)`}
+                    </span>
                   </>
                 ) : (
                   <>
                     <DownloadCloud className="w-4 h-4" />
-                    <span>הורד את כל התמונות כקובץ ZIP ({downloadableMatches.length})</span>
+                    <span>{t('guestView.downloadZipBtn', { count: downloadableMatches.length })}</span>
                   </>
                 )}
               </button>
-              <button
-                onClick={handleRetake}
-                className="flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 font-medium text-sm transition-all hover:bg-slate-200 dark:hover:bg-slate-700 cursor-pointer active:scale-[0.98]"
-              >
-                <RotateCcw className="w-4 h-4" />
-                סלפי חדש
-              </button>
-            </div>
+            )}
 
             {hiddenPhotoIds.length > 0 && (
               <button
                 onClick={handleRestoreHidden}
-                className="w-full flex items-center justify-center gap-1.5 py-2 rounded-xl bg-slate-100 dark:bg-slate-800/80 text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200 font-bold text-xs transition-all cursor-pointer active:scale-[0.98] border border-dashed border-slate-200 dark:border-slate-700"
+                className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-300 text-sm font-semibold transition-all cursor-pointer"
               >
-                <span>שחזר תמונות שהוסרו ({hiddenPhotoIds.length})</span>
+                <span>{t('guestView.restoreRemoved', { count: hiddenPhotoIds.length })}</span>
               </button>
             )}
+
+            <button
+              onClick={handleRetake}
+              className={`flex items-center gap-1.5 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 text-sm transition-colors cursor-pointer font-medium ${downloadableMatches.length > 0 ? '' : (isRtl ? 'mr-auto' : 'ml-auto')}`}
+            >
+              <RotateCcw className="w-3.5 h-3.5" />
+              <span>{t('guestView.changeSelfie')}</span>
+            </button>
           </div>
         </div>
 
-        {/* Warning banner if there's any image loading failure */}
+        {/* Warning if there are photo loading failures */}
         {hasLoadError && (
-          <div className="bg-amber-50/90 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-900/30 rounded-2xl p-4 flex gap-3 text-amber-900 dark:text-amber-400 text-sm mb-4 text-right animate-in fade-in slide-in-from-top-2 duration-350">
-            <AlertCircle className="w-5 h-5 shrink-0 text-amber-600 dark:text-amber-500 mt-0.5" />
-            <div className="flex flex-col gap-1">
-              <span className="font-bold text-slate-800 dark:text-amber-300">חלק מהתמונות אינן נטענות</span>
-              <span>נראה שהגישה לתמונות ב-Google Drive חסומה. על בעל האירוע להגדיר את שיתוף התיקייה ב-Drive ל-<strong>"כל מי שקישור זה ברשותו" (Anyone with the link)</strong> כדי שהאורחים יוכלו לצפות בהן.</span>
+          <div className="mb-6 bg-amber-500/10 border border-amber-500/20 rounded-2xl p-4 flex gap-3 text-start">
+            <Lock className="w-5 h-5 text-amber-500 shrink-0 mt-0.5" />
+            <div className="flex flex-col gap-1.5">
+              <span className="font-bold text-slate-800 dark:text-amber-300 text-sm">{t('guestView.blockedNoticeTitle')}</span>
+              <span className="text-xs text-slate-600 dark:text-slate-400 leading-relaxed">
+                {t('guestView.blockedNoticeDesc')}
+              </span>
             </div>
           </div>
         )}
 
-        {/* Photo grid */}
-        <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-          {displayedMatches.map((match, index) => (
+        {/* Matches Grid */}
+        <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
+          {displayedMatches.map((match) => (
             <div
               key={match.driveFileId}
-              className="group relative aspect-square rounded-2xl overflow-hidden bg-slate-100 dark:bg-slate-800/50 border border-slate-200/60 dark:border-slate-800/60 shadow-sm hover:shadow-xl transition-all duration-300 hover:-translate-y-0.5 cursor-pointer"
-              style={{
-                animationName: 'fadeInUp',
-                animationDuration: '0.4s',
-                animationTimingFunction: 'ease-out',
-                animationFillMode: 'both',
-                animationDelay: `${Math.min(index * 0.06, 0.6)}s`,
-              }}
-              onClick={() =>
-                !failedPhotoIds[match.driveFileId] &&
-                setSelectedPhotoId(
-                  selectedPhotoId === match.driveFileId ? null : match.driveFileId
-                )
-              }
+              onClick={() => setSelectedPhotoId(match.driveFileId)}
+              className="group relative aspect-square rounded-2xl overflow-hidden border border-slate-200 dark:border-slate-800/80 cursor-pointer bg-slate-100 dark:bg-slate-900 shadow-sm hover:shadow-lg transition-all hover:scale-[1.02]"
             >
-              {/* Hide / False Recognition Button */}
-              {!failedPhotoIds[match.driveFileId] && (
+              <img
+                src={`https://lh3.googleusercontent.com/d/${match.driveFileId}=s400`}
+                alt=""
+                className="w-full h-full object-cover"
+                referrerPolicy="no-referrer"
+                onError={() => {
+                  setFailedPhotoIds((prev) => ({ ...prev, [match.driveFileId]: true }));
+                  setHasLoadError(true);
+                }}
+              />
+
+              <div className="absolute inset-0 bg-slate-950/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2">
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    handleDownloadSingle(match.driveFileId);
+                  }}
+                  className="p-2 rounded-xl bg-white text-slate-800 hover:bg-amber-500 hover:text-white transition-all shadow-md cursor-pointer"
+                  title={t('guestView.downloadBtn')}
+                >
+                  <Download className="w-4 h-4" />
+                </button>
                 <button
                   onClick={(e) => {
                     e.stopPropagation();
                     handleHidePhoto(match.driveFileId);
                   }}
-                  className="absolute top-2 left-2 z-10 p-1.5 rounded-full bg-slate-950/80 hover:bg-red-600 dark:hover:bg-red-500/90 text-slate-300 hover:text-white backdrop-blur-sm shadow-md transition-all opacity-0 group-hover:opacity-100 cursor-pointer border border-slate-800"
-                  title="זה לא אני / הסר תמונה"
+                  className="p-2 rounded-xl bg-white text-slate-800 hover:bg-red-550 hover:text-white transition-all shadow-md cursor-pointer"
+                  title={t('guestView.removeBtn')}
                 >
-                  <X className="w-3.5 h-3.5" />
+                  <X className="w-4 h-4" />
                 </button>
-              )}
-
-              {failedPhotoIds[match.driveFileId] ? (
-                <div className="w-full h-full flex flex-col items-center justify-center bg-slate-100 dark:bg-slate-900/80 text-slate-500 dark:text-slate-400 p-4 text-center gap-2">
-                  <Lock className="w-7 h-7 text-amber-500/80 animate-pulse" />
-                  <span className="text-xs font-bold text-slate-700 dark:text-slate-200">הגישה חסומה</span>
-                  <span className="text-[10px] leading-normal text-slate-500 dark:text-slate-400">יש לבקש מבעל האירוע להגדיר שיתוף ציבורי ב-Drive</span>
-                </div>
-              ) : (
-                <>
-                  <img
-                    src={`https://drive.google.com/thumbnail?id=${match.driveFileId}&sz=s400`}
-                    alt={`תמונה ${index + 1}`}
-                    className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105"
-                    loading="lazy"
-                    onError={() => {
-                      setFailedPhotoIds(prev => ({ ...prev, [match.driveFileId]: true }));
-                      setHasLoadError(true);
-                    }}
-                  />
-
-                  {/* Hover overlay */}
-                  <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex items-end justify-center p-3">
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        handleDownloadSingle(match.driveFileId);
-                      }}
-                      className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-white/90 dark:bg-slate-900/90 text-slate-800 dark:text-white text-xs font-bold shadow-lg transition-transform hover:scale-105 cursor-pointer"
-                    >
-                      <Download className="w-3.5 h-3.5" />
-                      הורד
-                    </button>
-                  </div>
-                </>
-              )}
-
-              {/* Match similarity badge */}
-              {match.distance < 0.45 && (
-                <div className="absolute top-2 right-2 flex items-center gap-1 px-2 py-0.5 rounded-full bg-amber-500/90 text-white text-[10px] font-bold shadow-lg">
-                  <Sparkles className="w-3 h-3" />
-                  התאמה מעולה
-                </div>
-              )}
+              </div>
             </div>
           ))}
         </div>
 
-        {/* Expanded photo view */}
+        {/* Photo Modal */}
         {selectedPhotoId && (
           <div
-            className="fixed inset-0 z-[100] bg-black/80 backdrop-blur-sm flex items-center justify-center p-4"
+            className="fixed inset-0 bg-slate-950/90 flex items-center justify-center z-50 p-4"
             onClick={() => setSelectedPhotoId(null)}
           >
             <div
-              className="relative max-w-3xl w-full max-h-[85vh] rounded-2xl overflow-hidden bg-black shadow-2xl"
+              className="relative max-w-3xl w-full flex flex-col gap-4"
               onClick={(e) => e.stopPropagation()}
             >
+              <button
+                onClick={() => setSelectedPhotoId(null)}
+                className="absolute -top-12 right-0 p-2 rounded-xl bg-white/10 text-white hover:bg-white/20 transition-all cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+
               <img
-                src={`https://drive.google.com/thumbnail?id=${selectedPhotoId}&sz=s1600`}
-                alt="תמונה מוגדלת"
-                className="w-full h-full object-contain max-h-[75vh]"
+                src={`https://lh3.googleusercontent.com/d/${selectedPhotoId}=s1600`}
+                alt=""
+                className="w-full max-h-[75vh] object-contain rounded-2xl border border-slate-800 shadow-2xl"
+                referrerPolicy="no-referrer"
               />
-              <div className="absolute bottom-0 left-0 right-0 p-4 bg-gradient-to-t from-black/80 to-transparent flex justify-between items-center">
+
+              <div className="flex justify-between items-center gap-4 bg-slate-900/60 backdrop-blur-md border border-slate-800 p-4 rounded-2xl">
                 <button
-                  onClick={() => setSelectedPhotoId(null)}
-                  className="px-4 py-2 rounded-lg bg-white/10 hover:bg-white/20 text-white text-sm font-medium transition-colors cursor-pointer"
+                  onClick={() => handleHidePhoto(selectedPhotoId)}
+                  className="flex items-center gap-2 px-4 py-2 rounded-lg bg-red-500/10 hover:bg-red-500/20 text-red-500 text-sm font-semibold border border-red-500/20 transition-colors cursor-pointer"
                 >
-                  סגור
+                  <X className="w-4 h-4" />
+                  {t('guestView.removeBtn')}
                 </button>
+
                 <button
                   onClick={() => handleDownloadSingle(selectedPhotoId)}
                   className="flex items-center gap-2 px-4 py-2 rounded-lg bg-amber-500 hover:bg-amber-400 text-white text-sm font-bold transition-colors shadow-lg cursor-pointer"
                 >
                   <Download className="w-4 h-4" />
-                  הורד
+                  {t('guestView.downloadBtn')}
                 </button>
               </div>
             </div>
@@ -550,10 +526,15 @@ export function GuestView({ shareCode }: GuestViewProps) {
         )}
 
         {/* Footer */}
-        <div className="mt-8 mb-6 text-center">
-          <p className="text-xs text-slate-400 dark:text-slate-500">
-            מופעל ע&quot;י EventTag • כל העיבוד מתבצע על המכשיר שלך
+        <div className="mt-8 mb-6 text-center flex flex-col items-center gap-2">
+          <p className="text-xs text-slate-400 dark:text-slate-500 m-0">
+            {t('guestView.poweredBy')}
           </p>
+          <div className="flex items-center gap-2 text-xs text-slate-400 dark:text-slate-500">
+            <Link to="/privacy" className="hover:text-amber-500 transition-colors cursor-pointer">{t('legal.privacyTitle')}</Link>
+            <span className="text-slate-300 dark:text-slate-700">•</span>
+            <Link to="/terms" className="hover:text-amber-500 transition-colors cursor-pointer">{t('legal.termsTitle')}</Link>
+          </div>
         </div>
       </div>
 

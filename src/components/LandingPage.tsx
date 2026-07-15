@@ -1,12 +1,14 @@
 import { useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
+import { useTranslation } from '../services/translations';
 import {
   Camera,
   ScanFace,
   Shield,
   Sparkles,
   ArrowLeft,
+  ArrowRight,
   FolderUp,
   Users,
   Lock,
@@ -17,6 +19,7 @@ import {
 export function LandingPage() {
   const { user, loading, signIn } = useAuth();
   const navigate = useNavigate();
+  const { t, isRtl } = useTranslation();
 
   // Redirect to dashboard if already logged in
   useEffect(() => {
@@ -34,7 +37,7 @@ export function LandingPage() {
   }
 
   return (
-    <div className="flex-grow flex flex-col" dir="rtl">
+    <div className="flex-grow flex flex-col">
       {/* Hero Section */}
       <section className="relative min-h-[90vh] flex items-center justify-center overflow-hidden">
         {/* Animated background */}
@@ -52,7 +55,7 @@ export function LandingPage() {
           <div className="flex flex-col items-center gap-4">
             <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-amber-100/80 dark:bg-amber-500/10 border border-amber-200/60 dark:border-amber-500/20 text-amber-700 dark:text-amber-400 text-sm font-medium backdrop-blur-sm">
               <Sparkles className="w-4 h-4" />
-              <span>מופעל בינה מלאכותית</span>
+              <span>{t('landing.aiPowered')}</span>
             </div>
 
             <div className="flex items-center gap-4">
@@ -68,15 +71,14 @@ export function LandingPage() {
           {/* Headline */}
           <div className="max-w-3xl">
             <h2 className="text-2xl md:text-3xl font-bold text-slate-700 dark:text-slate-200 leading-relaxed m-0">
-              מערכת חכמה לניהול גלריות אירועים
+              {t('landing.heroTitle')}
               <br />
               <span className="bg-gradient-to-l from-amber-600 to-orange-600 dark:from-amber-400 dark:to-orange-400 bg-clip-text text-transparent">
-                כל אורח מוצא את עצמו בסלפי אחד
+                {t('landing.heroSubTitle')}
               </span>
             </h2>
             <p className="text-lg text-slate-500 dark:text-slate-400 mt-4 max-w-2xl mx-auto leading-relaxed">
-              העלו תמונות מ-Google Drive, הבינה המלאכותית מזהה פנים אוטומטית,
-              והאורחים מוצאים את התמונות שלהם בסלפי מהיר — הכל בפרטיות מוחלטת.
+              {t('landing.heroDesc')}
             </p>
           </div>
 
@@ -92,15 +94,19 @@ export function LandingPage() {
                 <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" fill="#fff" opacity=".8"/>
                 <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#fff" opacity=".7"/>
               </svg>
-              <span>התחברות עם Google</span>
-              <ArrowLeft className="w-5 h-5 transform group-hover:-translate-x-1 transition-transform" />
+              <span>{t('landing.signInGoogle')}</span>
+              {isRtl ? (
+                <ArrowLeft className="w-5 h-5 transform group-hover:-translate-x-1 transition-transform" />
+              ) : (
+                <ArrowRight className="w-5 h-5 transform group-hover:translate-x-1 transition-transform" />
+              )}
             </button>
 
             <a
               href="#how-it-works"
               className="px-6 py-3 rounded-xl text-sm font-medium text-slate-600 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200 hover:bg-white/60 dark:hover:bg-slate-800/60 transition-all cursor-pointer backdrop-blur-sm flex items-center gap-2"
             >
-              <span>איך זה עובד?</span>
+              <span>{t('landing.howItWorksBtn')}</span>
               <ChevronDown className="w-4 h-4" />
             </a>
           </div>
@@ -120,10 +126,10 @@ export function LandingPage() {
         <div className="max-w-5xl mx-auto">
           <div className="text-center mb-16">
             <h2 className="text-3xl md:text-4xl font-extrabold text-slate-800 dark:text-white m-0">
-              איך זה עובד?
+              {t('landing.howItWorksTitle')}
             </h2>
             <p className="text-slate-500 dark:text-slate-400 mt-3 text-lg">
-              שלושה צעדים פשוטים — מהעלאה ועד שיתוף
+              {t('landing.howItWorksSub')}
             </p>
           </div>
 
@@ -131,7 +137,7 @@ export function LandingPage() {
             {/* Step 1 */}
             <div className="group relative p-8 rounded-3xl bg-white/70 dark:bg-slate-900/50 backdrop-blur-xl border border-slate-200/60 dark:border-slate-800/60 hover:border-amber-300/60 dark:hover:border-amber-500/30 transition-all duration-300 hover:shadow-xl hover:shadow-amber-500/5 dark:hover:shadow-amber-500/5 hover:-translate-y-1 text-center">
               {/* Step number */}
-              <div className="absolute -top-4 right-6 w-8 h-8 rounded-full bg-gradient-to-br from-amber-400 to-orange-500 flex items-center justify-center text-white text-sm font-bold shadow-lg shadow-amber-500/30">
+              <div className="absolute -top-4 right-6 left-auto w-8 h-8 rounded-full bg-gradient-to-br from-amber-400 to-orange-500 flex items-center justify-center text-white text-sm font-bold shadow-lg shadow-amber-500/30">
                 1
               </div>
 
@@ -139,17 +145,16 @@ export function LandingPage() {
                 <FolderUp className="w-8 h-8 text-amber-600 dark:text-amber-400" />
               </div>
               <h3 className="text-xl font-bold text-slate-800 dark:text-white mb-2">
-                העלאת תמונות
+                {t('landing.step1Title')}
               </h3>
-              <p className="text-slate-500 dark:text-slate-400 text-sm leading-relaxed">
-                בעל האירוע בוחר תיקייה מ-Google Drive עם כל תמונות האירוע — בלי
-                להעלות קבצים ידנית.
+              <p className="text-slate-500 dark:text-slate-400 text-sm leading-relaxed m-0">
+                {t('landing.step1Desc')}
               </p>
             </div>
 
             {/* Step 2 */}
             <div className="group relative p-8 rounded-3xl bg-white/70 dark:bg-slate-900/50 backdrop-blur-xl border border-slate-200/60 dark:border-slate-800/60 hover:border-amber-300/60 dark:hover:border-amber-500/30 transition-all duration-300 hover:shadow-xl hover:shadow-amber-500/5 dark:hover:shadow-amber-500/5 hover:-translate-y-1 text-center">
-              <div className="absolute -top-4 right-6 w-8 h-8 rounded-full bg-gradient-to-br from-amber-400 to-orange-500 flex items-center justify-center text-white text-sm font-bold shadow-lg shadow-amber-500/30">
+              <div className="absolute -top-4 right-6 left-auto w-8 h-8 rounded-full bg-gradient-to-br from-amber-400 to-orange-500 flex items-center justify-center text-white text-sm font-bold shadow-lg shadow-amber-500/30">
                 2
               </div>
 
@@ -157,17 +162,16 @@ export function LandingPage() {
                 <ScanFace className="w-8 h-8 text-amber-600 dark:text-amber-400" />
               </div>
               <h3 className="text-xl font-bold text-slate-800 dark:text-white mb-2">
-                סריקה חכמה
+                {t('landing.step2Title')}
               </h3>
-              <p className="text-slate-500 dark:text-slate-400 text-sm leading-relaxed">
-                הבינה המלאכותית סורקת את כל התמונות, מזהה פנים ומקבצת אותן
-                אוטומטית — ישירות בדפדפן.
+              <p className="text-slate-500 dark:text-slate-400 text-sm leading-relaxed m-0">
+                {t('landing.step2Desc')}
               </p>
             </div>
 
             {/* Step 3 */}
             <div className="group relative p-8 rounded-3xl bg-white/70 dark:bg-slate-900/50 backdrop-blur-xl border border-slate-200/60 dark:border-slate-800/60 hover:border-amber-300/60 dark:hover:border-amber-500/30 transition-all duration-300 hover:shadow-xl hover:shadow-amber-500/5 dark:hover:shadow-amber-500/5 hover:-translate-y-1 text-center">
-              <div className="absolute -top-4 right-6 w-8 h-8 rounded-full bg-gradient-to-br from-amber-400 to-orange-500 flex items-center justify-center text-white text-sm font-bold shadow-lg shadow-amber-500/30">
+              <div className="absolute -top-4 right-6 left-auto w-8 h-8 rounded-full bg-gradient-to-br from-amber-400 to-orange-500 flex items-center justify-center text-white text-sm font-bold shadow-lg shadow-amber-500/30">
                 3
               </div>
 
@@ -175,11 +179,10 @@ export function LandingPage() {
                 <Camera className="w-8 h-8 text-amber-600 dark:text-amber-400" />
               </div>
               <h3 className="text-xl font-bold text-slate-800 dark:text-white mb-2">
-                סלפי ומצאת!
+                {t('landing.step3Title')}
               </h3>
-              <p className="text-slate-500 dark:text-slate-400 text-sm leading-relaxed">
-                כל אורח מצלם סלפי דרך הקישור לאירוע, והמערכת מציגה את כל
-                התמונות שלו — תוך שניות.
+              <p className="text-slate-500 dark:text-slate-400 text-sm leading-relaxed m-0">
+                {t('landing.step3Desc')}
               </p>
             </div>
           </div>
@@ -202,23 +205,19 @@ export function LandingPage() {
               </div>
             </div>
 
-            <div className="flex-1 text-center md:text-right">
+            <div className="flex-1 text-start">
               <h2 className="text-3xl md:text-4xl font-extrabold text-slate-800 dark:text-white m-0 mb-4">
-                פרטיות מוחלטת
+                {t('landing.privacyTitle')}
               </h2>
-              <p className="text-lg text-slate-600 dark:text-slate-300 leading-relaxed mb-6">
-                כל עיבוד הפנים והזיהוי מתבצע{' '}
-                <strong className="text-amber-600 dark:text-amber-400">
-                  ישירות בדפדפן שלכם
-                </strong>
-                . אף תמונה לא נשלחת לשרתים חיצוניים — הנתונים נשארים אצלכם.
+              <p className="text-lg text-slate-600 dark:text-slate-300 leading-relaxed mb-6 m-0">
+                {t('landing.privacyDesc')}
               </p>
 
-              <div className="flex flex-wrap gap-4 justify-center md:justify-start">
+              <div className="flex flex-wrap gap-4">
                 {[
-                  { icon: Zap, text: 'עיבוד בדפדפן בלבד' },
-                  { icon: Lock, text: 'ללא העלאה לשרת' },
-                  { icon: Shield, text: 'אין אגירת מידע ביומטרי' },
+                  { icon: Zap, text: t('landing.privacyBullet1') },
+                  { icon: Lock, text: t('landing.privacyBullet2') },
+                  { icon: Shield, text: t('landing.privacyBullet3') },
                 ].map(({ icon: Icon, text }) => (
                   <div
                     key={text}
@@ -239,11 +238,11 @@ export function LandingPage() {
       {/* Bottom CTA */}
       <section className="py-20 px-6">
         <div className="max-w-3xl mx-auto text-center">
-          <h2 className="text-3xl font-extrabold text-slate-800 dark:text-white mb-4">
-            מוכנים להתחיל?
+          <h2 className="text-3xl font-extrabold text-slate-800 dark:text-white mb-4 m-0">
+            {t('landing.readyTitle')}
           </h2>
-          <p className="text-slate-500 dark:text-slate-400 mb-8 text-lg">
-            צרו אירוע ראשון בחינם תוך דקה
+          <p className="text-slate-500 dark:text-slate-400 mb-8 text-lg m-0">
+            {t('landing.readySub')}
           </p>
           <button
             onClick={signIn}
@@ -255,14 +254,18 @@ export function LandingPage() {
               <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" fill="#fff" opacity=".8"/>
               <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#fff" opacity=".7"/>
             </svg>
-            <span>התחברות עם Google</span>
-            <ArrowLeft className="w-5 h-5 transform group-hover:-translate-x-1 transition-transform" />
+            <span>{t('landing.signInGoogle')}</span>
+            {isRtl ? (
+              <ArrowLeft className="w-5 h-5 transform group-hover:-translate-x-1 transition-transform" />
+            ) : (
+              <ArrowRight className="w-5 h-5 transform group-hover:translate-x-1 transition-transform" />
+            )}
           </button>
         </div>
       </section>
 
       {/* Footer */}
-      <footer className="py-8 px-6 border-t border-slate-200/60 dark:border-slate-800/60">
+      <footer className="py-8 px-6 border-t border-slate-200/60 dark:border-slate-800/60 mt-auto">
         <div className="max-w-5xl mx-auto flex flex-col md:flex-row items-center justify-between gap-4 text-sm text-slate-400 dark:text-slate-500">
           <div className="flex items-center gap-2">
             <div className="w-6 h-6 rounded-lg bg-gradient-to-br from-amber-400 to-orange-500 flex items-center justify-center">
@@ -270,7 +273,12 @@ export function LandingPage() {
             </div>
             <span className="font-semibold">EventTag</span>
           </div>
-          <p>© {new Date().getFullYear()} EventTag — כל הזכויות שמורות</p>
+          <p>© {new Date().getFullYear()} {t('landing.copyright')}</p>
+          <div className="flex items-center gap-4">
+            <Link to="/privacy" className="hover:text-amber-500 dark:hover:text-amber-400 transition-colors cursor-pointer">{t('legal.privacyTitle')}</Link>
+            <span className="text-slate-300 dark:text-slate-700">•</span>
+            <Link to="/terms" className="hover:text-amber-500 dark:hover:text-amber-400 transition-colors cursor-pointer">{t('legal.termsTitle')}</Link>
+          </div>
         </div>
       </footer>
 

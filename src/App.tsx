@@ -7,6 +7,7 @@ import { Dashboard } from './components/Dashboard';
 import { EventView } from './components/EventView';
 import { GuestView } from './components/GuestView';
 import { LandingPage } from './components/LandingPage';
+import { LegalPage } from './components/LegalPage';
 import { useParams, useNavigate } from 'react-router-dom';
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
@@ -63,6 +64,9 @@ function AppRoutes() {
         {/* Public routes */}
         <Route path="/" element={<LandingPage />} />
         <Route path="/event/:shareCode" element={<GuestViewWrapper />} />
+        <Route path="/legal" element={<LegalPage defaultTab="privacy" />} />
+        <Route path="/privacy" element={<LegalPage defaultTab="privacy" />} />
+        <Route path="/terms" element={<LegalPage defaultTab="terms" />} />
 
         {/* Protected owner routes */}
         <Route

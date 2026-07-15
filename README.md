@@ -2,8 +2,6 @@
   <img src="public/logo.png" alt="EventTag Logo" width="350" style="border-radius: 16px;"/>
 </p>
 
-<h1 align="center">EventTag</h1>
-
 <p align="center">
   <strong>Smart Event Photo Organizer</strong>
 </p>
@@ -20,7 +18,7 @@
   <img src="https://img.shields.io/badge/privacy-100%25_local-green" alt="100% Local" />
 </p>
 
----
+
 
 ## ✨ What is EventTag?
 
@@ -28,7 +26,7 @@ EventTag is a standalone Single Page Application designed for event photographer
 
 **The key differentiator:** All face detection, recognition, and clustering happens **entirely inside your browser** using on-device machine learning. No images are ever uploaded, no data leaves your machine, and no external APIs are called.
 
----
+
 
 ## 🎯 Features
 
@@ -139,7 +137,7 @@ The pre-trained face-api.js model weights are included in `public/models/`. Thes
 
 No additional downloads are required.
 
----
+
 
 ## 🛠️ Tech Stack
 
@@ -154,7 +152,7 @@ No additional downloads are required.
 | **File Access** | [File System Access API](https://developer.mozilla.org/en-US/docs/Web/API/File_System_Access_API) |
 | **ZIP Export**  | [JSZip](https://stuk.github.io/jszip/)                                    |
 
----
+
 
 ## 📜 Available Scripts
 
@@ -165,7 +163,7 @@ No additional downloads are required.
 | `npm run preview`| Preview the production build       |
 | `npm run lint`   | Run ESLint                         |
 
----
+
 
 ## 🔒 Privacy
 
@@ -177,7 +175,7 @@ EventTag is built with a **zero-backend, zero-cloud** architecture:
 - ✅ No analytics, no tracking, no cookies, no external network requests
 - ✅ Works completely **offline** after initial load
 
----
+
 
 ## 🌐 Browser Compatibility
 
@@ -189,7 +187,6 @@ EventTag is built with a **zero-backend, zero-cloud** architecture:
 
 > **Note:** On browsers that don't support the File System Access API, EventTag falls back to a standard file input with `webkitdirectory`, storing compressed image blobs directly in IndexedDB.
 
----
 
 ## 📄 License
 
