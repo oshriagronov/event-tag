@@ -108,8 +108,8 @@ export function GuestView({ shareCode }: GuestViewProps) {
       setHiddenPhotoIds([]);
 
       try {
-        // Fetch using the stricter threshold of 0.55 directly to improve guest accuracy
-        const results = await matchSelfieToEvent(descriptor, event.id, 0.55);
+        // Fetch using a calibrated SFace L2 distance threshold of 0.85 to prevent false matches
+        const results = await matchSelfieToEvent(descriptor, event.id, 0.85);
         setMatches(results);
 
         if (results.length > 0) {

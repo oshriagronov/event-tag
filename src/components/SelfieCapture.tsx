@@ -9,6 +9,8 @@ import { useState, useRef, useCallback, useEffect } from 'react';
 import * as faceapi from '@vladmandic/face-api';
 import { Camera, Upload, RotateCcw, Loader2, AlertCircle, CheckCircle2, X } from 'lucide-react';
 import { useTranslation } from '../services/translations';
+import { getONNXSession, extractEmbedding } from '../services/onnxModel';
+import { alignFace } from '../services/faceAlignment';
 
 interface SelfieCaptureProps {
   onCapture: (descriptor: number[], thumbnail: string) => void;
@@ -31,8 +33,9 @@ async function ensureModelsLoaded(): Promise<void> {
     await Promise.all([
       faceapi.nets.ssdMobilenetv1.loadFromUri(MODEL_URL),
       faceapi.nets.faceLandmark68Net.loadFromUri(MODEL_URL),
-      faceapi.nets.faceRecognitionNet.loadFromUri(MODEL_URL),
     ]);
+    // Initialize the SFace ONNX session
+    await getONNXSession();
     modelsLoaded = true;
     modelsLoading = false;
   })();
@@ -40,23 +43,6 @@ async function ensureModelsLoaded(): Promise<void> {
   return modelLoadPromise;
 }
 
-/**
- * Create a base64 thumbnail from an image, capped at given max dimension.
- */
-function createThumbnail(img: HTMLImageElement | HTMLVideoElement | HTMLCanvasElement, maxSize = 256): string {
-  const canvas = document.createElement('canvas');
-  const w = img instanceof HTMLVideoElement ? img.videoWidth : (img instanceof HTMLCanvasElement ? img.width : img.naturalWidth);
-  const h = img instanceof HTMLVideoElement ? img.videoHeight : (img instanceof HTMLCanvasElement ? img.height : img.naturalHeight);
-  const scale = Math.min(maxSize / w, maxSize / h, 1);
-  canvas.width = Math.round(w * scale);
-  canvas.height = Math.round(h * scale);
-
-  const ctx = canvas.getContext('2d');
-  if (ctx) {
-    ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
-  }
-  return canvas.toDataURL('image/jpeg', 0.85);
-}
 
 export function SelfieCapture({ onCapture }: SelfieCaptureProps) {
   const { t, isRtl } = useTranslation();
@@ -154,11 +140,10 @@ export function SelfieCapture({ onCapture }: SelfieCaptureProps) {
         }
       }
 
-      // Find face descriptor
+      // Find face landmarks
       const detection = await faceapi
         .detectSingleFace(detectionSource)
-        .withFaceLandmarks()
-        .withFaceDescriptor();
+        .withFaceLandmarks();
 
       if (!detection) {
         // Run general face count check if single detection failed, to give specific error
@@ -171,8 +156,14 @@ export function SelfieCapture({ onCapture }: SelfieCaptureProps) {
         return;
       }
 
-      const thumbnail = createThumbnail(detectionSource);
-      const descriptor = Array.from(detection.descriptor);
+      // Align and crop the face using landmarks to 112x112
+      const alignedCanvas = alignFace(detectionSource, detection.landmarks);
+
+      // Extract embedding using SFace ONNX model (referred to as descriptor downstream)
+      const descriptor = await extractEmbedding(alignedCanvas);
+
+      // Generate base64 thumbnail from the aligned face
+      const thumbnail = alignedCanvas.toDataURL('image/jpeg', 0.85);
       const previewSrc = originalSrc || thumbnail;
 
       setPendingResult({ descriptor, thumbnail, previewSrc });

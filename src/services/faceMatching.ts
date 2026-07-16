@@ -38,7 +38,7 @@ function euclideanDistance(v1: number[], v2: number[]): number {
 export async function matchSelfieToEvent(
   selfieDescriptor: number[],
   eventId: string,
-  threshold = 0.55
+  threshold = 0.90
 ): Promise<MatchResult[]> {
   // Fetch all face descriptors for this event from Firestore
   const allFaces = await getAllFaceDescriptors(eventId);
@@ -82,7 +82,7 @@ export async function matchSelfieToEvent(
 export function matchSelfieAgainstFaces(
   selfieDescriptor: number[],
   allFaces: CloudFaceEntry[],
-  threshold = 0.55
+  threshold = 0.90
 ): MatchResult[] {
   const matches: MatchResult[] = [];
 

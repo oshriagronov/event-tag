@@ -44,7 +44,7 @@ export class IncrementalClusterer {
   private matchThresholdSq: number;
   private avgThresholdSq: number;
 
-  constructor(eventId: number, matchThreshold = 0.65, avgThreshold = 0.75) {
+  constructor(eventId: number, matchThreshold = 0.90, avgThreshold = 0.95) {
     this.eventId = eventId;
     this.matchThresholdSq = matchThreshold * matchThreshold;
     this.avgThresholdSq = avgThreshold * avgThreshold;

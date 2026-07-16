@@ -1,8 +1,10 @@
-import { createContext, useContext, useState, useRef, type ReactNode } from 'react';
+import { createContext, useContext, useState, useRef, useEffect, type ReactNode } from 'react';
 import * as faceapi from '@vladmandic/face-api';
 import { db } from '../db';
 import { IncrementalClusterer } from '../clustering';
 import { getPhotoBlob } from '../services/googleDrive';
+import { getONNXSession, extractEmbedding } from '../services/onnxModel';
+import { alignFace } from '../services/faceAlignment';
 import {
   updateCloudPhoto,
   appendFaceDescriptors,
@@ -47,11 +49,12 @@ async function ensureModelsLoaded(): Promise<void> {
     await Promise.all([
       faceapi.nets.ssdMobilenetv1.loadFromUri(MODEL_URL),
       faceapi.nets.faceLandmark68Net.loadFromUri(MODEL_URL),
-      faceapi.nets.faceRecognitionNet.loadFromUri(MODEL_URL),
     ]);
+    // Initialize the SFace ONNX session
+    await getONNXSession();
     modelsLoaded = true;
     modelsLoading = false;
-    console.log('TFJS Backend initialized:', (faceapi.tf as any).getBackend());
+    console.log('TFJS SSD/Landmarks and ONNX SFace initialized');
   })();
 
   return modelLoadPromise;
@@ -109,8 +112,7 @@ async function processPhotoLocally(fileBlob: Blob): Promise<{
   const options = new faceapi.SsdMobilenetv1Options({ minConfidence: 0.45 });
   const detections = await faceapi
     .detectAllFaces(detectionSource, options)
-    .withFaceLandmarks()
-    .withFaceDescriptors();
+    .withFaceLandmarks();
 
   URL.revokeObjectURL(blobUrl);
 
@@ -125,24 +127,17 @@ async function processPhotoLocally(fileBlob: Blob): Promise<{
       height: box.height / srcHeight,
     };
 
-    // Crop face and create a base64 thumbnail from the detection source
-    const canvas = document.createElement('canvas');
-    const ctx = canvas.getContext('2d')!;
-    const padW = box.width * 0.15;
-    const padH = box.height * 0.15;
+    // Align and crop the face using landmarks to 112x112
+    const alignedCanvas = alignFace(detectionSource, det.landmarks);
 
-    const sx = Math.max(0, box.x - padW);
-    const sy = Math.max(0, box.y - padH);
-    const sw = Math.min(srcWidth - sx, box.width + padW * 2);
-    const sh = Math.min(srcHeight - sy, box.height + padH * 2);
+    // Extract embedding using SFace ONNX model
+    const embedding = await extractEmbedding(alignedCanvas);
 
-    canvas.width = 120;
-    canvas.height = 120;
-    ctx.drawImage(detectionSource, sx, sy, sw, sh, 0, 0, 120, 120);
-    const thumbnail = canvas.toDataURL('image/jpeg', 0.8);
+    // Generate base64 thumbnail from the aligned face
+    const thumbnail = alignedCanvas.toDataURL('image/jpeg', 0.85);
 
     results.push({
-      embedding: Array.from(det.descriptor),
+      embedding,
       box: relBox,
       thumbnail,
     });
@@ -155,6 +150,29 @@ export function ScannerProvider({ children }: { children: ReactNode }) {
   const [isScanning, setIsScanning] = useState(false);
   const [isPaused, setIsPaused] = useState(false);
   const [scannedCount, setScannedCount] = useState(0);
+
+  // Clear local DB tables if shifting from face-api.js to SFace model.
+  useEffect(() => {
+    const checkDatabaseMigration = async () => {
+      const CURRENT_MODEL_VERSION = 'sface_v3';
+      const storedVersion = localStorage.getItem('eventtag_face_model_version');
+      if (storedVersion !== CURRENT_MODEL_VERSION) {
+        console.log('Detected face recognition model change. Resetting database caches...');
+        try {
+          await db.transaction('rw', [db.faces, db.photos, db.clusters], async () => {
+            await db.faces.clear();
+            await db.photos.clear();
+            await db.clusters.clear();
+          });
+          localStorage.setItem('eventtag_face_model_version', CURRENT_MODEL_VERSION);
+          console.log('Database successfully reset for new model.');
+        } catch (err) {
+          console.error('Failed to reset database for new model:', err);
+        }
+      }
+    };
+    checkDatabaseMigration();
+  }, []);
   const [totalToScan, setTotalToScan] = useState(0);
   const [etaSeconds, setEtaSeconds] = useState<number | null>(null);
   const [activeScanningEventId, setActiveScanningEventId] = useState<number | string | null>(null);
