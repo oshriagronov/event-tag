@@ -1,6 +1,7 @@
 import { useNavigate, Link } from 'react-router-dom';
 import { Lock, ExternalLink, Scale, CheckCircle2, Home } from 'lucide-react';
 import { useTranslation } from '../services/translations';
+import { useConsent } from '../contexts/ConsentContext';
 
 interface LegalPageProps {
   defaultTab?: 'privacy' | 'terms';
@@ -9,6 +10,7 @@ interface LegalPageProps {
 export function LegalPage({ defaultTab = 'privacy' }: LegalPageProps) {
   const navigate = useNavigate();
   const { t, isRtl } = useTranslation();
+  const { reopen } = useConsent();
 
   return (
     <div className="min-h-screen bg-slate-50 dark:bg-[#111113] text-slate-900 dark:text-slate-100 flex flex-col font-sans transition-colors duration-300">
@@ -227,6 +229,13 @@ export function LegalPage({ defaultTab = 'privacy' }: LegalPageProps) {
             >
               {t('legal.termsTitle')}
             </Link>
+            <span>•</span>
+            <button
+              onClick={reopen}
+              className="hover:text-amber-500 dark:hover:text-amber-400 transition-colors cursor-pointer bg-transparent border-none p-0 font-normal outline-none text-slate-400 dark:text-slate-500"
+            >
+              {t('consent.managePreferences')}
+            </button>
           </div>
         </div>
       </footer>

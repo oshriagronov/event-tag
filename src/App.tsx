@@ -1,8 +1,11 @@
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 import { SettingsProvider } from './contexts/SettingsContext';
+import { ConsentProvider } from './contexts/ConsentContext';
 import { ScannerProvider } from './contexts/ScannerContext';
 import { SettingsModal } from './components/SettingsModal';
+import { CookieBanner } from './components/CookieBanner';
+import { PreferencesModal } from './components/PreferencesModal';
 import { Dashboard } from './components/Dashboard';
 import { EventView } from './components/EventView';
 import { GuestView } from './components/GuestView';
@@ -60,6 +63,8 @@ function AppRoutes() {
   return (
     <div className="min-h-screen bg-slate-50 dark:bg-[#111113] text-slate-900 dark:text-slate-100 flex flex-col font-sans transition-colors duration-300">
       <SettingsModal />
+      <CookieBanner />
+      <PreferencesModal />
       <Routes>
         {/* Public routes */}
         <Route path="/" element={<LandingPage />} />
@@ -98,9 +103,11 @@ function App() {
     <BrowserRouter>
       <AuthProvider>
         <SettingsProvider>
-          <ScannerProvider>
-            <AppRoutes />
-          </ScannerProvider>
+          <ConsentProvider>
+            <ScannerProvider>
+              <AppRoutes />
+            </ScannerProvider>
+          </ConsentProvider>
         </SettingsProvider>
       </AuthProvider>
     </BrowserRouter>

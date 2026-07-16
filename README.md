@@ -27,7 +27,7 @@ EventTag is a smart event photo sharing and retrieval application designed to el
 - **For Guests:** Instant, self-service access to all their photos from the event without scrolling through endless folders.
 - **For Event Owners:** Save hours of manual effort searching, filtering, and sending individual photos to different guests.
 
-**The key differentiator:** All face detection, recognition, and clustering happens **entirely inside your browser** using on-device machine learning. Photos are loaded directly from your Google Drive into browser memory, and only mathematical face descriptors are stored securely in Firestore. No actual photos are ever sent to or stored on EventTag's servers.
+**The key differentiator:** All face detection, alignment, and recognition happens **entirely inside your browser** using on-device machine learning (face-api.js for detection + landmarks, and ONNX Runtime Web for SFace recognition). Photos are loaded directly from your Google Drive into browser memory, and only mathematical face descriptors are stored securely in Firestore. No actual photos are ever sent to or stored on EventTag's servers.
 
 
 
@@ -62,7 +62,6 @@ EventTag is a smart event photo sharing and retrieval application designed to el
 src/
 ├── App.tsx                    # Root component with model loading & routing
 ├── main.tsx                   # React entry point
-├── ml.ts                      # Face detection, landmark, and recognition pipeline
 ├── clustering.ts              # Incremental face clustering with drift protection
 ├── db.ts                      # Local DB helper
 ├── components/
@@ -74,6 +73,13 @@ src/
 ├── contexts/
 │   ├── ScannerContext.tsx     # Global scanning state (progress, pause, ETA)
 │   └── SettingsContext.tsx    # Theme & font size persistence
+├── services/
+│   ├── faceAlignment.ts       # Facial landmark-based similarity transform (alignment)
+│   ├── onnxModel.ts           # ONNX SFace (MobileFaceNet) inference service
+│   ├── faceMatching.ts        # Selfie-to-event photo matching utility
+│   ├── googleDrive.ts         # Google Drive download and access helpers
+│   ├── googlePicker.ts        # Google Picker API launch and handler
+│   └── translations.ts        # Multilingual (English/Hebrew) translation strings
 └── assets/                    # Static assets
 ```
 
@@ -81,11 +87,13 @@ src/
 
 ```
 Google Drive → Browser Memory Ingest Queue
-  → face-api.js (SSD MobileNet v1 + Landmarks + Recognition)
-    → 128-dim embedding vector per face
-      → Incremental Clustering (Euclidean distance + drift guard)
-        → Firebase Firestore persistence (descriptors & metadata only)
-          → Reactive UI
+  → face-api.js (SSD MobileNet v1 + Landmarks)
+    → Face similarity alignment (112x112 canvas)
+      → ONNX Runtime Web (SFace/MobileFaceNet model on WASM)
+        → 128-dim L2-normalized embedding vector per face
+          → Incremental Clustering (Euclidean distance + drift guard)
+            → Firebase Firestore persistence (descriptors & metadata only)
+              → Reactive UI
 ```
 
 ### Database Schema (Firestore)
@@ -104,7 +112,7 @@ To support scanning large event libraries (hundreds or thousands of high-res pho
 - **In-Memory Image Downscaling:** Images with dimensions exceeding `1600px` are downscaled to a maximum boundary of `1600px` using an offscreen canvas prior to face detection. This reduces pixel computational area by over 90% on raw camera files, significantly accelerating inference and preventing WebGL out-of-memory crashes while retaining high-precision landmarks.
 - **Tuned Detection Confidence:** The SSD MobileNet V1 face detector runs with a customized `minConfidence = 0.45` (tuned down from the default `0.50`) to increase recall, successfully detecting faces at steep angles, in partial shadow, or under minor motion blur.
 - **Batched Firestore Face Descriptors:** Face metadata is buffered in memory and flushed to Firestore in chunks (every 15 photos or 50 faces) instead of saving them sequentially. This eliminates the \(O(N^2)\) read-then-write database overhead, decreasing database loading delays by over 90%.
-- **Tightened Clustering Tolerances:** The incremental clustering engine matches faces with a strict Euclidean distance threshold of `0.65` and group average threshold of `0.75` (aligned with face-api's `0.55` search tolerance). This prevents different individuals from being incorrectly merged into the same profile.
+- **Calibrated Clustering Tolerances:** The incremental clustering engine matches faces with calibrated L2 Euclidean distance thresholds of `0.90` (same identity match) and `0.95` (average cluster similarity). Guest selfie searches in `GuestView.tsx` use a strict threshold of `0.85` to minimize false positive photo suggestions.
 
 
 
@@ -131,12 +139,12 @@ npm run dev
 
 The app will be available at `http://localhost:5173`.
 
-### Face Detection Models
+### Face Detection & Recognition Models
 
-The pre-trained face-api.js model weights are included in `public/models/`. These are loaded at startup and include:
+The pre-trained model weights are included in `public/models/`. These are loaded at startup and include:
 - **SSD MobileNet v1** — Face detection (~5.6 MB)
 - **68-Point Face Landmark** — Facial landmark localization (~357 KB)
-- **Face Recognition** — 128-dimensional face descriptor extraction (~6.4 MB)
+- **SFace (MobileFaceNet)** — 128-dimensional face embedding extraction (~37 MB ONNX model)
 
 No additional downloads are required.
 
@@ -150,7 +158,7 @@ No additional downloads are required.
 | **Build Tool**  | [Vite 8](https://vite.dev)                                                |
 | **Styling**     | Vanilla CSS + Tailwind CSS                                                |
 | **Icons**       | [Lucide React](https://lucide.dev)                                        |
-| **ML Engine**   | [@vladmandic/face-api](https://github.com/nicolo-ribaudo/face-api.js) (WebGL-accelerated) |
+| **ML Engine**   | [@vladmandic/face-api](https://github.com/nicolo-ribaudo/face-api.js) (Landmarks & Detection) + [ONNX Runtime Web](https://onnxruntime.ai) (SFace Embedding) |
 | **Database/Sync**| [Firebase Firestore](https://firebase.google.com/)                        |
 | **File Access** | [Google Drive API](https://developers.google.com/drive)                   |
 | **ZIP Export**  | [JSZip](https://stuk.github.io/jszip/)                                    |

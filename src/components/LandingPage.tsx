@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { useTranslation } from '../services/translations';
+import { useConsent } from '../contexts/ConsentContext';
 import {
   Camera,
   ScanFace,
@@ -20,6 +21,7 @@ export function LandingPage() {
   const { user, loading, signIn } = useAuth();
   const navigate = useNavigate();
   const { t, isRtl, language } = useTranslation();
+  const { reopen } = useConsent();
   const [openFaq, setOpenFaq] = useState<number | null>(null);
 
   // Redirect to dashboard if already logged in
@@ -358,6 +360,13 @@ export function LandingPage() {
             <Link to="/privacy" className="hover:text-amber-500 dark:hover:text-amber-400 transition-colors cursor-pointer">{t('legal.privacyTitle')}</Link>
             <span className="text-slate-300 dark:text-slate-700">•</span>
             <Link to="/terms" className="hover:text-amber-500 dark:hover:text-amber-400 transition-colors cursor-pointer">{t('legal.termsTitle')}</Link>
+            <span className="text-slate-300 dark:text-slate-700">•</span>
+            <button
+              onClick={reopen}
+              className="hover:text-amber-500 dark:hover:text-amber-400 transition-colors cursor-pointer bg-transparent border-none p-0 font-normal outline-none text-slate-400 dark:text-slate-500"
+            >
+              {t('consent.managePreferences')}
+            </button>
           </div>
         </div>
       </footer>

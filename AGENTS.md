@@ -9,12 +9,12 @@ You are an expert Frontend Engineer and Client-Side Machine Learning specialist.
 - **The Ultimate Constraint:** **Cloud Ingest with Local Processing.** Images are read directly from Google Drive into browser memory, all face detection and recognition happens locally in the user's browser, and only mathematical face descriptors are stored in Firebase Firestore. No actual photo files are uploaded to or stored on our servers.
 
 
-## Tech Stack & Constraints
+- **Tech Stack & Constraints**
 - **Framework:** React 19 + TypeScript 6 + Vite 8.
 - **Project Structure:** Single root repository. All source files are located in `/src` directly under the root.
 - **Styling:** Vanilla CSS + Tailwind CSS (Clean, minimalist, modern dark-themed aesthetic).
 - **Icons:** Lucide React.
-- **Client-Side ML:** `face-api.js` (WebGL-accelerated via `@vladmandic/face-api`) executing entirely client-side.
+- **Client-Side ML:** Face detection & landmark extraction via `@vladmandic/face-api` (SSD MobileNet V1 + 68-point landmarks) + Face recognition via **ONNX Runtime Web** executing an optimized **SFace** (MobileFaceNet backbone) model on WASM.
 - **Cloud Integration:** **Google Picker API** (ingestion via the non-restricted `drive.file` scope, avoiding restricted-scope CASA audits) + **Firebase Firestore** (storage of metadata, file IDs, and face descriptors in batched collections).
 
 ---
@@ -33,7 +33,7 @@ You are an expert Frontend Engineer and Client-Side Machine Learning specialist.
 
 ### 3. Model Accuracy & Clustering Thresholds
 - **Detection recall:** Keep SSD MobileNet V1's `minConfidence` at `0.45` to ensure side profiles and shadows are successfully detected.
-- **Clustering precision:** The incremental clustering engine (`clustering.ts`) uses L2-normalized Euclidean distance matching with strict thresholds (`matchThreshold = 0.65` and `avgThreshold = 0.75`). Do not loosen these thresholds, as it will lead to guest profiles being incorrectly merged.
+- **Clustering precision:** The incremental clustering engine (`clustering.ts`) uses L2-normalized Euclidean distance matching with calibrated thresholds (`matchThreshold = 0.90` and `avgThreshold = 0.95`). Guest selfie matches in `GuestView.tsx` use a strict threshold of `0.85` to prevent false positives.
 
 ### 4. UI/UX Philosophy
 - Keep the interface clean, dark-themed, and modern.
