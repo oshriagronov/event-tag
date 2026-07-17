@@ -27,6 +27,7 @@ import JSZip from 'jszip';
 import { getEventByShareCode, type CloudEvent } from '../services/firestore';
 import { matchSelfieToEvent, type MatchResult } from '../services/faceMatching';
 import { SelfieCapture } from './SelfieCapture';
+import { useConsent } from '../contexts/ConsentContext';
 
 interface GuestViewProps {
   shareCode: string;
@@ -42,6 +43,7 @@ type ViewState =
 
 export function GuestView({ shareCode }: GuestViewProps) {
   const { t, isRtl, language } = useTranslation();
+  const { reopen } = useConsent();
   
   const [viewState, setViewState] = useState<ViewState>('loading-event');
   const [event, setEvent] = useState<CloudEvent | null>(null);
@@ -170,7 +172,6 @@ export function GuestView({ shareCode }: GuestViewProps) {
             zip.file(`photo_${i + 1}.${extension}`, blob);
           }
         } catch {
-          // Skip failed downloads silently
           console.warn(`Failed to download photo ${match.driveFileId}`);
         }
         setDownloadProgress(Math.round(((i + 1) / total) * 100));
@@ -206,17 +207,17 @@ export function GuestView({ shareCode }: GuestViewProps) {
   // ---- Render helpers ----
 
   const renderHeader = () => (
-    <header className="sticky top-0 z-50 backdrop-blur-xl bg-white/80 dark:bg-slate-950/80 border-b border-slate-200/50 dark:border-slate-800/50">
-      <div className="max-w-lg mx-auto px-4 py-3 flex items-center gap-3">
-        <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-amber-200 to-amber-400 dark:from-amber-500 dark:to-amber-700 flex items-center justify-center shadow-lg shadow-amber-500/20 dark:shadow-amber-600/30 shrink-0">
-          <Users className="w-5 h-5 text-amber-900 dark:text-white" />
+    <header className="sticky top-0 z-50 bg-background/90 backdrop-blur-md border-b border-surface-border/40">
+      <div className="max-w-lg mx-auto px-6 py-4 flex items-center gap-3">
+        <div className="w-8 h-8 rounded bg-surface-container border border-surface-border flex items-center justify-center shadow shrink-0">
+          <Users className="w-4 h-4 text-copper-accent" />
         </div>
         <div className="min-w-0 text-start">
-          <h1 className="text-lg font-extrabold tracking-tight text-slate-800 dark:text-white m-0 leading-tight">
+          <h1 className="font-display-lg text-lg text-on-background m-0 leading-tight">
             EventTag
           </h1>
           {event && (
-            <p className="text-xs text-slate-500 dark:text-slate-400 truncate m-0">{event.name}</p>
+            <p className="font-body-md text-[10px] text-sage-muted truncate m-0 uppercase tracking-wider">{event.name}</p>
           )}
         </div>
       </div>
@@ -226,13 +227,11 @@ export function GuestView({ shareCode }: GuestViewProps) {
   // ---- Loading event state ----
   if (viewState === 'loading-event') {
     return (
-      <div className="min-h-screen bg-slate-50 dark:bg-[#111113] text-slate-900 dark:text-slate-100 flex flex-col text-start" dir={isRtl ? 'rtl' : 'ltr'}>
+      <div className="min-h-screen bg-background text-on-background flex flex-col text-start" dir={isRtl ? 'rtl' : 'ltr'}>
         {renderHeader()}
         <div className="flex-1 flex flex-col items-center justify-center gap-4 p-6">
-          <div className="w-16 h-16 rounded-2xl bg-amber-100 dark:bg-amber-500/10 flex items-center justify-center">
-            <Loader2 className="w-8 h-8 text-amber-500 animate-spin" />
-          </div>
-          <p className="text-slate-600 dark:text-slate-400 text-sm font-medium m-0">{t('guestView.loadingEvent')}</p>
+          <Loader2 className="w-8 h-8 text-copper-accent animate-spin" />
+          <p className="font-body-md text-sage-muted text-sm m-0">{t('guestView.loadingEvent')}</p>
         </div>
       </div>
     );
@@ -241,20 +240,20 @@ export function GuestView({ shareCode }: GuestViewProps) {
   // ---- Error state ----
   if (viewState === 'error') {
     return (
-      <div className="min-h-screen bg-slate-50 dark:bg-[#111113] text-slate-900 dark:text-slate-100 flex flex-col text-start" dir={isRtl ? 'rtl' : 'ltr'}>
+      <div className="min-h-screen bg-background text-on-background flex flex-col text-start" dir={isRtl ? 'rtl' : 'ltr'}>
         {renderHeader()}
         <div className="flex-1 flex flex-col items-center justify-center gap-5 p-6">
-          <div className="w-16 h-16 rounded-2xl bg-red-100 dark:bg-red-500/10 flex items-center justify-center">
-            <AlertCircle className="w-8 h-8 text-red-500" />
+          <div className="w-14 h-14 rounded bg-surface-container border border-surface-border flex items-center justify-center text-red-400">
+            <AlertCircle className="w-7 h-7" />
           </div>
           <div className="text-center max-w-xs">
-            <h2 className="text-lg font-bold text-slate-800 dark:text-white mb-2 m-0">{t('common.error')}</h2>
-            <p className="text-sm text-slate-600 dark:text-slate-400 leading-relaxed m-0">{errorMessage}</p>
+            <h2 className="font-title-md text-base font-bold text-on-background mb-2 m-0">{t('common.error')}</h2>
+            <p className="font-body-md text-sage-muted text-sm leading-relaxed m-0">{errorMessage}</p>
           </div>
           <button
             type="button"
             onClick={() => window.location.reload()}
-            className="mt-2 px-6 py-2.5 rounded-xl bg-amber-500 hover:bg-amber-400 text-white font-bold text-sm transition-all shadow-lg shadow-amber-500/30 cursor-pointer active:scale-[0.98]"
+            className="px-6 py-2.5 rounded bg-surface-container border border-surface-border text-on-background hover:bg-surface-container-high font-bold text-xs uppercase tracking-wider transition-all cursor-pointer"
           >
             {language === 'he' ? 'נסה שוב' : 'Try again'}
           </button>
@@ -266,15 +265,15 @@ export function GuestView({ shareCode }: GuestViewProps) {
   // ---- Selfie input state ----
   if (viewState === 'selfie-input') {
     return (
-      <div className="min-h-screen bg-slate-50 dark:bg-[#111113] text-slate-900 dark:text-slate-100 flex flex-col text-start" dir={isRtl ? 'rtl' : 'ltr'}>
+      <div className="min-h-screen bg-background text-on-background flex flex-col text-start" dir={isRtl ? 'rtl' : 'ltr'}>
         {renderHeader()}
-        <div className="flex-1 flex flex-col p-4 max-w-lg mx-auto w-full">
+        <div className="flex-1 flex flex-col p-6 max-w-lg mx-auto w-full">
           {/* Event info card */}
-          <div className="mb-6 p-5 rounded-2xl bg-white/50 dark:bg-slate-900/40 backdrop-blur-sm border border-slate-200/60 dark:border-slate-800/60 shadow-sm">
-            <h2 className="text-xl font-bold text-slate-800 dark:text-white mb-1 m-0">{event?.name}</h2>
-            <div className="flex items-center gap-4 text-sm text-slate-500 dark:text-slate-400">
-              <span className="flex items-center gap-1.5">
-                <ImageIcon className="w-4 h-4" />
+          <div className="mb-6 p-5 rounded bg-surface-container border border-surface-border text-start">
+            <h2 className="font-display-lg text-xl text-on-background m-0">{event?.name}</h2>
+            <div className="flex items-center gap-4 text-xs text-sage-muted mt-2">
+              <span className="flex items-center gap-1.5 font-body-md">
+                <ImageIcon className="w-3.5 h-3.5" />
                 {t('guestView.photosCount', { count: event?.photoCount || 0 })}
               </span>
             </div>
@@ -282,8 +281,8 @@ export function GuestView({ shareCode }: GuestViewProps) {
 
           {/* Instruction */}
           <div className="mb-6 text-center">
-            <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-amber-50 dark:bg-amber-500/10 text-amber-700 dark:text-amber-400 text-sm font-medium border border-amber-200/50 dark:border-amber-500/20">
-              <Camera className="w-4 h-4" />
+            <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded bg-primary/10 border border-primary/20 text-primary text-xs font-semibold uppercase tracking-wider">
+              <Camera className="w-3.5 h-3.5 shrink-0" />
               <span>{t('guestView.selfieInstruction')}</span>
             </div>
           </div>
@@ -292,10 +291,10 @@ export function GuestView({ shareCode }: GuestViewProps) {
           <SelfieCapture onCapture={handleSelfieCapture} />
 
           {/* Privacy note */}
-          <p className="mt-6 text-xs text-slate-400 dark:text-slate-500 text-center leading-relaxed m-0">
+          <p className="mt-6 font-body-md text-[11px] text-sage-muted text-center leading-relaxed m-0 bg-surface-container/20 p-3 rounded border border-surface-border/50">
             {language === 'he' 
-              ? 'התמונה שלך מעובדת על המכשיר בלבד ואינה נשמרת בשרתים. פרטיותך חשובה לנו.' 
-              : 'Your photo is processed locally and never saved on servers. We value your privacy.'}
+              ? 'פרטיות מובטחת: תמונת הסלפי שלך מעובדת מקומית בדפדפן ואינה נשמרת בשרתים כלל.' 
+              : 'Privacy assured: your selfie is processed locally and never stored on any server.'}
           </p>
         </div>
       </div>
@@ -305,30 +304,18 @@ export function GuestView({ shareCode }: GuestViewProps) {
   // ---- Matching state ----
   if (viewState === 'matching') {
     return (
-      <div className="min-h-screen bg-slate-50 dark:bg-[#111113] text-slate-900 dark:text-slate-100 flex flex-col text-start" dir={isRtl ? 'rtl' : 'ltr'}>
+      <div className="min-h-screen bg-background text-on-background flex flex-col text-start" dir={isRtl ? 'rtl' : 'ltr'}>
         {renderHeader()}
         <div className="flex-1 flex flex-col items-center justify-center gap-5 p-6">
-          <div className="relative w-20 h-20">
-            <div className="absolute inset-0 rounded-2xl bg-amber-500/20 animate-ping" />
-            <div className="relative w-20 h-20 rounded-2xl bg-amber-100 dark:bg-amber-500/10 flex items-center justify-center">
-              <Search className="w-10 h-10 text-amber-500" />
+          <div className="relative w-16 h-16">
+            <div className="absolute inset-0 rounded-full bg-copper-accent/25 animate-ping" />
+            <div className="relative w-16 h-16 rounded bg-surface-container border border-surface-border flex items-center justify-center text-copper-accent shadow">
+              <Search className="w-7 h-7" />
             </div>
           </div>
           <div className="text-center">
-            <h2 className="text-lg font-bold text-slate-800 dark:text-white mb-1 m-0">{t('guestView.searchingTitle')}</h2>
-            <p className="text-sm text-slate-500 dark:text-slate-400 m-0">{t('guestView.scanningCount', { count: event?.photoCount || 0 })}</p>
-          </div>
-          <div className="flex gap-1.5 mt-2">
-            {[0, 1, 2].map((i) => (
-              <div
-                key={i}
-                className="w-2.5 h-2.5 rounded-full bg-amber-400"
-                style={{
-                  animation: 'pulse 1.4s ease-in-out infinite',
-                  animationDelay: `${i * 0.2}s`,
-                }}
-              />
-            ))}
+            <h2 className="font-title-md text-base font-bold text-on-background mb-1 m-0">{t('guestView.searchingTitle')}</h2>
+            <p className="font-body-md text-sage-muted text-sm m-0">{t('guestView.scanningCount', { count: event?.photoCount || 0 })}</p>
           </div>
         </div>
       </div>
@@ -338,25 +325,25 @@ export function GuestView({ shareCode }: GuestViewProps) {
   // ---- No matches state ----
   if (viewState === 'no-matches') {
     return (
-      <div className="min-h-screen bg-slate-50 dark:bg-[#111113] text-slate-900 dark:text-slate-100 flex flex-col text-start" dir={isRtl ? 'rtl' : 'ltr'}>
+      <div className="min-h-screen bg-background text-on-background flex flex-col text-start" dir={isRtl ? 'rtl' : 'ltr'}>
         {renderHeader()}
         <div className="flex-1 flex flex-col items-center justify-center gap-5 p-6">
-          <div className="w-16 h-16 rounded-2xl bg-slate-100 dark:bg-slate-800/50 flex items-center justify-center">
-            <Frown className="w-8 h-8 text-slate-400 dark:text-slate-500" />
+          <div className="w-14 h-14 rounded bg-surface-container border border-surface-border flex items-center justify-center text-sage-muted shadow">
+            <Frown className="w-7 h-7" />
           </div>
           <div className="text-center max-w-xs">
-            <h2 className="text-lg font-bold text-slate-800 dark:text-white mb-2 m-0">{t('guestView.noPhotosTitle')}</h2>
-            <p className="text-sm text-slate-600 dark:text-slate-400 leading-relaxed m-0">
+            <h2 className="font-title-md text-base font-bold text-on-background mb-2 m-0">{t('guestView.noPhotosTitle')}</h2>
+            <p className="font-body-md text-sage-muted text-sm leading-relaxed m-0">
               {t('guestView.noPhotosDesc')}
             </p>
           </div>
           <button
             type="button"
             onClick={handleRetake}
-            className="mt-2 flex items-center gap-2 px-6 py-2.5 rounded-xl bg-amber-500 hover:bg-amber-400 text-white font-bold text-sm transition-all shadow-lg shadow-amber-500/30 cursor-pointer active:scale-[0.98]"
+            className="mt-2 flex items-center gap-2 px-6 py-3 rounded bg-copper-accent hover:bg-copper-accent/90 text-background font-bold text-xs uppercase tracking-wider shadow transition-all cursor-pointer border-none"
           >
-            <RotateCcw className="w-4 h-4" />
-            {language === 'he' ? 'נסה שוב עם סלפי אחר' : 'Try again with another selfie'}
+            <RotateCcw className="w-4 h-4 shrink-0" />
+            {language === 'he' ? 'צלם סלפי אחר' : 'Try Another Selfie'}
           </button>
         </div>
       </div>
@@ -365,41 +352,41 @@ export function GuestView({ shareCode }: GuestViewProps) {
 
   // ---- Results state ----
   return (
-    <div className="min-h-screen bg-slate-50 dark:bg-[#111113] text-slate-900 dark:text-slate-100 flex flex-col text-start" dir={isRtl ? 'rtl' : 'ltr'}>
+    <div className="min-h-screen bg-background text-on-background flex flex-col text-start" dir={isRtl ? 'rtl' : 'ltr'}>
       {renderHeader()}
 
-      <div className="flex-1 flex flex-col p-4 max-w-2xl mx-auto w-full">
-        {/* Results header */}
-        <div className="mb-5 flex flex-col gap-3">
-          <div className="flex items-center gap-3 p-4 rounded-2xl bg-gradient-to-l from-amber-50 to-amber-100/50 dark:from-amber-500/10 dark:to-amber-500/5 border border-amber-200/40 dark:border-amber-500/20">
-            <div className="w-10 h-10 rounded-xl bg-amber-500 flex items-center justify-center shadow-lg shadow-amber-500/30 shrink-0">
-              <PartyPopper className="w-5 h-5 text-white" />
+      <div className="flex-1 flex flex-col p-6 max-w-2xl mx-auto w-full gap-6">
+        {/* Results banner */}
+        <div className="flex flex-col gap-4">
+          <div className="flex items-center gap-3 p-4 rounded bg-surface-container border border-surface-border text-start">
+            <div className="w-9 h-9 rounded bg-primary/10 border border-primary/20 flex items-center justify-center text-primary shrink-0">
+              <PartyPopper className="w-5 h-5" />
             </div>
             <div>
-              <h2 className="text-base font-bold text-slate-800 dark:text-white m-0">
+              <h2 className="font-title-md text-base font-bold text-on-background m-0">
                 {t('guestView.foundMatches', { count: matchCount })}
               </h2>
             </div>
           </div>
 
-          <div className="flex flex-wrap gap-3 items-center justify-between">
+          <div className="flex flex-wrap gap-4 items-center justify-between">
             {downloadableMatches.length > 0 && (
               <button
                 type="button"
                 onClick={handleDownloadAll}
                 disabled={downloadingAll}
-                className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-amber-500 hover:bg-amber-400 text-white font-bold text-sm transition-all shadow-md shadow-amber-500/20 cursor-pointer active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed"
+                className="flex items-center gap-2 px-5 py-3 rounded bg-deep-forest hover:bg-primary text-background font-bold text-xs uppercase tracking-wider transition-all shadow cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed border-none"
               >
                 {downloadingAll ? (
                   <>
-                    <Loader2 className="w-4 h-4 animate-spin" />
+                    <Loader2 className="w-4 h-4 animate-spin shrink-0" />
                     <span>
                       {language === 'he' ? `מוריד... (${downloadProgress}%)` : `Downloading... (${downloadProgress}%)`}
                     </span>
                   </>
                 ) : (
                   <>
-                    <DownloadCloud className="w-4 h-4" />
+                    <DownloadCloud className="w-4 h-4 shrink-0" />
                     <span>{t('guestView.downloadZipBtn', { count: downloadableMatches.length })}</span>
                   </>
                 )}
@@ -410,7 +397,7 @@ export function GuestView({ shareCode }: GuestViewProps) {
               <button
                 type="button"
                 onClick={handleRestoreHidden}
-                className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-300 text-sm font-semibold transition-all cursor-pointer"
+                className="flex items-center gap-2 px-4 py-2.5 rounded bg-surface-container border border-surface-border text-on-background hover:bg-surface-container-high text-xs font-semibold transition-all cursor-pointer"
               >
                 <span>{t('guestView.restoreRemoved', { count: hiddenPhotoIds.length })}</span>
               </button>
@@ -419,26 +406,28 @@ export function GuestView({ shareCode }: GuestViewProps) {
             <button
               type="button"
               onClick={handleRetake}
-              className={`flex items-center gap-1.5 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 text-sm transition-colors cursor-pointer font-medium ${downloadableMatches.length > 0 ? '' : (isRtl ? 'mr-auto' : 'ml-auto')}`}
+              className={`flex items-center gap-1.5 text-copper-accent hover:underline text-xs uppercase tracking-wider cursor-pointer font-bold border-none bg-transparent outline-none ${downloadableMatches.length > 0 ? '' : (isRtl ? 'mr-auto' : 'ml-auto')}`}
             >
-              <RotateCcw className="w-3.5 h-3.5" />
+              <RotateCcw className="w-3.5 h-3.5 shrink-0" />
               <span>{t('guestView.changeSelfie')}</span>
             </button>
           </div>
         </div>
 
-        {/* Warning if there are photo loading failures */}
+        {/* Access warnings */}
         {hasLoadError && (
-          <div className="mb-6 bg-amber-500/10 border border-amber-500/20 rounded-2xl p-4 flex gap-3 text-start">
-            <Lock className="w-5 h-5 text-amber-500 shrink-0 mt-0.5" />
-            <div className="flex flex-col gap-1.5">
-              <span className="font-bold text-slate-800 dark:text-amber-300 text-sm">{t('guestView.blockedNoticeTitle')}</span>
-              <span className="text-xs text-slate-600 dark:text-slate-400 leading-relaxed">
+          <div className="bg-primary-container/10 border border-surface-border rounded p-5 flex gap-4 text-start">
+            <Lock className="w-5 h-5 text-copper-accent shrink-0 mt-0.5" />
+            <div className="flex flex-col gap-1 font-body-md">
+              <span className="font-bold text-on-background text-sm">{t('guestView.blockedNoticeTitle')}</span>
+              <span className="text-xs text-sage-muted leading-relaxed">
                 {t('guestView.blockedNoticeDesc')}
               </span>
             </div>
           </div>
         )}
+
+        <div className="botanical-divider" />
 
         {/* Matches Grid */}
         <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
@@ -446,12 +435,12 @@ export function GuestView({ shareCode }: GuestViewProps) {
             <div
               key={match.driveFileId}
               onClick={() => setSelectedPhotoId(match.driveFileId)}
-              className="group relative aspect-square rounded-2xl overflow-hidden border border-slate-200 dark:border-slate-800/80 cursor-pointer bg-slate-100 dark:bg-slate-900 shadow-sm hover:shadow-lg transition-all hover:scale-[1.02]"
+              className="group relative aspect-square rounded overflow-hidden border border-surface-border cursor-pointer bg-surface-container-low shadow hover:shadow-2xl transition-all hover:scale-[1.01]"
             >
               <img
                 src={`https://lh3.googleusercontent.com/d/${match.driveFileId}=s400`}
                 alt=""
-                className="w-full h-full object-cover"
+                className="w-full h-full object-cover group-hover:scale-102 transition-transform duration-300"
                 referrerPolicy="no-referrer"
                 onError={() => {
                   setFailedPhotoIds((prev) => ({ ...prev, [match.driveFileId]: true }));
@@ -459,17 +448,17 @@ export function GuestView({ shareCode }: GuestViewProps) {
                 }}
               />
 
-              <div className="absolute inset-0 bg-slate-950/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2">
+              <div className="absolute inset-0 bg-background/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-3">
                 <button
                   type="button"
                   onClick={(e) => {
                     e.stopPropagation();
                     handleDownloadSingle(match.driveFileId);
                   }}
-                  className="p-2 rounded-xl bg-white text-slate-800 hover:bg-amber-500 hover:text-white transition-all shadow-md cursor-pointer"
+                  className="p-2 rounded bg-surface-container text-on-background border border-surface-border hover:text-copper-accent hover:border-copper-accent transition-all shadow cursor-pointer"
                   title={t('guestView.downloadBtn')}
                 >
-                  <Download className="w-4 h-4" />
+                  <Download className="w-4 h-4 shrink-0" />
                 </button>
                 <button
                   type="button"
@@ -477,20 +466,20 @@ export function GuestView({ shareCode }: GuestViewProps) {
                     e.stopPropagation();
                     handleHidePhoto(match.driveFileId);
                   }}
-                  className="p-2 rounded-xl bg-white text-slate-800 hover:bg-red-550 hover:text-white transition-all shadow-md cursor-pointer"
+                  className="p-2 rounded bg-surface-container text-on-background border border-surface-border hover:text-red-400 hover:border-red-500/30 transition-all shadow cursor-pointer"
                   title={t('guestView.removeBtn')}
                 >
-                  <X className="w-4 h-4" />
+                  <X className="w-4 h-4 shrink-0" />
                 </button>
               </div>
             </div>
           ))}
         </div>
 
-        {/* Photo Modal */}
+        {/* Zoom Lightbox Modal */}
         {selectedPhotoId && (
           <div
-            className="fixed inset-0 bg-slate-950/90 flex items-center justify-center z-50 p-4"
+            className="fixed inset-0 bg-black/95 flex items-center justify-center z-50 p-4"
             onClick={() => setSelectedPhotoId(null)}
           >
             <div
@@ -500,34 +489,34 @@ export function GuestView({ shareCode }: GuestViewProps) {
               <button
                 type="button"
                 onClick={() => setSelectedPhotoId(null)}
-                className="absolute -top-12 right-0 p-2 rounded-xl bg-white/10 text-white hover:bg-white/20 transition-all cursor-pointer"
+                className="absolute -top-12 right-0 p-2 rounded bg-surface-container border border-surface-border text-on-background hover:bg-surface-container-high hover:text-copper-accent transition-all cursor-pointer"
               >
-                <X className="w-5 h-5" />
+                <X className="w-5 h-5 shrink-0" />
               </button>
 
               <img
                 src={`https://lh3.googleusercontent.com/d/${selectedPhotoId}=s1600`}
                 alt=""
-                className="w-full max-h-[75vh] object-contain rounded-2xl border border-slate-800 shadow-2xl"
+                className="w-full max-h-[70vh] object-contain rounded border border-surface-border shadow-2xl"
                 referrerPolicy="no-referrer"
               />
 
-              <div className="flex justify-between items-center gap-4 bg-slate-900/60 backdrop-blur-md border border-slate-800 p-4 rounded-2xl">
+              <div className="flex justify-between items-center gap-4 bg-surface-container/85 backdrop-blur-md border border-surface-border p-4 rounded-lg">
                 <button
                   type="button"
                   onClick={() => handleHidePhoto(selectedPhotoId)}
-                  className="flex items-center gap-2 px-4 py-2 rounded-lg bg-red-500/10 hover:bg-red-500/20 text-red-500 text-sm font-semibold border border-red-500/20 transition-colors cursor-pointer"
+                  className="flex items-center gap-2 px-4 py-2 rounded bg-surface-container-low hover:bg-surface-container border border-red-500/20 text-red-400 text-sm font-semibold transition-colors cursor-pointer"
                 >
-                  <X className="w-4 h-4" />
+                  <X className="w-4 h-4 shrink-0" />
                   {t('guestView.removeBtn')}
                 </button>
 
                 <button
                   type="button"
                   onClick={() => handleDownloadSingle(selectedPhotoId)}
-                  className="flex items-center gap-2 px-4 py-2 rounded-lg bg-amber-500 hover:bg-amber-400 text-white text-sm font-bold transition-colors shadow-lg cursor-pointer"
+                  className="flex items-center gap-2 px-5 py-2.5 rounded bg-copper-accent hover:bg-copper-accent/90 text-background text-sm font-bold transition-colors shadow cursor-pointer border-none"
                 >
-                  <Download className="w-4 h-4" />
+                  <Download className="w-4 h-4 shrink-0" />
                   {t('guestView.downloadBtn')}
                 </button>
               </div>
@@ -536,31 +525,27 @@ export function GuestView({ shareCode }: GuestViewProps) {
         )}
 
         {/* Footer */}
-        <div className="mt-8 mb-6 text-center flex flex-col items-center gap-2">
-          <p className="text-xs text-slate-400 dark:text-slate-500 m-0">
-            {t('guestView.poweredBy')}
-          </p>
-          <div className="flex items-center gap-2 text-xs text-slate-400 dark:text-slate-500">
-            <Link to="/privacy" className="hover:text-amber-500 transition-colors cursor-pointer">{t('legal.privacyTitle')}</Link>
-            <span className="text-slate-300 dark:text-slate-700">•</span>
-            <Link to="/terms" className="hover:text-amber-500 transition-colors cursor-pointer">{t('legal.termsTitle')}</Link>
+        <div className="mt-16 pt-8 border-t border-surface-border/30 text-sage-muted w-full">
+          <div className="flex flex-col md:flex-row items-center justify-between gap-6 text-xs text-sage-muted">
+            <div className="flex flex-col sm:flex-row items-center gap-3 sm:gap-6 text-center sm:text-start">
+              <span className="font-display-lg text-lg text-on-background tracking-tight">EventTag</span>
+              <p className="m-0 font-body-md text-[11px] md:text-xs">© {new Date().getFullYear()} EventTag — {language === 'he' ? 'כל הזכויות שמורות' : 'All rights reserved'}</p>
+            </div>
+            <div className="flex flex-wrap items-center justify-center gap-4 md:gap-6 font-label-sm uppercase tracking-wider text-[10px] md:text-xs">
+              <Link to="/privacy-policy" className="hover:text-copper-accent transition-colors cursor-pointer no-underline text-sage-muted font-bold">{t('legal.privacyTitle')}</Link>
+              <span className="text-surface-border">•</span>
+              <Link to="/terms" className="hover:text-copper-accent transition-colors cursor-pointer no-underline text-sage-muted font-bold">{t('legal.termsTitle')}</Link>
+              <span className="text-surface-border">•</span>
+              <button
+                onClick={reopen}
+                className="hover:text-copper-accent transition-colors cursor-pointer bg-transparent border-none p-0 outline-none font-bold text-sage-muted font-label-sm uppercase tracking-wider text-[10px] md:text-xs"
+              >
+                {t('consent.managePreferences')}
+              </button>
+            </div>
           </div>
         </div>
       </div>
-
-      {/* CSS Keyframes */}
-      <style>{`
-        @keyframes fadeInUp {
-          from {
-            opacity: 0;
-            transform: translateY(16px);
-          }
-          to {
-            opacity: 1;
-            transform: translateY(0);
-          }
-        }
-      `}</style>
     </div>
   );
 }

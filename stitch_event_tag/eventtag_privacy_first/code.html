@@ -1,0 +1,278 @@
+<!DOCTYPE html><html lang="en"><head>
+<meta charset="utf-8">
+<meta content="width=device-width, initial-scale=1.0" name="viewport">
+<title>EventTag - Privacy</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Hanken+Grotesk:wght@400;600;700&amp;family=EB+Garamond:wght@500&amp;display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet">
+<script id="tailwind-config">
+        tailwind.config = {
+          darkMode: "class",
+          theme: {
+            extend: {
+              "colors": {
+                      "primary-container": "#1a2f2b",
+                      "copper-accent": "#B87333",
+                      "on-error": "#ffffff",
+                      "surface-dim": "#dbdad5",
+                      "on-secondary-fixed": "#092017",
+                      "surface-variant": "#e4e2dd",
+                      "tertiary": "#201500",
+                      "surface-container-highest": "#e4e2dd",
+                      "surface-container": "#f0eee9",
+                      "secondary": "#4c6358",
+                      "secondary-fixed": "#cee9da",
+                      "secondary-container": "#cee9da",
+                      "secondary-fixed-dim": "#b3ccbf",
+                      "inverse-on-surface": "#f2f1ec",
+                      "inverse-surface": "#30312e",
+                      "surface-bright": "#fbf9f4",
+                      "surface-container-low": "#f5f3ee",
+                      "surface-tint": "#4d635e",
+                      "primary-fixed": "#d0e8e1",
+                      "on-surface-variant": "#424846",
+                      "tertiary-fixed-dim": "#e9c176",
+                      "on-error-container": "#93000a",
+                      "background": "#fbf9f4",
+                      "on-tertiary-fixed-variant": "#5d4201",
+                      "on-tertiary-container": "#b08d48",
+                      "on-secondary-fixed-variant": "#354c41",
+                      "sage-muted": "#8FA89B",
+                      "on-tertiary-fixed": "#261900",
+                      "on-primary-fixed-variant": "#364b46",
+                      "on-secondary": "#ffffff",
+                      "on-primary-container": "#809792",
+                      "on-secondary-container": "#52695e",
+                      "warm-cream": "#F9F7F2",
+                      "surface-border": "#E5E1D8",
+                      "surface-container-high": "#eae8e3",
+                      "primary": "#051a17",
+                      "on-primary": "#ffffff",
+                      "surface": "#fbf9f4",
+                      "tertiary-container": "#3a2800",
+                      "on-primary-fixed": "#091f1b",
+                      "muted-gold": "#C5A059",
+                      "outline": "#727876",
+                      "outline-variant": "#c2c8c5",
+                      "on-tertiary": "#ffffff",
+                      "surface-container-lowest": "#ffffff",
+                      "tertiary-fixed": "#ffdea5",
+                      "inverse-primary": "#b4ccc5",
+                      "deep-forest": "#1A2F2B",
+                      "on-background": "#1b1c19",
+                      "primary-fixed-dim": "#b4ccc5",
+                      "error-container": "#ffdad6",
+                      "error": "#ba1a1a",
+                      "on-surface": "#1b1c19"
+              },
+              "borderRadius": {
+                      "DEFAULT": "0.25rem",
+                      "lg": "0.5rem",
+                      "xl": "0.75rem",
+                      "full": "9999px"
+              },
+              "spacing": {
+                      "margin-mobile": "16px",
+                      "gutter": "24px",
+                      "margin-desktop": "40px",
+                      "base": "8px",
+                      "container-max": "1280px"
+              },
+              "fontFamily": {
+                      "label-sm": [
+                              "Hanken Grotesk"
+                      ],
+                      "display-lg": [
+                              "EB Garamond"
+                      ],
+                      "title-md": [
+                              "Hanken Grotesk"
+                      ],
+                      "body-lg": [
+                              "Hanken Grotesk"
+                      ],
+                      "headline-lg": [
+                              "EB Garamond"
+                      ],
+                      "headline-lg-mobile": [
+                              "EB Garamond"
+                      ],
+                      "body-md": [
+                              "Hanken Grotesk"
+                      ]
+              },
+              "fontSize": {
+                      "label-sm": [
+                              "12px",
+                              {
+                                      "lineHeight": "1",
+                                      "letterSpacing": "0.08em",
+                                      "fontWeight": "700"
+                              }
+                      ],
+                      "display-lg": [
+                              "48px",
+                              {
+                                      "lineHeight": "1.1",
+                                      "letterSpacing": "-0.02em",
+                                      "fontWeight": "500"
+                              }
+                      ],
+                      "title-md": [
+                              "20px",
+                              {
+                                      "lineHeight": "1.4",
+                                      "letterSpacing": "0.01em",
+                                      "fontWeight": "600"
+                              }
+                      ],
+                      "body-lg": [
+                              "18px",
+                              {
+                                      "lineHeight": "1.6",
+                                      "fontWeight": "400"
+                              }
+                      ],
+                      "headline-lg": [
+                              "32px",
+                              {
+                                      "lineHeight": "1.2",
+                                      "fontWeight": "500"
+                              }
+                      ],
+                      "headline-lg-mobile": [
+                              "28px",
+                              {
+                                      "lineHeight": "1.2",
+                                      "fontWeight": "500"
+                              }
+                      ],
+                      "body-md": [
+                              "16px",
+                              {
+                                      "lineHeight": "1.6",
+                                      "fontWeight": "400"
+                              }
+                      ]
+              }
+      },
+          },
+        }
+      </script>
+</head>
+<body class="bg-background text-on-background font-body-md min-h-screen flex flex-col">
+<!-- Navigation Shell Suppression: Active Navigation intent is 'Privacy', but this is a top-level page, so rendering TopNavBar. -->
+<header class="fixed top-0 w-full z-50 bg-surface/80 dark:bg-primary-container/80 backdrop-blur-md">
+<div class="flex justify-between items-center px-margin-mobile md:px-margin-desktop h-20 max-w-container-max mx-auto">
+<div class="flex items-center gap-2"><span class="font-display-lg text-title-md text-deep-forest dark:text-surface-bright">EventTag</span></div>
+<nav class="hidden md:flex gap-8 items-center">
+<a class="text-on-surface-variant dark:text-surface-variant font-label-sm text-label-sm hover:text-copper-accent transition-colors duration-300" href="#">How it Works</a>
+<a class="text-copper-accent font-bold border-b-2 border-copper-accent pb-1 font-label-sm text-label-sm opacity-80 transition-opacity hover:text-copper-accent transition-colors duration-300" href="#">Privacy</a>
+<a class="text-on-surface-variant dark:text-surface-variant font-label-sm text-label-sm hover:text-copper-accent transition-colors duration-300" href="#">Pricing</a>
+<a class="text-on-surface-variant dark:text-surface-variant font-label-sm text-label-sm hover:text-copper-accent transition-colors duration-300" href="#">Dashboard</a>
+</nav>
+<button class="bg-deep-forest text-warm-cream px-6 py-2 rounded-lg font-label-sm text-label-sm hover:bg-secondary transition-colors">
+                Sign In
+            </button>
+</div>
+</header>
+<!-- Main Content Canvas -->
+<main class="flex-grow pt-32 pb-24 px-margin-mobile md:px-margin-desktop max-w-container-max mx-auto w-full">
+<section class="mb-24 text-center max-w-3xl mx-auto">
+<div class="inline-flex items-center justify-center p-4 bg-surface-container rounded-full mb-8">
+<span class="material-symbols-outlined text-copper-accent" data-icon="shield_lock" style="font-size: 48px; font-variation-settings: &quot;FILL&quot; 1;">shield_lock</span>
+</div>
+<h1 class="font-headline-lg-mobile md:font-headline-lg text-headline-lg-mobile md:text-headline-lg text-deep-forest mb-6">
+                Absolute Privacy by Design
+            </h1>
+<p class="font-body-lg text-body-lg text-on-surface-variant leading-relaxed">
+                Your photos never leave your device. All AI detection happens entirely in your browser. We bridge the gap between traditional luxury photography and cutting-edge browser-based AI, prioritizing a sense of calm and privacy.
+            </p>
+</section>
+<!-- Bento Grid Layout for Key Points -->
+<section class="grid grid-cols-1 md:grid-cols-3 gap-6 md:gap-gutter">
+<!-- Point 1 -->
+<div class="bg-warm-cream border border-sage-muted/20 rounded-xl p-8 hover:shadow-[0_8px_24px_rgba(26,47,43,0.08)] transition-shadow duration-300 flex flex-col items-start relative overflow-hidden">
+<div class="absolute top-0 right-0 p-4 opacity-10">
+<span class="material-symbols-outlined text-6xl text-deep-forest" data-icon="computer">computer</span>
+</div>
+<div class="w-12 h-12 rounded-full bg-surface-container flex items-center justify-center mb-6">
+<span class="material-symbols-outlined text-deep-forest" data-icon="desktop_windows">desktop_windows</span>
+</div>
+<h3 class="font-title-md text-title-md text-deep-forest mb-3">Local Browser Processing</h3>
+<p class="font-body-md text-body-md text-on-surface-variant">
+                    Experience artisan-level care. Complex AI facial recognition algorithms run directly within your web browser, ensuring zero transit of biometric data to external servers.
+                </p>
+</div>
+<!-- Point 2 -->
+<div class="bg-warm-cream border border-sage-muted/20 rounded-xl p-8 hover:shadow-[0_8px_24px_rgba(26,47,43,0.08)] transition-shadow duration-300 flex flex-col items-start relative overflow-hidden">
+<div class="absolute top-0 right-0 p-4 opacity-10">
+<span class="material-symbols-outlined text-6xl text-deep-forest" data-icon="cloud_off">cloud_off</span>
+</div>
+<div class="w-12 h-12 rounded-full bg-surface-container flex items-center justify-center mb-6">
+<span class="material-symbols-outlined text-copper-accent" data-icon="no_photography">no_photography</span>
+</div>
+<h3 class="font-title-md text-title-md text-deep-forest mb-3">No Photo Uploads to Our Servers</h3>
+<p class="font-body-md text-body-md text-on-surface-variant">
+                    Curated elegance meets absolute security. Your high-resolution images are analyzed instantly on your device, preventing unauthorized access or data harvesting.
+                </p>
+</div>
+<!-- Point 3 -->
+<div class="bg-warm-cream border border-sage-muted/20 rounded-xl p-8 hover:shadow-[0_8px_24px_rgba(26,47,43,0.08)] transition-shadow duration-300 flex flex-col items-start relative overflow-hidden">
+<div class="absolute top-0 right-0 p-4 opacity-10">
+<span class="material-symbols-outlined text-6xl text-deep-forest" data-icon="vpn_key">vpn_key</span>
+</div>
+<div class="w-12 h-12 rounded-full bg-surface-container flex items-center justify-center mb-6">
+<span class="material-symbols-outlined text-deep-forest" data-icon="enhanced_encryption">enhanced_encryption</span>
+</div>
+<h3 class="font-title-md text-title-md text-deep-forest mb-3">Secure Data Encryption</h3>
+<p class="font-body-md text-body-md text-on-surface-variant">
+                    Any necessary operational metadata is safeguarded with state-of-the-art encryption protocols, maintaining the pristine integrity of your visual memories.
+                </p>
+</div>
+</section>
+<!-- Privacy Banner Component Style representation -->
+<section class="mt-24">
+<div class="relative overflow-hidden rounded-xl bg-warm-cream/50 backdrop-blur-md border border-sage-muted/30 p-8 md:p-12 flex flex-col md:flex-row items-center justify-between gap-8">
+<div class="absolute -left-12 -top-12 opacity-5 pointer-events-none">
+<span class="material-symbols-outlined text-[200px]" data-icon="energy_savings_leaf">energy_savings_leaf</span>
+</div>
+<div class="flex-1 max-w-2xl z-10">
+<div class="flex items-center gap-3 mb-4">
+<span class="material-symbols-outlined text-copper-accent" data-icon="verified_user">verified_user</span>
+<span class="font-label-sm text-label-sm text-copper-accent tracking-widest uppercase">The EventTag Promise</span>
+</div>
+<h2 class="font-headline-lg-mobile md:font-headline-lg text-headline-lg-mobile md:text-headline-lg text-deep-forest mb-4">
+                        Organic Tech, Curated Elegance.
+                    </h2>
+<p class="font-body-md text-body-md text-on-surface-variant">
+                        We believe that technology should operate silently and respectfully. Our architecture is meticulously crafted to ensure your private moments remain exactly that—private. Enjoy the luxury of instant AI curation without the technical anxiety.
+                    </p>
+</div>
+<div class="z-10 shrink-0">
+<img class="w-64 h-64 object-cover rounded-full border-4 border-surface shadow-[0_8px_32px_rgba(26,47,43,0.1)] grayscale opacity-90 mix-blend-multiply" data-alt="A macro shot of a delicate fern leaf resting on a smooth, matte white surface. The lighting is soft, diffused, and high-key, creating a light-mode aesthetic. The color palette is minimal, focusing on the deep forest green of the fern against pristine warm cream and white backgrounds. The mood is serene, natural, and highly detailed, conveying a sense of organic tranquility." src="https://lh3.googleusercontent.com/aida-public/AB6AXuDoe46qNKGx7iUkTfc3YsqORPQB2Ak-rm_fi9YDct8BGdHk_E6LYm_aN1TftewmR3GlEHXGs2i120CYSDO1SjvnopRR9Fed4ELohQBzKCk_vtPOee0RzvD4DHLf94TyI7OGcLLQXqFPKcoIhznTdYnHoVZj8YrEmjCLQru-RuszDWltSr_vkTXnXI_2GmYsFVslnaUi6H3vdAL6SwU6_3WrbBUcExcqEkkfHSuy0F9jilMnRqH5MFxE6w">
+</div>
+</div>
+</section>
+</main>
+<!-- Footer -->
+<footer class="w-full py-12 bg-surface-container dark:bg-primary-container border-t border-sage-muted/20">
+<div class="flex flex-col md:flex-row justify-between items-center px-margin-mobile md:px-margin-desktop max-w-container-max mx-auto gap-8">
+<div class="font-display-lg text-title-md text-deep-forest dark:text-surface-bright flex items-center gap-2"><img src="https://lh3.googleusercontent.com/aida/AP1WRLvRCHVl9sOCUNrsUxAiNvRjLTds9o60iHibb5Zn91i2cLhEo0_yhISNWfsZGBI5mSWw0LvZ1vbjwwFxlCYuYjxe1Etmr81iNZSkypM7JtucE7-uSq_mozIO9qwEtjA0y--sDT4J8vqZXncWoxbPGbArRrZUBlCq6n7zY1ZJKTqWXrbb4j2bUYpilv9sv2el6QwBqdqwNCwh-LhXZeGnp5mDXrE3JFmBO6w4Cxccwr6PcBhF46ReKVkfNMo" alt="EventTag Logo" class="h-8 w-auto object-contain"></div>
+<div class="flex flex-wrap justify-center gap-6">
+<a class="text-on-surface-variant dark:text-surface-variant font-label-sm text-label-sm hover:text-copper-accent transition-colors" href="#">Terms of Service</a>
+<a class="text-on-surface-variant dark:text-surface-variant font-label-sm text-label-sm hover:text-copper-accent transition-colors" href="#">Privacy Policy</a>
+<a class="text-on-surface-variant dark:text-surface-variant font-label-sm text-label-sm hover:text-copper-accent transition-colors" href="#">Contact Support</a>
+<a class="text-on-surface-variant dark:text-surface-variant font-label-sm text-label-sm hover:text-copper-accent transition-colors" href="#">API Documentation</a>
+</div>
+<div class="font-body-md text-body-md text-deep-forest dark:text-surface-variant text-sm">
+                © 2024 EventTag. Artisan AI for Visual Memories.
+            </div>
+</div>
+</footer>
+
+
+
+
+</body></html>

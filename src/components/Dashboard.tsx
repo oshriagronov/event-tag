@@ -14,7 +14,7 @@ import {
   Calendar, Image as ImageIcon, Users, Trash2,
   ArrowLeft, LogOut, Cloud, Link2, QrCode,
   CheckCircle2, Loader2, Clock, Copy, Check, X,
-  Plus, Sparkles, Play, Pause, FolderOpen,
+  Plus, Play, Pause, FolderOpen, Search, Menu, BarChart2, Settings
 } from 'lucide-react';
 import { useScanner } from '../contexts/ScannerContext';
 import { useTranslation } from '../services/translations';
@@ -35,15 +35,15 @@ export function Dashboard() {
 
   const [cloudEvents, setCloudEvents] = useState<CloudEvent[]>([]);
   const [loadingEvents, setLoadingEvents] = useState(true);
-
+  const [searchQuery, setSearchQuery] = useState('');
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
   const formatETA = (seconds: number | null) => {
-    if (seconds === null) return language === 'he' ? 'מחשב זמן...' : 'Calculating time...';
-    if (seconds === 0) return language === 'he' ? 'מסתיים כעת...' : 'Finishing...';
-    if (seconds < 60) return language === 'he' ? `זמן נותר: כ-${seconds} שניות` : `Time remaining: about ${seconds} seconds`;
+    if (seconds === null) return language === 'he' ? 'מחשב זמן...' : 'Calculating...';
+    if (seconds === 0) return language === 'he' ? 'מסתיים...' : 'Finishing...';
+    if (seconds < 60) return language === 'he' ? `כ-${seconds} שניות` : `~${seconds}s`;
     const mins = Math.floor(seconds / 60);
-    const secs = seconds % 60;
-    return language === 'he' ? `זמן נותר: כ-${mins} דקות ו-${secs} שניות` : `Time remaining: about ${mins}m and ${secs}s`;
+    return language === 'he' ? `כ-${mins} דקות` : `~${mins}m`;
   };
 
   // Cloud event creation flow
@@ -58,8 +58,6 @@ export function Dashboard() {
 
   // Copy feedback
   const [copiedId, setCopiedId] = useState<string | null>(null);
-
-
 
   // Subscribe to cloud events in real-time
   useEffect(() => {
@@ -170,298 +168,383 @@ export function Dashboard() {
       setCopiedId(event.id!);
       setTimeout(() => setCopiedId(null), 2000);
     } catch {
-      // Fallback for HTTP
       prompt(language === 'he' ? 'העתק את הקישור:' : 'Copy link:', link);
     }
   };
-
-
 
   const getStatusBadge = (status: CloudEvent['status']) => {
     switch (status) {
       case 'ready':
         return (
-          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-bold bg-emerald-500/15 text-emerald-700 dark:text-emerald-400 border border-emerald-500/20">
-            <CheckCircle2 className="w-3 h-3" /> {language === 'he' ? 'מוכן' : 'Ready'}
+          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
+            <CheckCircle2 className="w-2.5 h-2.5" /> {language === 'he' ? 'מוכן' : 'Ready'}
           </span>
         );
       case 'scanning':
         return (
-          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-bold bg-amber-500/15 text-amber-700 dark:text-amber-400 border border-amber-500/20 animate-pulse">
-            <Loader2 className="w-3 h-3 animate-spin" /> {language === 'he' ? 'סורק' : 'Scanning'}
+          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider bg-copper-accent/15 text-copper-accent border border-copper-accent/20 animate-pulse">
+            <Loader2 className="w-2.5 h-2.5 animate-spin" /> {language === 'he' ? 'סורק' : 'Scanning'}
           </span>
         );
       default:
         return (
-          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-bold bg-slate-500/15 text-slate-600 dark:text-slate-400 border border-slate-500/20">
-            <Clock className="w-3 h-3" /> {language === 'he' ? 'ממתין' : 'Pending'}
+          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider bg-surface-border text-sage-muted border border-surface-border/50">
+            <Clock className="w-2.5 h-2.5" /> {language === 'he' ? 'ממתין' : 'Pending'}
           </span>
         );
     }
   };
 
+  const filteredEvents = cloudEvents.filter(event => 
+    event.name.toLowerCase().includes(searchQuery.toLowerCase())
+  );
+
+  const sidebarContent = (
+    <div className="flex flex-col h-full py-8 gap-y-6 text-start" dir={isRtl ? 'rtl' : 'ltr'}>
+      {/* Brand */}
+      <div className="px-6 mb-4 flex flex-col justify-center items-start mt-4">
+        <h1 className="font-display-lg text-2xl text-on-background tracking-tight m-0">EventTag</h1>
+        <p className="font-label-sm text-[10px] text-sage-muted mt-1 uppercase tracking-widest">
+          {language === 'he' ? `${cloudEvents.length} אירועים פעילים` : `${cloudEvents.length} Active Events`}
+        </p>
+      </div>
+
+      {/* Navigation */}
+      <nav className="flex-1 flex flex-col gap-1 px-3">
+        <button 
+          onClick={() => { setMobileMenuOpen(false); }}
+          className={`flex items-center gap-3 font-bold py-3 px-4 rounded-lg transition-all text-start cursor-pointer border-none bg-transparent outline-none w-full ${
+            isRtl ? 'border-r-4 border-copper-accent pr-3 text-on-background bg-surface-container' : 'border-l-4 border-copper-accent pl-3 text-on-background bg-surface-container'
+          }`}
+        >
+          <Calendar className="w-4 h-4 text-copper-accent" />
+          <span className="font-label-sm text-xs uppercase tracking-wider">{t('dashboard.myEvents')}</span>
+        </button>
+
+        <button className="flex items-center gap-3 text-sage-muted hover:text-on-background py-3 px-4 rounded-lg transition-all text-start cursor-not-allowed border-none bg-transparent outline-none w-full group">
+          <BarChart2 className="w-4 h-4 group-hover:text-on-background transition-colors" />
+          <span className="font-label-sm text-xs uppercase tracking-wider group-hover:text-on-background transition-colors">{language === 'he' ? 'אנליטיקה' : 'Analytics'}</span>
+        </button>
+
+
+        <button className="flex items-center gap-3 text-sage-muted hover:text-on-background py-3 px-4 rounded-lg transition-all text-start cursor-not-allowed border-none bg-transparent outline-none w-full group">
+          <Settings className="w-4 h-4 group-hover:text-on-background transition-colors" />
+          <span className="font-label-sm text-xs uppercase tracking-wider group-hover:text-on-background transition-colors">{t('settings.title')}</span>
+        </button>
+      </nav>
+
+      {/* CTA bottom */}
+      <div className="px-5 mt-auto flex flex-col gap-2">
+        <button
+          onClick={async () => {
+            if (!googleAccessToken) return;
+            setNewEventName('');
+            setPendingPhotos([]);
+            setPendingFolder(null);
+            const apiKey = import.meta.env.VITE_GOOGLE_API_KEY;
+            const clientId = import.meta.env.VITE_GOOGLE_CLIENT_ID;
+            await openGoogleFolderPicker({
+              accessToken: googleAccessToken,
+              apiKey,
+              clientId,
+              onSelected: (folder) => {
+                handleFolderSelected(folder);
+              },
+            });
+          }}
+          disabled={!googleAccessToken}
+          className="w-full bg-deep-forest hover:bg-primary text-background font-label-sm text-xs uppercase tracking-widest py-3.5 rounded flex items-center justify-center gap-2 transition-colors shadow-sm disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
+        >
+          <FolderOpen className="w-4 h-4" />
+          <span>{language === 'he' ? 'אירוע מתיקייה' : 'Event from Folder'}</span>
+        </button>
+      </div>
+    </div>
+  );
+
   return (
-    <div className="max-w-6xl w-full mx-auto px-4 py-8 flex-grow flex flex-col gap-8 transition-colors duration-300 text-start" dir={isRtl ? 'rtl' : 'ltr'}>
-      {/* Header */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 border-b border-slate-200 dark:border-slate-800 pb-8">
-        <div className="flex items-center gap-4 text-start">
-          <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-amber-200 to-amber-400 dark:from-amber-500 dark:to-amber-700 flex items-center justify-center shadow-lg shadow-amber-500/20 dark:shadow-amber-600/30">
-            <Sparkles className="w-6 h-6 text-amber-900 dark:text-white" />
-          </div>
-          <div>
-            <h1 className="text-3xl font-extrabold tracking-tight text-slate-800 dark:text-white m-0">EventTag</h1>
-            <p className="text-slate-500 dark:text-slate-400 text-sm mt-0.5">{t('dashboard.myDashboard')}</p>
+    <div className="min-h-screen flex bg-background text-on-background selection:bg-copper-accent/25 selection:text-deep-forest antialiased relative" dir={isRtl ? 'rtl' : 'ltr'}>
+      {/* Sidebar (Desktop) */}
+      <aside className={`fixed top-0 bottom-0 w-64 bg-surface-container-low border-r border-surface-border/30 flex-col z-40 hidden md:flex ${
+        isRtl ? 'right-0 border-l border-r-0' : 'left-0 border-r border-l-0'
+      }`}>
+        {sidebarContent}
+      </aside>
+
+      {/* Mobile Drawer */}
+      {mobileMenuOpen && (
+        <div className="fixed inset-0 z-50 flex md:hidden">
+          <div className="fixed inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setMobileMenuOpen(false)} />
+          <div className={`relative w-64 bg-surface-container-low h-full shadow-2xl flex flex-col z-10 transition-transform duration-300 animate-in slide-in-from-left`}>
+            <button 
+              onClick={() => setMobileMenuOpen(false)} 
+              className={`absolute top-4 ${isRtl ? 'left-4' : 'right-4'} p-2 text-sage-muted hover:text-on-background`}
+            >
+              <X className="w-5 h-5" />
+            </button>
+            {sidebarContent}
           </div>
         </div>
+      )}
 
-        <div className="flex items-center gap-3">
-          {/* User info */}
-          {user && (
-            <div className="flex items-center gap-3 bg-white/50 dark:bg-slate-900/40 backdrop-blur-sm border border-slate-200 dark:border-slate-800 rounded-2xl px-4 py-2.5">
-              {user.photoURL && (
-                <img src={user.photoURL} alt="" className="w-8 h-8 rounded-full ring-2 ring-amber-400/30" />
-              )}
-              <div className="flex flex-col text-start">
-                <span className="text-sm font-bold text-slate-800 dark:text-slate-200">{user.displayName}</span>
-                <span className="text-[10px] text-slate-500">{user.email}</span>
+      {/* Main Content Area */}
+      <main className={`flex-1 bg-background relative min-h-screen pb-20 flex flex-col ${
+        isRtl ? 'md:mr-64' : 'md:ml-64'
+      }`}>
+        {/* Top Header Bar */}
+        <header className="sticky top-0 z-30 bg-background/90 backdrop-blur-md px-6 md:px-12 py-5 flex items-center justify-between border-b border-surface-border/30 w-full">
+          {/* Mobile Menu Toggle */}
+          <button 
+            onClick={() => setMobileMenuOpen(true)}
+            className="md:hidden text-on-background p-2 rounded hover:bg-surface-container transition-colors"
+          >
+            <Menu className="w-5 h-5" />
+          </button>
+
+          {/* Search bar */}
+          <div className="hidden sm:flex items-center bg-surface-container rounded-full px-4 py-2 border border-surface-border focus-within:border-sage-muted/50 transition-colors w-64 lg:w-96 text-start">
+            <Search className="text-sage-muted mr-2 shrink-0 w-4 h-4" />
+            <input 
+              type="text" 
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              placeholder={language === 'he' ? 'חפש אירועים...' : 'Search events...'}
+              className="bg-transparent border-none focus:ring-0 text-sm text-on-background w-full placeholder-sage-muted outline-none"
+            />
+          </div>
+
+          {/* User Profile */}
+          <div className={`flex items-center gap-4 ${isRtl ? 'mr-auto' : 'ml-auto'}`}>
+            {user && (
+              <div className="flex items-center gap-3 text-start bg-surface-container-low px-4 py-2 rounded-xl border border-surface-border/50">
+                {user.photoURL && (
+                  <img src={user.photoURL} alt="" className="w-8 h-8 rounded-full border border-surface-border shadow" />
+                )}
+                <div className="flex flex-col text-start">
+                  <p className="font-title-md text-xs font-bold text-on-background m-0 line-clamp-1">{user.displayName}</p>
+                  <p className="font-label-sm text-[9px] text-sage-muted uppercase tracking-wider m-0 line-clamp-1">{language === 'he' ? 'מנהל אירוע' : 'Event Manager'}</p>
+                </div>
+                <button
+                  onClick={signOut}
+                  className="p-1.5 rounded-lg hover:bg-surface-container text-sage-muted hover:text-red-400 transition-all cursor-pointer border-none bg-transparent"
+                  title={language === 'he' ? 'התנתק' : 'Sign Out'}
+                >
+                  <LogOut className="w-4 h-4" />
+                </button>
               </div>
+            )}
+          </div>
+        </header>
+
+        {/* Canvas Area */}
+        <div className="px-6 md:px-12 py-10 max-w-7xl mx-auto w-full flex-grow flex flex-col gap-8 text-start">
+          <div className="flex flex-col md:flex-row md:items-end justify-between gap-4">
+            <div>
+              <h2 className="font-display-lg text-3xl md:text-4xl text-on-background m-0 mb-2">{language === 'he' ? 'האירועים שלי' : 'My Events'}</h2>
+              <p className="font-body-md text-sage-muted m-0">{language === 'he' ? 'נהל את גלריות התמונות וסנכרון הפנים שלך.' : 'Manage your photography galleries and face synchronization.'}</p>
+            </div>
+            
+            {/* Choose photos backup button */}
+            <div className="flex items-center gap-3">
               <button
-                onClick={signOut}
-                className="p-2 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-400 hover:text-red-500 transition-all cursor-pointer"
-                title={language === 'he' ? 'התנתק' : 'Sign Out'}
+                onClick={async () => {
+                  if (!googleAccessToken) return;
+                  setNewEventName('');
+                  setPendingPhotos([]);
+                  setPendingFolder(null);
+                  const apiKey = import.meta.env.VITE_GOOGLE_API_KEY;
+                  const clientId = import.meta.env.VITE_GOOGLE_CLIENT_ID;
+                  await openGooglePhotoPicker({
+                    accessToken: googleAccessToken,
+                    apiKey,
+                    clientId,
+                    onSelected: (files) => {
+                      handlePhotosSelected(files);
+                    },
+                  });
+                }}
+                disabled={!googleAccessToken}
+                className="px-5 py-2.5 rounded border border-surface-border text-on-background hover:bg-surface-container font-label-sm text-xs uppercase tracking-wider flex items-center gap-2 transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
               >
-                <LogOut className="w-4 h-4" />
+                <Plus className="w-4 h-4" />
+                <span>{language === 'he' ? 'בחירת תמונות' : 'Choose Photos'}</span>
               </button>
             </div>
-          )}
-        </div>
-      </div>
-
-      {/* Dashboard Actions */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-        <h2 className="text-xl font-bold text-slate-800 dark:text-slate-100 m-0">{language === 'he' ? 'האירועים שלי בענן' : 'My Cloud Events'}</h2>
-        <div className="flex flex-wrap items-center gap-3">
-          <button
-            onClick={async () => {
-              if (!googleAccessToken) return;
-              setNewEventName('');
-              setPendingPhotos([]);
-              setPendingFolder(null);
-              const apiKey = import.meta.env.VITE_GOOGLE_API_KEY;
-              const clientId = import.meta.env.VITE_GOOGLE_CLIENT_ID;
-              await openGoogleFolderPicker({
-                accessToken: googleAccessToken,
-                apiKey,
-                clientId,
-                onSelected: (folder) => {
-                  handleFolderSelected(folder);
-                },
-              });
-            }}
-            disabled={!googleAccessToken}
-            className="px-5 py-2.5 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-sm flex items-center gap-2 transition-all cursor-pointer shadow-md shadow-amber-500/20 active:scale-95 border border-amber-600/30 disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-            <FolderOpen className="w-4 h-4 animate-none" />
-            <span>{language === 'he' ? 'אירוע מתיקייה' : 'Event from Folder'}</span>
-          </button>
-          
-          <button
-            onClick={async () => {
-              if (!googleAccessToken) return;
-              setNewEventName('');
-              setPendingPhotos([]);
-              setPendingFolder(null);
-              const apiKey = import.meta.env.VITE_GOOGLE_API_KEY;
-              const clientId = import.meta.env.VITE_GOOGLE_CLIENT_ID;
-              await openGooglePhotoPicker({
-                accessToken: googleAccessToken,
-                apiKey,
-                clientId,
-                onSelected: (files) => {
-                  handlePhotosSelected(files);
-                },
-              });
-            }}
-            disabled={!googleAccessToken}
-            className="px-5 py-2.5 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 font-bold text-sm flex items-center gap-2 transition-all cursor-pointer active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-            <Plus className="w-4 h-4" />
-            <span>{language === 'he' ? 'בחירת תמונות' : 'Choose Photos'}</span>
-          </button>
-        </div>
-      </div>
-
-      {/* Cloud Events */}
-      <div className="flex flex-col gap-4">
-        {loadingEvents ? (
-          <div className="text-center py-12 text-slate-500 flex flex-col items-center gap-3">
-            <Loader2 className="w-6 h-6 animate-spin text-amber-500" />
-            <span>{language === 'he' ? 'טוען אירועים...' : 'Loading events...'}</span>
           </div>
-        ) : cloudEvents.length === 0 ? (
-          <div className="border border-dashed border-slate-300 dark:border-slate-800 rounded-3xl p-12 text-center flex flex-col items-center justify-center gap-4 bg-white/50 dark:bg-slate-900/20 shadow-sm">
-            <div className="w-12 h-12 rounded-full bg-slate-100 dark:bg-slate-800/50 flex items-center justify-center text-slate-400 dark:text-slate-500">
-              <Cloud className="w-6 h-6" />
-            </div>
-            <div className="max-w-md">
-              <h3 className="font-semibold text-slate-700 dark:text-slate-300 text-lg">{language === 'he' ? 'אין אירועים בענן' : 'No Cloud Events'}</h3>
-              <p className="text-slate-500 text-sm mt-1">
-                {language === 'he' ? 'לחץ על "אירוע חדש" כדי לבחור תיקיית תמונות מ-Google Drive ולהתחיל.' : 'Click "New Event" to choose a folder from Google Drive and start.'}
-              </p>
-            </div>
-          </div>
-        ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {cloudEvents.map((event) => {
-              const isThisEventScanning = isScanning && activeScanningEventId === event.id;
-              return (
-                <div
-                  key={event.id}
-                  onClick={() => navigate(`/dashboard/event/${event.id}`)}
-                  className="group relative border border-slate-200 dark:border-slate-800 hover:border-amber-300 dark:hover:border-amber-500/40 bg-white dark:bg-slate-900/60 rounded-2xl p-6 cursor-pointer transition-all duration-300 flex flex-col gap-5 shadow-sm hover:shadow-xl dark:shadow-none hover:-translate-y-1"
-                >
-                  {/* Actions */}
-                  <div className={`absolute top-4 ${isRtl ? 'left-4' : 'right-4'} flex items-center gap-1.5 opacity-0 group-hover:opacity-100 transition-all z-10`}>
-                    <button
-                      onClick={(e) => handleCopyShareLink(event, e)}
-                      title={language === 'he' ? 'העתק קישור שיתוף' : 'Copy share link'}
-                      className="p-1.5 rounded-lg bg-white/80 dark:bg-slate-900/80 hover:bg-amber-50 dark:hover:bg-amber-500/20 border border-slate-200 dark:border-slate-800 hover:border-amber-200 dark:hover:border-amber-500/30 text-slate-400 dark:text-slate-500 hover:text-amber-600 dark:hover:text-amber-400 transition-all cursor-pointer shadow-sm"
-                    >
-                      {copiedId === event.id ? <Check className="w-4 h-4 text-emerald-500" /> : <Link2 className="w-4 h-4" />}
-                    </button>
-                    <button
-                      onClick={(e) => { e.stopPropagation(); setQrEvent(event); }}
-                      title={language === 'he' ? 'הצג QR קוד' : 'Show QR code'}
-                      className="p-1.5 rounded-lg bg-white/80 dark:bg-slate-900/80 hover:bg-amber-50 dark:hover:bg-amber-500/20 border border-slate-200 dark:border-slate-800 hover:border-amber-200 dark:hover:border-amber-500/30 text-slate-400 dark:text-slate-500 hover:text-amber-600 dark:hover:text-amber-400 transition-all cursor-pointer shadow-sm"
-                    >
-                      <QrCode className="w-4 h-4" />
-                    </button>
-                    <button
-                      onClick={(e) => handleDeleteCloudEvent(event, e)}
-                      title={language === 'he' ? 'מחק אירוע' : 'Delete event'}
-                      className="p-1.5 rounded-lg bg-white/80 dark:bg-slate-900/80 hover:bg-red-50 dark:hover:bg-red-500/20 border border-slate-200 dark:border-slate-800 hover:border-red-200 dark:hover:border-red-500/30 text-slate-400 dark:text-slate-500 hover:text-red-500 dark:hover:text-red-400 transition-all cursor-pointer shadow-sm"
-                    >
-                      <Trash2 className="w-4 h-4" />
-                    </button>
-                  </div>
 
-                  <div className="flex flex-col gap-1.5 pr-1 text-start">
-                    <div className="flex items-center gap-2.5">
-                      {isThisEventScanning ? (
-                        <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-bold bg-amber-500/15 text-amber-700 dark:text-amber-400 border border-amber-500/20 animate-pulse">
-                          <Loader2 className="w-3 h-3 animate-spin" /> {language === 'he' ? 'סורק כעת' : 'Scanning now'}
-                        </span>
-                      ) : (
-                        getStatusBadge(event.status)
-                      )}
-                    </div>
-                    <h3 className="font-bold text-lg text-slate-800 dark:text-slate-100 group-hover:text-amber-700 dark:group-hover:text-amber-400 transition-colors line-clamp-1 mt-2 m-0 text-start">
-                      {event.name}
-                    </h3>
-                    <div className="flex items-center gap-1.5 text-xs text-slate-500 mt-1">
-                      <Calendar className="w-3.5 h-3.5" />
-                      <span>{event.createdAt && typeof event.createdAt === 'object' && 'toDate' in event.createdAt ? event.createdAt.toDate().toLocaleDateString(language === 'he' ? 'he-IL' : 'en-US') : (language === 'he' ? 'ממתין' : 'Pending')}</span>
-                    </div>
-                  </div>
+          <div className="botanical-divider" />
 
-                  {isThisEventScanning && (
-                    <div className="flex flex-col gap-2 mt-2 w-full text-start" onClick={(e) => e.stopPropagation()}>
-                      <div className="flex items-center justify-between text-xs gap-2">
-                        <span className="text-slate-500 dark:text-slate-400 font-medium truncate text-start">
-                          {isPaused ? t('dashboard.statusPaused') : formatETA(etaSeconds)}
-                        </span>
-                        <div className="flex items-center gap-1.5 shrink-0">
-                          <button
-                            onClick={(e) => {
-                                e.stopPropagation();
-                                togglePause();
-                              }}
-                            className={`p-1 rounded-lg transition-all cursor-pointer ${
-                                isPaused
-                                  ? 'bg-amber-100 dark:bg-amber-500/20 text-amber-900 dark:text-amber-400 border border-amber-200 dark:border-amber-500/30'
-                                  : 'bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-700 border border-slate-200 dark:border-slate-700'
-                              }`}
-                            title={isPaused ? t('eventView.isResumed') : t('eventView.isPaused')}
-                          >
-                            {isPaused ? <Play className="w-3.5 h-3.5" /> : <Pause className="w-3.5 h-3.5" />}
-                          </button>
-                          <span className="font-mono font-bold text-slate-700 dark:text-slate-300">
-                            {scannedCount} / {totalToScan || event.photoCount || 0}
+          {/* Grid list of events */}
+          {loadingEvents ? (
+            <div className="text-center py-20 text-sage-muted flex flex-col items-center gap-4">
+              <Loader2 className="w-8 h-8 animate-spin text-copper-accent" />
+              <span className="font-body-md">{language === 'he' ? 'טוען אירועים...' : 'Loading events...'}</span>
+            </div>
+          ) : filteredEvents.length === 0 ? (
+            <div className="border border-dashed border-surface-border rounded-xl p-16 text-center flex flex-col items-center justify-center gap-6 bg-surface-container/20">
+              <div className="w-12 h-12 rounded-full bg-surface-container-high border border-surface-border flex items-center justify-center text-sage-muted shadow">
+                <Cloud className="w-6 h-6" />
+              </div>
+              <div className="max-w-md">
+                <h3 className="font-title-md text-lg font-bold text-on-background m-0">{language === 'he' ? 'אין אירועים פעילים' : 'No Active Events'}</h3>
+                <p className="font-body-md text-sage-muted text-sm mt-2 leading-relaxed">
+                  {language === 'he' ? 'חבר תיקיית תמונות מ-Google Drive כדי להתחיל את הסריקה המקומית והזיהוי.' : 'Connect a folder from Google Drive to initialize on-device facial scanning.'}
+                </p>
+              </div>
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+              {filteredEvents.map((event) => {
+                const isThisEventScanning = isScanning && activeScanningEventId === event.id;
+                return (
+                  <div
+                    key={event.id}
+                    onClick={() => navigate(`/dashboard/event/${event.id}`)}
+                    className="group relative border border-surface-border/60 hover:border-copper-accent/35 bg-surface-container rounded-xl p-6 cursor-pointer transition-all duration-300 flex flex-col gap-6 shadow hover:shadow-2xl hover:-translate-y-0.5 text-start"
+                  >
+                    {/* Action overlays */}
+                    <div className={`absolute top-4 ${isRtl ? 'left-4' : 'right-4'} flex items-center gap-1.5 opacity-0 group-hover:opacity-100 transition-all z-10`}>
+                      <button
+                        onClick={(e) => handleCopyShareLink(event, e)}
+                        title={language === 'he' ? 'העתק קישור שיתוף' : 'Copy share link'}
+                        className="p-2 rounded bg-surface-container-high border border-surface-border text-sage-muted hover:text-copper-accent transition-all cursor-pointer"
+                      >
+                        {copiedId === event.id ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Link2 className="w-3.5 h-3.5" />}
+                      </button>
+                      <button
+                        onClick={(e) => { e.stopPropagation(); setQrEvent(event); }}
+                        title={language === 'he' ? 'הצג QR קוד' : 'Show QR code'}
+                        className="p-2 rounded bg-surface-container-high border border-surface-border text-sage-muted hover:text-copper-accent transition-all cursor-pointer"
+                      >
+                        <QrCode className="w-3.5 h-3.5" />
+                      </button>
+                      <button
+                        onClick={(e) => handleDeleteCloudEvent(event, e)}
+                        title={language === 'he' ? 'מחק אירוע' : 'Delete event'}
+                        className="p-2 rounded bg-surface-container-high border border-surface-border text-sage-muted hover:text-red-400 transition-all cursor-pointer"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+
+                    <div className="flex flex-col gap-2 text-start">
+                      <div className="flex items-center">
+                        {isThisEventScanning ? (
+                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider bg-copper-accent/15 text-copper-accent border border-copper-accent/20 animate-pulse">
+                            <Loader2 className="w-2.5 h-2.5 animate-spin" /> {language === 'he' ? 'סורק כעת' : 'Scanning now'}
+                          </span>
+                        ) : (
+                          getStatusBadge(event.status)
+                        )}
+                      </div>
+                      <h3 className="font-display-lg text-xl text-on-background group-hover:text-copper-accent transition-colors line-clamp-1 m-0 mt-1">
+                        {event.name}
+                      </h3>
+                      <div className="flex items-center gap-1.5 text-xs text-sage-muted">
+                        <Calendar className="w-3.5 h-3.5 shrink-0" />
+                        <span>{event.createdAt && typeof event.createdAt === 'object' && 'toDate' in event.createdAt ? event.createdAt.toDate().toLocaleDateString(language === 'he' ? 'he-IL' : 'en-US') : (language === 'he' ? 'ממתין' : 'Pending')}</span>
+                      </div>
+                    </div>
+
+                    {isThisEventScanning && (
+                      <div className="flex flex-col gap-2 w-full text-start" onClick={(e) => e.stopPropagation()}>
+                        <div className="flex items-center justify-between text-xs">
+                          <span className="text-sage-muted font-medium truncate">
+                            {isPaused ? t('dashboard.statusPaused') : formatETA(etaSeconds)}
+                          </span>
+                          <div className="flex items-center gap-1.5 shrink-0">
+                            <button
+                              onClick={(e) => {
+                                  e.stopPropagation();
+                                  togglePause();
+                                }}
+                              className={`p-1.5 rounded transition-all cursor-pointer border bg-transparent ${
+                                  isPaused
+                                    ? 'border-copper-accent/30 text-copper-accent bg-copper-accent/10'
+                                    : 'border-surface-border text-sage-muted hover:bg-surface-container-high'
+                                }`}
+                              title={isPaused ? t('eventView.isResumed') : t('eventView.isPaused')}
+                            >
+                              {isPaused ? <Play className="w-3.5 h-3.5" /> : <Pause className="w-3.5 h-3.5" />}
+                            </button>
+                            <span className="font-mono font-bold text-on-background">
+                              {scannedCount} / {totalToScan || event.photoCount || 0}
+                            </span>
+                          </div>
+                        </div>
+                        <div className="w-full bg-surface-container-low rounded-full h-1.5 overflow-hidden border border-surface-border">
+                          <div
+                            className="bg-copper-accent h-1.5 rounded-full transition-all duration-300 ease-out"
+                            style={{
+                              width: `${(totalToScan || event.photoCount) > 0 ? (scannedCount / (totalToScan || event.photoCount)) * 100 : 0}%`,
+                            }}
+                          />
+                        </div>
+                      </div>
+                    )}
+
+                    <div className="grid grid-cols-2 gap-4 border-t border-surface-border pt-4 mt-auto">
+                      <div className="flex items-center gap-2">
+                        <div className="p-2 rounded bg-surface-container-low text-sage-muted border border-surface-border/50">
+                          <ImageIcon className="w-3.5 h-3.5" />
+                        </div>
+                        <div className="flex flex-col text-start">
+                          <span className="text-[10px] text-sage-muted uppercase tracking-wider">{language === 'he' ? 'תמונות' : 'Photos'}</span>
+                          <span className="text-sm font-bold text-on-background">
+                            {isThisEventScanning ? scannedCount : event.photoCount}
                           </span>
                         </div>
                       </div>
-                      <div className="w-full bg-slate-100 dark:bg-slate-800 rounded-full h-2 overflow-hidden border border-slate-200 dark:border-slate-700">
-                        <div
-                          className="bg-amber-500 h-2 rounded-full transition-all duration-300 ease-out"
-                          style={{
-                            width: `${(totalToScan || event.photoCount) > 0 ? (scannedCount / (totalToScan || event.photoCount)) * 100 : 0}%`,
-                          }}
-                        />
+                      <div className="flex items-center gap-2">
+                        <div className="p-2 rounded bg-surface-container-low text-sage-muted border border-surface-border/50">
+                          <Users className="w-3.5 h-3.5" />
+                        </div>
+                        <div className="flex flex-col text-start">
+                          <span className="text-[10px] text-sage-muted uppercase tracking-wider">{language === 'he' ? 'אורחים' : 'Guests'}</span>
+                          <span className="text-sm font-bold text-on-background">{event.faceCount}</span>
+                        </div>
                       </div>
                     </div>
-                  )}
 
-                  <div className="grid grid-cols-2 gap-4 border-t border-slate-100 dark:border-slate-800/80 pt-4 mt-auto">
-                    <div className="flex items-center gap-2 text-start">
-                      <div className="p-2 rounded-lg bg-slate-50 dark:bg-slate-800/50 text-slate-400">
-                        <ImageIcon className="w-4 h-4" />
-                      </div>
-                      <div className="flex flex-col text-start">
-                        <span className="text-xs text-slate-500">{language === 'he' ? 'תמונות' : 'Photos'}</span>
-                        <span className="text-sm font-semibold text-slate-700 dark:text-slate-200">
-                          {isThisEventScanning ? scannedCount : event.photoCount}
-                        </span>
-                      </div>
-                    </div>
-                    <div className="flex items-center gap-2 text-start">
-                      <div className="p-2 rounded-lg bg-slate-50 dark:bg-slate-800/50 text-slate-400">
-                        <Users className="w-4 h-4" />
-                      </div>
-                      <div className="flex flex-col text-start">
-                        <span className="text-xs text-slate-500">{language === 'he' ? 'פנים מזוהות' : 'Detected Faces'}</span>
-                        <span className="text-sm font-semibold text-slate-700 dark:text-slate-200">{event.faceCount}</span>
-                      </div>
+                    <div className="flex items-center gap-1 text-[10px] uppercase tracking-widest font-bold text-copper-accent mt-1 self-start group-hover:underline">
+                      <span>{language === 'he' ? 'פתח אירוע' : 'Open Event'}</span>
+                      <ArrowLeft className={`w-3.5 h-3.5 transform group-hover:-translate-x-1 transition-transform ${isRtl ? '' : 'rotate-180'}`} />
                     </div>
                   </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      </main>
 
-                  <div className="flex items-center gap-1.5 text-xs font-bold text-amber-700 dark:text-amber-400 mt-1 self-start hover:underline">
-                    <span>{language === 'he' ? 'פתח אירוע' : 'Open Event'}</span>
-                    <ArrowLeft className={`w-3.5 h-3.5 transform group-hover:-translate-x-1 transition-transform ${isRtl ? '' : 'rotate-180'}`} />
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        )}
-      </div>
-
-      {/* Create Event Modal (after folder selection) */}
+      {/* Create Event Modal */}
       {showCreateModal && (pendingPhotos.length > 0 || pendingFolder) && (
-        <div className="fixed inset-0 bg-slate-950/70 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl p-8 max-w-md w-full shadow-2xl flex flex-col gap-6" dir={isRtl ? 'rtl' : 'ltr'}>
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+          <div className="bg-surface-container border border-surface-border rounded-xl p-8 max-w-md w-full shadow-2xl flex flex-col gap-6" dir={isRtl ? 'rtl' : 'ltr'}>
             <div className="flex items-center justify-between">
-              <h3 className="text-xl font-bold text-slate-800 dark:text-slate-100 m-0">{language === 'he' ? 'אירוע חדש' : 'New Event'}</h3>
+              <h3 className="font-display-lg text-xl text-on-background m-0">{language === 'he' ? 'אירוע חדש' : 'New Event'}</h3>
               <button
                 onClick={() => { setShowCreateModal(false); setPendingPhotos([]); setPendingFolder(null); }}
-                className="p-1.5 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-400 transition-colors cursor-pointer"
+                className="p-1.5 rounded hover:bg-surface-container-high text-sage-muted hover:text-on-background transition-colors cursor-pointer border-none bg-transparent"
               >
                 <X className="w-5 h-5" />
               </button>
             </div>
 
             <div className="flex flex-col gap-2 text-start">
-              <label className="text-sm font-medium text-slate-600 dark:text-slate-400">
+              <label className="text-xs font-bold uppercase tracking-wider text-sage-muted">
                 {pendingFolder
                   ? (language === 'he' ? 'תיקייה שנבחרה:' : 'Selected Folder:')
                   : (language === 'he' ? 'תמונות שנבחרו:' : 'Selected Photos:')}
               </label>
-              <div className="flex items-center gap-2 bg-slate-50 dark:bg-slate-800/50 rounded-xl px-4 py-3 border border-slate-200 dark:border-slate-800">
+              <div className="flex items-center gap-2.5 bg-surface-container-low rounded px-4 py-3 border border-surface-border">
                 {pendingFolder ? (
-                  <FolderOpen className="w-4 h-4 text-amber-500 shrink-0" />
+                  <FolderOpen className="w-4 h-4 text-copper-accent shrink-0" />
                 ) : (
-                  <ImageIcon className="w-4 h-4 text-amber-500 shrink-0" />
+                  <ImageIcon className="w-4 h-4 text-copper-accent shrink-0" />
                 )}
-                <span className="text-sm text-slate-700 dark:text-slate-300 truncate">
+                <span className="text-sm text-on-background truncate">
                   {pendingFolder
                     ? pendingFolder.name
                     : (language === 'he' ? `נבחרו ${pendingPhotos.length} תמונות` : `${pendingPhotos.length} photos selected`)}
@@ -470,13 +553,13 @@ export function Dashboard() {
             </div>
 
             <div className="flex flex-col gap-2 text-start">
-              <label className="text-sm font-medium text-slate-600 dark:text-slate-400">{language === 'he' ? 'שם האירוע:' : 'Event Name:'}</label>
+              <label className="text-xs font-bold uppercase tracking-wider text-sage-muted">{language === 'he' ? 'שם האירוע:' : 'Event Name:'}</label>
               <input
                 type="text"
                 value={newEventName}
                 onChange={(e) => setNewEventName(e.target.value)}
                 placeholder={language === 'he' ? 'למשל: חתונת יוסי ודנה 2026' : 'e.g., Yossi & Dana Wedding 2026'}
-                className="px-4 py-3 rounded-xl bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800 focus:border-amber-400 dark:focus:border-amber-500 focus:outline-none text-slate-800 dark:text-slate-100 text-sm placeholder:text-slate-400 dark:placeholder:text-slate-500 transition-colors"
+                className="px-4 py-3 rounded bg-surface-container-low border border-surface-border focus:border-copper-accent focus:outline-none text-on-background text-sm placeholder:text-sage-muted transition-colors w-full"
                 autoFocus
               />
             </div>
@@ -485,7 +568,7 @@ export function Dashboard() {
               <button
                 onClick={handleCreateEvent}
                 disabled={creating || !newEventName.trim()}
-                className="flex-1 py-3 rounded-xl bg-amber-500 hover:bg-amber-400 text-white dark:text-slate-950 font-bold text-sm transition-all cursor-pointer shadow-lg shadow-amber-500/20 active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                className="flex-1 py-3 rounded bg-deep-forest hover:bg-primary text-background font-bold text-sm transition-all cursor-pointer active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 border-none"
               >
                 {creating ? (
                   <><Loader2 className="w-4 h-4 animate-spin" /> {language === 'he' ? 'יוצר...' : 'Creating...'}</>
@@ -495,7 +578,7 @@ export function Dashboard() {
               </button>
               <button
                 onClick={() => { setShowCreateModal(false); setPendingPhotos([]); setPendingFolder(null); }}
-                className="px-6 py-3 rounded-xl bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-300 font-medium text-sm transition-all cursor-pointer"
+                className="px-6 py-3 rounded bg-surface-container-high hover:bg-surface-border text-on-background font-medium text-sm transition-all cursor-pointer border-none"
               >
                 {t('common.cancel')}
               </button>
@@ -506,30 +589,30 @@ export function Dashboard() {
 
       {/* QR Code Modal */}
       {qrEvent && (
-        <div className="fixed inset-0 bg-slate-950/70 backdrop-blur-sm flex items-center justify-center z-50 p-4" onClick={() => setQrEvent(null)}>
-          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl p-8 max-w-sm w-full shadow-2xl flex flex-col items-center gap-6" onClick={(e) => e.stopPropagation()} dir={isRtl ? 'rtl' : 'ltr'}>
-            <h3 className="text-lg font-bold text-slate-800 dark:text-slate-100 m-0">{qrEvent.name}</h3>
-            <div className="bg-white p-4 rounded-2xl shadow-inner">
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4" onClick={() => setQrEvent(null)}>
+          <div className="bg-surface-container border border-surface-border rounded-xl p-8 max-w-sm w-full shadow-2xl flex flex-col items-center gap-6" onClick={(e) => e.stopPropagation()} dir={isRtl ? 'rtl' : 'ltr'}>
+            <h3 className="font-display-lg text-lg text-on-background m-0">{qrEvent.name}</h3>
+            <div className="bg-white p-4 rounded-xl shadow-inner border border-surface-border">
               <QRCodeSVG
                 value={`${window.location.origin}/event/${qrEvent.shareCode}`}
                 size={220}
                 level="M"
                 bgColor="#ffffff"
-                fgColor="#0f172a"
+                fgColor="#111413"
               />
             </div>
-            <div className="flex flex-col items-center gap-2">
-              <p className="text-xs text-slate-500 dark:text-slate-400 text-center m-0">{language === 'he' ? 'סרוק את הקוד כדי לפתוח את עמוד האירוע' : 'Scan the code to open the event page'}</p>
+            <div className="flex flex-col items-center gap-3 w-full">
+              <p className="text-xs text-sage-muted text-center m-0 leading-relaxed">{language === 'he' ? 'סרוק את הקוד כדי לפתוח את עמוד האירוע' : 'Scan the code to open the event page'}</p>
               <button
                 onClick={(e) => handleCopyShareLink(qrEvent, e)}
-                className="flex items-center gap-2 px-4 py-2 rounded-xl bg-amber-100 dark:bg-amber-500/20 text-amber-900 dark:text-amber-400 text-sm font-bold border border-amber-200 dark:border-amber-500/30 hover:bg-amber-200 dark:hover:bg-amber-500/30 transition-all cursor-pointer"
+                className="flex items-center justify-center gap-2 w-full py-2.5 rounded bg-copper-accent/10 border border-copper-accent/30 text-copper-accent hover:bg-copper-accent/20 text-sm font-bold transition-all cursor-pointer"
               >
                 {copiedId === qrEvent.id ? <><Check className="w-3.5 h-3.5" /> {t('common.copied')}</> : <><Copy className="w-3.5 h-3.5" /> {language === 'he' ? 'העתק קישור' : 'Copy Link'}</>}
               </button>
             </div>
             <button
               onClick={() => setQrEvent(null)}
-              className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 text-sm transition-colors cursor-pointer"
+              className="text-sage-muted hover:text-on-background text-sm transition-colors cursor-pointer border-none bg-transparent outline-none"
             >
               {t('common.close')}
             </button>

@@ -33,158 +33,208 @@ export function LandingPage() {
 
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="w-10 h-10 border-4 border-amber-500 border-t-transparent rounded-full animate-spin" />
+      <div className="min-h-screen bg-background flex items-center justify-center">
+        <div className="w-10 h-10 border-4 border-primary border-t-transparent rounded-full animate-spin" />
       </div>
     );
   }
 
   return (
-    <div className="flex-grow flex flex-col">
+    <div className="flex-grow flex flex-col bg-background text-on-background relative overflow-x-hidden selection:bg-copper-accent/30 selection:text-white antialiased">
+      {/* TopNavBar */}
+      <nav className="fixed top-0 w-full z-50 bg-background/85 backdrop-blur-md border-b border-surface-border/40">
+        <div className="flex justify-between items-center px-6 md:px-12 h-20 max-w-7xl mx-auto w-full">
+          {/* Brand */}
+          <Link to="/" className="flex items-center gap-3 no-underline">
+            <span className="font-display-lg text-2xl md:text-3xl text-on-background tracking-tight">EventTag</span>
+          </Link>
+          
+          {/* Navigation Links (Desktop) */}
+          <ul className="hidden md:flex items-center gap-8 list-none m-0 p-0">
+            <li>
+              <a href="#how-it-works" className="font-label-sm text-xs uppercase tracking-wider text-on-surface-variant hover:text-copper-accent transition-colors duration-300 no-underline">
+                {t('landing.howItWorksBtn')}
+              </a>
+            </li>
+            <li>
+              <Link to="/privacy" className="font-label-sm text-xs uppercase tracking-wider text-on-surface-variant hover:text-copper-accent transition-colors duration-300 no-underline">
+                {language === 'he' ? 'פרטיות' : 'Privacy'}
+              </Link>
+            </li>
+            {user && (
+              <li>
+                <Link to="/dashboard" className="font-label-sm text-xs uppercase tracking-wider text-on-surface-variant hover:text-copper-accent transition-colors duration-300 no-underline">
+                  {t('dashboard.myDashboard')}
+                </Link>
+              </li>
+            )}
+          </ul>
+
+          {/* Trailing Action */}
+          <div className="flex items-center gap-4">
+            {user ? (
+              <Link to="/dashboard" className="bg-deep-forest text-surface-container-lowest font-label-sm text-xs font-bold uppercase tracking-wider px-6 py-2.5 rounded hover:bg-primary transition-all shadow-sm no-underline cursor-pointer">
+                {t('dashboard.myDashboard')}
+              </Link>
+            ) : (
+              <button 
+                onClick={signIn}
+                className="bg-deep-forest text-surface-container-lowest font-label-sm text-xs font-bold uppercase tracking-wider px-6 py-2.5 rounded hover:bg-primary transition-all shadow-sm cursor-pointer border-none"
+              >
+                {language === 'he' ? 'התחברות' : 'Sign In'}
+              </button>
+            )}
+          </div>
+        </div>
+      </nav>
+
       {/* Hero Section */}
-      <section className="relative min-h-[90vh] flex items-center justify-center overflow-hidden">
-        {/* Animated background */}
-        <div className="absolute inset-0 bg-gradient-to-bl from-amber-50 via-slate-50 to-orange-50 dark:from-[#111113] dark:via-[#15141a] dark:to-[#1a1510]" />
-        <div className="absolute top-0 right-0 w-[600px] h-[600px] bg-gradient-to-bl from-amber-400/20 to-orange-500/10 rounded-full blur-3xl -translate-y-1/2 translate-x-1/3" />
-        <div className="absolute bottom-0 left-0 w-[500px] h-[500px] bg-gradient-to-tr from-amber-500/15 to-transparent rounded-full blur-3xl translate-y-1/3 -translate-x-1/4" />
+      <section className="relative min-h-[90vh] flex items-center justify-center pt-32 pb-20 px-6 overflow-hidden">
+        {/* Decorative Background Elements */}
+        <div className="absolute inset-0 pattern-dots opacity-[0.03] z-0 pointer-events-none" />
+        <div className="absolute top-0 right-0 w-1/2 h-full bg-gradient-to-l from-surface-container-lowest/15 to-transparent z-0 pointer-events-none" />
+        <div className="absolute top-1/4 left-1/4 w-[500px] h-[500px] bg-gradient-to-tr from-primary-container/10 to-transparent rounded-full blur-3xl -translate-y-1/2 -translate-x-1/2 pointer-events-none" />
+        <div className="absolute bottom-10 right-10 w-[400px] h-[400px] bg-gradient-to-bl from-copper-accent/5 to-transparent rounded-full blur-3xl pointer-events-none" />
 
-        {/* Floating decorative elements */}
-        <div className="absolute top-32 left-16 w-20 h-20 bg-amber-400/10 dark:bg-amber-500/5 rounded-2xl rotate-12 animate-float-slow" />
-        <div className="absolute top-48 right-24 w-14 h-14 bg-orange-400/10 dark:bg-orange-500/5 rounded-xl -rotate-6 animate-float-medium" />
-        <div className="absolute bottom-40 left-32 w-16 h-16 bg-amber-300/10 dark:bg-amber-400/5 rounded-2xl rotate-45 animate-float-slow" />
-
-        <div className="relative z-10 max-w-5xl mx-auto px-6 text-center flex flex-col items-center gap-8 py-20">
-          {/* Logo & Badge */}
-          <div className="flex flex-col items-center gap-4">
-            <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-amber-100/80 dark:bg-amber-500/10 border border-amber-200/60 dark:border-amber-500/20 text-amber-700 dark:text-amber-400 text-sm font-medium backdrop-blur-sm">
-              <Sparkles className="w-4 h-4" />
+        <div className="max-w-7xl mx-auto w-full relative z-10 flex flex-col lg:flex-row items-center gap-16 lg:gap-24">
+          {/* Text Content */}
+          <div className="flex-1 text-center lg:text-start flex flex-col items-center lg:items-start">
+            {/* AI Badge */}
+            <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-surface-container border border-surface-border/50 text-copper-accent text-xs font-semibold uppercase tracking-wider mb-6">
+              <Sparkles className="w-3.5 h-3.5" />
               <span>{t('landing.aiPowered')}</span>
             </div>
 
-            <div className="flex items-center gap-4">
-              <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-amber-400 to-orange-500 flex items-center justify-center shadow-2xl shadow-amber-500/30 dark:shadow-amber-500/20">
-                <Users className="w-9 h-9 text-white" />
-              </div>
-              <h1 className="text-6xl md:text-7xl font-black tracking-tight text-slate-900 dark:text-white m-0">
-                Event<span className="bg-gradient-to-l from-amber-500 to-orange-500 bg-clip-text text-transparent">Tag</span>
-              </h1>
+            <h1 className="font-display-lg text-4xl sm:text-5xl lg:text-7xl text-on-background leading-tight mb-6 tracking-tight max-w-2xl m-0">
+              {t('landing.heroTitle')}
+              <br />
+              <span className="italic text-copper-accent mt-2 block font-normal">
+                {t('landing.heroSubTitle')}
+              </span>
+            </h1>
+
+            <p className="font-body-lg text-lg text-sage-muted mb-10 max-w-xl leading-relaxed m-0">
+              {t('landing.heroDesc')}
+            </p>
+
+            <div className="flex flex-col sm:flex-row items-center justify-center lg:justify-start gap-4 w-full sm:w-auto">
+              <button
+                onClick={signIn}
+                className="w-full sm:w-auto bg-deep-forest hover:bg-primary text-background font-label-sm text-xs uppercase tracking-widest px-8 py-4 rounded-lg flex items-center justify-center gap-3 transition-all duration-300 font-bold shadow-md hover:shadow-lg active:scale-[0.98] cursor-pointer"
+              >
+                <svg className="w-4 h-4 shrink-0 fill-current" viewBox="0 0 24 24">
+                  <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4"></path>
+                  <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853"></path>
+                  <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" fill="#FBBC05"></path>
+                  <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335"></path>
+                </svg>
+                <span>{t('landing.signInGoogle')}</span>
+                {isRtl ? (
+                  <ArrowLeft className="w-4 h-4 transform hover:-translate-x-1 transition-transform" />
+                ) : (
+                  <ArrowRight className="w-4 h-4 transform hover:translate-x-1 transition-transform" />
+                )}
+              </button>
+
+              <a
+                href="#how-it-works"
+                className="w-full sm:w-auto px-8 py-4 rounded-lg font-label-sm text-xs uppercase tracking-widest text-on-background border border-surface-border hover:bg-surface-container transition-all text-center no-underline"
+              >
+                {t('landing.howItWorksBtn')}
+              </a>
+            </div>
+
+            {/* Privacy Trust Badge */}
+            <div className="mt-12 flex items-center justify-center lg:justify-start gap-3 text-sage-muted bg-surface-container/30 px-4 py-2.5 rounded-xl border border-surface-border/20">
+              <Lock className="w-4 h-4 text-copper-accent" />
+              <span className="font-label-sm text-[10px] uppercase tracking-wider">{t('landing.privacyBullet1')} • {t('landing.privacyBullet2')}</span>
             </div>
           </div>
 
-          {/* Headline */}
-          <div className="max-w-3xl">
-            <h2 className="text-2xl md:text-3xl font-bold text-slate-700 dark:text-slate-200 leading-relaxed m-0">
-              {t('landing.heroTitle')}
-              <br />
-              <span className="bg-gradient-to-l from-amber-600 to-orange-600 dark:from-amber-400 dark:to-orange-400 bg-clip-text text-transparent">
-                {t('landing.heroSubTitle')}
-              </span>
-            </h2>
-            <p className="text-lg text-slate-500 dark:text-slate-400 mt-4 max-w-2xl mx-auto leading-relaxed">
-              {t('landing.heroDesc')}
-            </p>
+          {/* Visual Asset / Framed Art */}
+          <div className="flex-grow-0 flex-shrink-0 flex justify-center w-full max-w-md lg:max-w-none lg:w-[480px]">
+            <div className="relative w-full aspect-square rounded-2xl bg-surface-container-low border border-surface-border/30 flex items-center justify-center p-12 overflow-hidden shadow-2xl group">
+              {/* Decorative classical corners */}
+              <div className="absolute top-4 left-4 w-4 h-4 border-t border-l border-sage-muted/20"></div>
+              <div className="absolute top-4 right-4 w-4 h-4 border-t border-r border-sage-muted/20"></div>
+              <div className="absolute bottom-4 left-4 w-4 h-4 border-b border-l border-sage-muted/20"></div>
+              <div className="absolute bottom-4 right-4 w-4 h-4 border-b border-r border-sage-muted/20"></div>
+              
+              <div className="absolute inset-0 bg-gradient-to-tr from-copper-accent/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-700"></div>
+              
+              <div className="w-32 h-32 rounded-3xl bg-surface-container-lowest border border-surface-border/50 dark:border-none dark:bg-gradient-to-br dark:from-primary-container dark:to-secondary-container flex items-center justify-center shadow-xl shadow-black/40 group-hover:scale-105 transition-transform duration-700 ease-out">
+                <Users className="w-16 h-16 text-copper-accent" />
+              </div>
+            </div>
           </div>
-
-          {/* CTA Buttons */}
-          <div className="flex flex-col sm:flex-row items-center gap-4 mt-4">
-            <button
-              onClick={signIn}
-              className="group relative px-8 py-4 rounded-2xl text-lg font-bold bg-gradient-to-l from-amber-500 to-orange-500 text-white shadow-xl shadow-amber-500/30 hover:shadow-amber-500/50 hover:brightness-110 transition-all duration-300 cursor-pointer flex items-center gap-3 active:scale-[0.98]"
-            >
-              <svg className="w-6 h-6" viewBox="0 0 24 24" fill="none">
-                <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92a5.06 5.06 0 0 1-2.2 3.32v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.1z" fill="#fff"/>
-                <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#fff" opacity=".9"/>
-                <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" fill="#fff" opacity=".8"/>
-                <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#fff" opacity=".7"/>
-              </svg>
-              <span>{t('landing.signInGoogle')}</span>
-              {isRtl ? (
-                <ArrowLeft className="w-5 h-5 transform group-hover:-translate-x-1 transition-transform" />
-              ) : (
-                <ArrowRight className="w-5 h-5 transform group-hover:translate-x-1 transition-transform" />
-              )}
-            </button>
-
-            <a
-              href="#how-it-works"
-              className="px-6 py-3 rounded-xl text-sm font-medium text-slate-600 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200 hover:bg-white/60 dark:hover:bg-slate-800/60 transition-all cursor-pointer backdrop-blur-sm flex items-center gap-2"
-            >
-              <span>{t('landing.howItWorksBtn')}</span>
-              <ChevronDown className="w-4 h-4" />
-            </a>
-          </div>
-        </div>
-
-        {/* Scroll indicator */}
-        <div className="absolute bottom-8 left-1/2 -translate-x-1/2 animate-bounce">
-          <ChevronDown className="w-6 h-6 text-slate-400 dark:text-slate-600" />
         </div>
       </section>
 
       {/* How It Works Section */}
       <section
         id="how-it-works"
-        className="relative py-24 px-6 bg-white/50 dark:bg-slate-900/30 backdrop-blur-sm"
+        className="relative py-24 px-6 bg-surface-container-low/40 border-t border-b border-surface-border/20 backdrop-blur-sm scroll-mt-20"
       >
-        <div className="max-w-5xl mx-auto">
+        <div className="max-w-6xl mx-auto w-full">
           <div className="text-center mb-16">
-            <h2 className="text-3xl md:text-4xl font-extrabold text-slate-800 dark:text-white m-0">
+            <h2 className="font-display-lg text-3xl md:text-5xl text-on-background m-0">
               {t('landing.howItWorksTitle')}
             </h2>
-            <p className="text-slate-500 dark:text-slate-400 mt-3 text-lg">
+            <div className="botanical-divider w-40 mx-auto my-4" />
+            <p className="font-body-md text-sage-muted text-lg mt-2 max-w-xl mx-auto leading-relaxed">
               {t('landing.howItWorksSub')}
             </p>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
             {/* Step 1 */}
-            <div className="group relative p-8 rounded-3xl bg-white/70 dark:bg-slate-900/50 backdrop-blur-xl border border-slate-200/60 dark:border-slate-800/60 hover:border-amber-300/60 dark:hover:border-amber-500/30 transition-all duration-300 hover:shadow-xl hover:shadow-amber-500/5 dark:hover:shadow-amber-500/5 hover:-translate-y-1 text-center">
-              {/* Step number */}
-              <div className="absolute -top-4 right-6 left-auto w-8 h-8 rounded-full bg-gradient-to-br from-amber-400 to-orange-500 flex items-center justify-center text-white text-sm font-bold shadow-lg shadow-amber-500/30">
+            <div className="group relative p-8 rounded-2xl bg-surface-container border border-surface-border hover:border-copper-accent/35 transition-all duration-300 hover:shadow-2xl hover:shadow-black/20 hover:-translate-y-1 text-center">
+              {/* Step number badge */}
+              <div className="absolute -top-4 right-6 left-auto w-8 h-8 rounded-full bg-gradient-to-br from-copper-accent to-muted-gold flex items-center justify-center text-background text-sm font-bold shadow-lg">
                 1
               </div>
 
-              <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-amber-100 to-amber-200 dark:from-amber-500/15 dark:to-amber-500/5 flex items-center justify-center mx-auto mb-5 group-hover:scale-110 transition-transform duration-300">
-                <FolderUp className="w-8 h-8 text-amber-600 dark:text-amber-400" />
+              <div className="w-14 h-14 rounded-xl bg-surface-container-high flex items-center justify-center mx-auto mb-6 group-hover:scale-110 transition-transform duration-300 border border-surface-border/40">
+                <FolderUp className="w-7 h-7 text-copper-accent" />
               </div>
-              <h3 className="text-xl font-bold text-slate-800 dark:text-white mb-2">
+              <h3 className="font-title-md text-lg font-bold text-on-background mb-3">
                 {t('landing.step1Title')}
               </h3>
-              <p className="text-slate-500 dark:text-slate-400 text-sm leading-relaxed m-0">
+              <p className="font-body-md text-sage-muted text-sm leading-relaxed m-0">
                 {t('landing.step1Desc')}
               </p>
             </div>
 
             {/* Step 2 */}
-            <div className="group relative p-8 rounded-3xl bg-white/70 dark:bg-slate-900/50 backdrop-blur-xl border border-slate-200/60 dark:border-slate-800/60 hover:border-amber-300/60 dark:hover:border-amber-500/30 transition-all duration-300 hover:shadow-xl hover:shadow-amber-500/5 dark:hover:shadow-amber-500/5 hover:-translate-y-1 text-center">
-              <div className="absolute -top-4 right-6 left-auto w-8 h-8 rounded-full bg-gradient-to-br from-amber-400 to-orange-500 flex items-center justify-center text-white text-sm font-bold shadow-lg shadow-amber-500/30">
+            <div className="group relative p-8 rounded-2xl bg-surface-container border border-surface-border hover:border-copper-accent/35 transition-all duration-300 hover:shadow-2xl hover:shadow-black/20 hover:-translate-y-1 text-center">
+              <div className="absolute -top-4 right-6 left-auto w-8 h-8 rounded-full bg-gradient-to-br from-copper-accent to-muted-gold flex items-center justify-center text-background text-sm font-bold shadow-lg">
                 2
               </div>
 
-              <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-amber-100 to-amber-200 dark:from-amber-500/15 dark:to-amber-500/5 flex items-center justify-center mx-auto mb-5 group-hover:scale-110 transition-transform duration-300">
-                <ScanFace className="w-8 h-8 text-amber-600 dark:text-amber-400" />
+              <div className="w-14 h-14 rounded-xl bg-surface-container-high flex items-center justify-center mx-auto mb-6 group-hover:scale-110 transition-transform duration-300 border border-surface-border/40">
+                <ScanFace className="w-7 h-7 text-copper-accent" />
               </div>
-              <h3 className="text-xl font-bold text-slate-800 dark:text-white mb-2">
+              <h3 className="font-title-md text-lg font-bold text-on-background mb-3">
                 {t('landing.step2Title')}
               </h3>
-              <p className="text-slate-500 dark:text-slate-400 text-sm leading-relaxed m-0">
+              <p className="font-body-md text-sage-muted text-sm leading-relaxed m-0">
                 {t('landing.step2Desc')}
               </p>
             </div>
 
             {/* Step 3 */}
-            <div className="group relative p-8 rounded-3xl bg-white/70 dark:bg-slate-900/50 backdrop-blur-xl border border-slate-200/60 dark:border-slate-800/60 hover:border-amber-300/60 dark:hover:border-amber-500/30 transition-all duration-300 hover:shadow-xl hover:shadow-amber-500/5 dark:hover:shadow-amber-500/5 hover:-translate-y-1 text-center">
-              <div className="absolute -top-4 right-6 left-auto w-8 h-8 rounded-full bg-gradient-to-br from-amber-400 to-orange-500 flex items-center justify-center text-white text-sm font-bold shadow-lg shadow-amber-500/30">
+            <div className="group relative p-8 rounded-2xl bg-surface-container border border-surface-border hover:border-copper-accent/35 transition-all duration-300 hover:shadow-2xl hover:shadow-black/20 hover:-translate-y-1 text-center">
+              <div className="absolute -top-4 right-6 left-auto w-8 h-8 rounded-full bg-gradient-to-br from-copper-accent to-muted-gold flex items-center justify-center text-background text-sm font-bold shadow-lg">
                 3
               </div>
 
-              <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-amber-100 to-amber-200 dark:from-amber-500/15 dark:to-amber-500/5 flex items-center justify-center mx-auto mb-5 group-hover:scale-110 transition-transform duration-300">
-                <Camera className="w-8 h-8 text-amber-600 dark:text-amber-400" />
+              <div className="w-14 h-14 rounded-xl bg-surface-container-high flex items-center justify-center mx-auto mb-6 group-hover:scale-110 transition-transform duration-300 border border-surface-border/40">
+                <Camera className="w-7 h-7 text-copper-accent" />
               </div>
-              <h3 className="text-xl font-bold text-slate-800 dark:text-white mb-2">
+              <h3 className="font-title-md text-lg font-bold text-on-background mb-3">
                 {t('landing.step3Title')}
               </h3>
-              <p className="text-slate-500 dark:text-slate-400 text-sm leading-relaxed m-0">
+              <p className="font-body-md text-sage-muted text-sm leading-relaxed m-0">
                 {t('landing.step3Desc')}
               </p>
             </div>
@@ -193,30 +243,27 @@ export function LandingPage() {
       </section>
 
       {/* Privacy Section */}
-      <section className="relative py-24 px-6 overflow-hidden">
-        <div className="absolute inset-0 bg-gradient-to-b from-transparent via-amber-50/30 to-transparent dark:via-amber-500/3" />
+      <section id="privacy" className="relative py-24 px-6 overflow-hidden scroll-mt-20">
+        <div className="absolute inset-0 bg-gradient-to-b from-transparent via-primary-container/5 to-transparent pointer-events-none" />
 
-        <div className="relative max-w-5xl mx-auto">
-          <div className="flex flex-col md:flex-row items-center gap-12">
-            {/* Privacy icon cluster */}
+        <div className="max-w-5xl mx-auto w-full relative z-10">
+          <div className="flex flex-col md:flex-row items-center gap-16">
+            {/* Privacy badge cluster */}
             <div className="relative shrink-0">
-              <div className="w-40 h-40 rounded-3xl bg-gradient-to-br from-emerald-100 to-teal-100 dark:from-emerald-500/10 dark:to-teal-500/5 flex items-center justify-center border border-emerald-200/50 dark:border-emerald-500/20">
-                <Shield className="w-20 h-20 text-emerald-500 dark:text-emerald-400" />
-              </div>
-              <div className="absolute -top-3 -right-3 w-12 h-12 rounded-xl bg-gradient-to-br from-amber-400 to-orange-500 flex items-center justify-center shadow-lg shadow-amber-500/30">
-                <Lock className="w-6 h-6 text-white" />
+              <div className="w-36 h-36 rounded-2xl bg-surface-container border border-surface-border flex items-center justify-center shadow-2xl">
+                <Shield className="w-16 h-16 text-copper-accent" />
               </div>
             </div>
 
             <div className="flex-1 text-start">
-              <h2 className="text-3xl md:text-4xl font-extrabold text-slate-800 dark:text-white m-0 mb-4">
+              <h2 className="font-display-lg text-3xl md:text-5xl text-on-background m-0 mb-4">
                 {t('landing.privacyTitle')}
               </h2>
-              <p className="text-lg text-slate-600 dark:text-slate-300 leading-relaxed mb-6 m-0">
+              <p className="font-body-lg text-sage-muted leading-relaxed mb-8 m-0 text-lg">
                 {t('landing.privacyDesc')}
               </p>
 
-              <div className="flex flex-wrap gap-4">
+              <div className="flex flex-col sm:flex-row flex-wrap gap-4">
                 {[
                   { icon: Zap, text: t('landing.privacyBullet1') },
                   { icon: Lock, text: t('landing.privacyBullet2') },
@@ -224,10 +271,10 @@ export function LandingPage() {
                 ].map(({ icon: Icon, text }) => (
                   <div
                     key={text}
-                    className="flex items-center gap-2 px-4 py-2 rounded-xl bg-white/70 dark:bg-slate-900/50 border border-slate-200/60 dark:border-slate-800/60 backdrop-blur-sm"
+                    className="flex items-center gap-3 px-5 py-3 rounded-xl bg-surface-container border border-surface-border/50 backdrop-blur-sm"
                   >
-                    <Icon className="w-4 h-4 text-emerald-500 dark:text-emerald-400 shrink-0" />
-                    <span className="text-sm font-medium text-slate-700 dark:text-slate-300">
+                    <Icon className="w-4 h-4 text-copper-accent shrink-0" />
+                    <span className="font-label-sm text-xs uppercase tracking-wider text-on-background">
                       {text}
                     </span>
                   </div>
@@ -239,13 +286,14 @@ export function LandingPage() {
       </section>
 
       {/* FAQ Section */}
-      <section className="relative py-24 px-6 border-t border-slate-200/60 dark:border-slate-800/60 bg-slate-50/30 dark:bg-slate-900/10 backdrop-blur-sm">
-        <div className="max-w-4xl mx-auto" dir={isRtl ? 'rtl' : 'ltr'}>
+      <section className="relative py-24 px-6 border-t border-surface-border/20 bg-surface-container-low/20 backdrop-blur-sm scroll-mt-20">
+        <div className="max-w-4xl mx-auto w-full" dir={isRtl ? 'rtl' : 'ltr'}>
           <div className="text-center mb-16">
-            <h2 className="text-3xl md:text-4xl font-extrabold text-slate-800 dark:text-white m-0">
+            <h2 className="font-display-lg text-3xl md:text-5xl text-on-background m-0">
               {t('landing.faqTitle')}
             </h2>
-            <p className="text-slate-500 dark:text-slate-400 mt-3 text-lg">
+            <div className="botanical-divider w-40 mx-auto my-4" />
+            <p className="font-body-md text-sage-muted text-lg mt-2 max-w-xl mx-auto">
               {t('landing.faqSub')}
             </p>
           </div>
@@ -260,25 +308,25 @@ export function LandingPage() {
               return (
                 <div
                   key={idx}
-                  className="rounded-3xl border border-slate-200/60 dark:border-slate-800/60 bg-white/70 dark:bg-slate-900/50 backdrop-blur-xl overflow-hidden transition-all duration-300 shadow-sm hover:shadow-md hover:border-amber-300/60 dark:hover:border-amber-500/30"
+                  className="rounded-xl border border-surface-border/80 bg-surface-container overflow-hidden transition-all duration-300 shadow-sm hover:border-copper-accent/35"
                 >
                   <button
                     onClick={() => setOpenFaq(isOpen ? null : idx)}
-                    className="w-full flex items-center justify-between p-6 text-start font-bold text-lg text-slate-800 dark:text-white cursor-pointer select-none gap-4"
+                    className="w-full flex items-center justify-between p-6 text-start font-bold text-lg text-on-background cursor-pointer select-none gap-4 bg-transparent border-none outline-none"
                   >
-                    <span>{t(item.q)}</span>
+                    <span className="font-title-md text-base md:text-lg">{t(item.q)}</span>
                     <ChevronDown
-                      className={`w-5 h-5 text-slate-500 dark:text-slate-400 transition-transform duration-300 shrink-0 ${
-                        isOpen ? 'transform rotate-180' : ''
+                      className={`w-5 h-5 text-sage-muted transition-transform duration-300 shrink-0 ${
+                        isOpen ? 'transform rotate-180 text-copper-accent' : ''
                       }`}
                     />
                   </button>
                   <div
                     className={`transition-all duration-300 ease-in-out ${
-                      isOpen ? 'max-h-[500px] border-t border-slate-100 dark:border-slate-800/60' : 'max-h-0'
+                      isOpen ? 'max-h-[500px] border-t border-surface-border/50' : 'max-h-0'
                     } overflow-hidden`}
                   >
-                    <p className="p-6 text-slate-600 dark:text-slate-300 leading-relaxed text-base m-0 bg-slate-50/20 dark:bg-slate-900/10">
+                    <p className="p-6 font-body-md text-sage-muted leading-relaxed text-sm md:text-base m-0 bg-surface-container-low/50">
                       {t(item.a)}
                     </p>
                   </div>
@@ -287,27 +335,28 @@ export function LandingPage() {
             })}
           </div>
 
-          <div className="mt-12 text-center text-sm text-slate-500 dark:text-slate-400">
+          {/* Legal Pages notice */}
+          <div className="mt-12 text-center text-xs md:text-sm text-sage-muted">
             {language === 'he' ? (
-              <p className="m-0">
+              <p className="m-0 font-body-md">
                 למידע נוסף ומפורט, אנא קראו את{' '}
-                <Link to="/privacy" className="font-semibold text-amber-500 dark:text-amber-400 hover:underline hover:text-amber-600 dark:hover:text-amber-300 transition-colors">
+                <Link to="/privacy-policy" className="font-semibold text-copper-accent hover:underline transition-colors no-underline">
                   מדיניות הפרטיות
                 </Link>{' '}
                 ואת{' '}
-                <Link to="/terms" className="font-semibold text-amber-500 dark:text-amber-400 hover:underline hover:text-amber-600 dark:hover:text-amber-300 transition-colors">
+                <Link to="/terms" className="font-semibold text-copper-accent hover:underline transition-colors no-underline">
                   תנאי השימוש בשירות
                 </Link>
                 .
               </p>
             ) : (
-              <p className="m-0">
+              <p className="m-0 font-body-md">
                 For more detailed information, please review our{' '}
-                <Link to="/privacy" className="font-semibold text-amber-500 dark:text-amber-400 hover:underline hover:text-amber-600 dark:hover:text-amber-300 transition-colors">
+                <Link to="/privacy-policy" className="font-semibold text-copper-accent hover:underline transition-colors no-underline">
                   Privacy Policy
                 </Link>{' '}
                 and{' '}
-                <Link to="/terms" className="font-semibold text-amber-500 dark:text-amber-400 hover:underline hover:text-amber-600 dark:hover:text-amber-300 transition-colors">
+                <Link to="/terms" className="font-semibold text-copper-accent hover:underline transition-colors no-underline">
                   Terms of Service
                 </Link>
                 .
@@ -318,72 +367,56 @@ export function LandingPage() {
       </section>
 
       {/* Bottom CTA */}
-      <section className="py-20 px-6">
-        <div className="max-w-3xl mx-auto text-center">
-          <h2 className="text-3xl font-extrabold text-slate-800 dark:text-white mb-4 m-0">
+      <section className="py-24 px-6 relative">
+        <div className="absolute inset-0 bg-gradient-to-t from-surface-container-low/30 to-transparent pointer-events-none" />
+        <div className="max-w-3xl mx-auto text-center relative z-10">
+          <h2 className="font-display-lg text-3xl md:text-5xl text-on-background mb-4 m-0">
             {t('landing.readyTitle')}
           </h2>
-          <p className="text-slate-500 dark:text-slate-400 mb-8 text-lg m-0">
+          <p className="font-body-md text-sage-muted mb-10 text-base md:text-lg m-0">
             {t('landing.readySub')}
           </p>
           <button
             onClick={signIn}
-            className="group px-8 py-4 rounded-2xl text-lg font-bold bg-gradient-to-l from-amber-500 to-orange-500 text-white shadow-xl shadow-amber-500/30 hover:shadow-amber-500/50 hover:brightness-110 transition-all duration-300 cursor-pointer flex items-center gap-3 mx-auto active:scale-[0.98]"
+            className="w-full sm:w-auto bg-deep-forest hover:bg-primary text-background font-label-sm text-xs uppercase tracking-widest px-8 py-4 rounded-lg flex items-center justify-center gap-3 transition-all duration-300 font-bold shadow-md hover:shadow-lg active:scale-[0.98] cursor-pointer mx-auto"
           >
-            <svg className="w-6 h-6" viewBox="0 0 24 24" fill="none">
-              <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92a5.06 5.06 0 0 1-2.2 3.32v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.1z" fill="#fff"/>
-              <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#fff" opacity=".9"/>
-              <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" fill="#fff" opacity=".8"/>
-              <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#fff" opacity=".7"/>
+            <svg className="w-4 h-4 shrink-0 fill-current" viewBox="0 0 24 24">
+              <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4"></path>
+              <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853"></path>
+              <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" fill="#FBBC05"></path>
+              <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335"></path>
             </svg>
             <span>{t('landing.signInGoogle')}</span>
             {isRtl ? (
-              <ArrowLeft className="w-5 h-5 transform group-hover:-translate-x-1 transition-transform" />
+              <ArrowLeft className="w-4 h-4 transform hover:-translate-x-1 transition-transform" />
             ) : (
-              <ArrowRight className="w-5 h-5 transform group-hover:translate-x-1 transition-transform" />
+              <ArrowRight className="w-4 h-4 transform hover:translate-x-1 transition-transform" />
             )}
           </button>
         </div>
       </section>
 
       {/* Footer */}
-      <footer className="py-8 px-6 border-t border-slate-200/60 dark:border-slate-800/60 mt-auto">
-        <div className="max-w-5xl mx-auto flex flex-col md:flex-row items-center justify-between gap-4 text-sm text-slate-400 dark:text-slate-500">
-          <div className="flex items-center gap-2">
-            <div className="w-6 h-6 rounded-lg bg-gradient-to-br from-amber-400 to-orange-500 flex items-center justify-center">
-              <Users className="w-3.5 h-3.5 text-white" />
-            </div>
-            <span className="font-semibold">EventTag</span>
+      <footer className="py-12 px-6 border-t border-surface-border/30 mt-auto bg-surface-container-lowest">
+        <div className="max-w-6xl mx-auto flex flex-col md:flex-row items-center justify-between gap-6 text-xs md:text-sm text-sage-muted w-full">
+          <div className="flex flex-col sm:flex-row items-center gap-3 sm:gap-6 text-center sm:text-start">
+            <span className="font-display-lg text-lg text-on-background tracking-tight">EventTag</span>
+            <p className="m-0 font-body-md">© {new Date().getFullYear()} EventTag — {language === 'he' ? 'כל הזכויות שמורות' : 'All rights reserved'}</p>
           </div>
-          <p>© {new Date().getFullYear()} {t('landing.copyright')}</p>
-          <div className="flex items-center gap-4">
-            <Link to="/privacy" className="hover:text-amber-500 dark:hover:text-amber-400 transition-colors cursor-pointer">{t('legal.privacyTitle')}</Link>
-            <span className="text-slate-300 dark:text-slate-700">•</span>
-            <Link to="/terms" className="hover:text-amber-500 dark:hover:text-amber-400 transition-colors cursor-pointer">{t('legal.termsTitle')}</Link>
-            <span className="text-slate-300 dark:text-slate-700">•</span>
+          <div className="flex flex-wrap items-center justify-center gap-4 md:gap-6 font-label-sm uppercase tracking-wider text-[10px] md:text-xs">
+            <Link to="/privacy-policy" className="hover:text-copper-accent transition-colors cursor-pointer no-underline text-sage-muted font-bold">{t('legal.privacyTitle')}</Link>
+            <span className="text-surface-border">•</span>
+            <Link to="/terms" className="hover:text-copper-accent transition-colors cursor-pointer no-underline text-sage-muted font-bold">{t('legal.termsTitle')}</Link>
+            <span className="text-surface-border">•</span>
             <button
               onClick={reopen}
-              className="hover:text-amber-500 dark:hover:text-amber-400 transition-colors cursor-pointer bg-transparent border-none p-0 font-normal outline-none text-slate-400 dark:text-slate-500"
+              className="hover:text-copper-accent transition-colors cursor-pointer bg-transparent border-none p-0 outline-none font-bold text-sage-muted font-label-sm uppercase tracking-wider text-[10px] md:text-xs"
             >
               {t('consent.managePreferences')}
             </button>
           </div>
         </div>
       </footer>
-
-      {/* Custom animations */}
-      <style>{`
-        @keyframes float-slow {
-          0%, 100% { transform: translateY(0) rotate(12deg); }
-          50% { transform: translateY(-20px) rotate(18deg); }
-        }
-        @keyframes float-medium {
-          0%, 100% { transform: translateY(0) rotate(-6deg); }
-          50% { transform: translateY(-15px) rotate(-12deg); }
-        }
-        .animate-float-slow { animation: float-slow 8s ease-in-out infinite; }
-        .animate-float-medium { animation: float-medium 6s ease-in-out infinite; }
-      `}</style>
     </div>
   );
 }

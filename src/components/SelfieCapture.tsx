@@ -43,7 +43,6 @@ async function ensureModelsLoaded(): Promise<void> {
   return modelLoadPromise;
 }
 
-
 export function SelfieCapture({ onCapture }: SelfieCaptureProps) {
   const { t, isRtl } = useTranslation();
   
@@ -146,7 +145,6 @@ export function SelfieCapture({ onCapture }: SelfieCaptureProps) {
         .withFaceLandmarks();
 
       if (!detection) {
-        // Run general face count check if single detection failed, to give specific error
         const detections = await faceapi.detectAllFaces(detectionSource);
         if (detections.length > 1) {
           setError(t('selfieCapture.multipleFacesDetected', { count: detections.length }));
@@ -156,13 +154,13 @@ export function SelfieCapture({ onCapture }: SelfieCaptureProps) {
         return;
       }
 
-      // Align and crop the face using landmarks to 112x112
+      // Align and crop face to 112x112
       const alignedCanvas = alignFace(detectionSource, detection.landmarks);
 
-      // Extract embedding using SFace ONNX model (referred to as descriptor downstream)
+      // Extract SFace vector
       const descriptor = await extractEmbedding(alignedCanvas);
 
-      // Generate base64 thumbnail from the aligned face
+      // Aligned thumbnail
       const thumbnail = alignedCanvas.toDataURL('image/jpeg', 0.85);
       const previewSrc = originalSrc || thumbnail;
 
@@ -242,24 +240,22 @@ export function SelfieCapture({ onCapture }: SelfieCaptureProps) {
     startCamera();
   };
 
-  // ---- Render ----
-
   return (
     <div className="w-full max-w-md mx-auto text-start" dir={isRtl ? 'rtl' : 'ltr'}>
-      {/* Mode: Select camera or upload */}
+      {/* Mode Selection */}
       {mode === 'select' && (
         <div className="flex flex-col gap-4">
           <button
             type="button"
             onClick={startCamera}
-            className="group relative flex items-center gap-4 p-5 rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900/60 hover:border-amber-300 dark:hover:border-amber-500/40 transition-all duration-300 cursor-pointer shadow-sm hover:shadow-lg active:scale-[0.98]"
+            className="group relative flex items-center gap-4 p-5 rounded bg-surface-container border border-surface-border hover:border-copper-accent/35 transition-all duration-300 cursor-pointer shadow-sm hover:shadow-2xl active:scale-[0.99]"
           >
-            <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-amber-200 to-amber-400 dark:from-amber-500 dark:to-amber-700 flex items-center justify-center shadow-lg shadow-amber-500/20 dark:shadow-amber-600/30 shrink-0">
-              <Camera className="w-6 h-6 text-amber-900 dark:text-white" />
+            <div className="w-11 h-11 rounded bg-primary/10 border border-primary/20 flex items-center justify-center text-primary shrink-0 group-hover:scale-105 transition-transform duration-300">
+              <Camera className="w-5 h-5" />
             </div>
             <div className="text-start">
-              <span className="block font-bold text-slate-800 dark:text-slate-100 text-base">{t('selfieCapture.takeSelfieTitle')}</span>
-              <span className="block text-sm text-slate-500 dark:text-slate-400 mt-0.5">
+              <span className="block font-bold text-on-background text-base">{t('selfieCapture.takeSelfieTitle')}</span>
+              <span className="block font-body-md text-xs text-sage-muted mt-1 leading-normal">
                 {t('selfieCapture.takeSelfieDesc')}
               </span>
             </div>
@@ -268,14 +264,14 @@ export function SelfieCapture({ onCapture }: SelfieCaptureProps) {
           <button
             type="button"
             onClick={() => fileInputRef.current?.click()}
-            className="group relative flex items-center gap-4 p-5 rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900/60 hover:border-amber-300 dark:hover:border-amber-500/40 transition-all duration-300 cursor-pointer shadow-sm hover:shadow-lg active:scale-[0.98]"
+            className="group relative flex items-center gap-4 p-5 rounded bg-surface-container border border-surface-border hover:border-copper-accent/35 transition-all duration-300 cursor-pointer shadow-sm hover:shadow-2xl active:scale-[0.99]"
           >
-            <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-slate-200 to-slate-300 dark:from-slate-700 dark:to-slate-600 flex items-center justify-center shadow-lg shadow-slate-500/10 dark:shadow-slate-600/20 shrink-0">
-              <Upload className="w-6 h-6 text-slate-600 dark:text-slate-200" />
+            <div className="w-11 h-11 rounded bg-surface-container-high border border-surface-border flex items-center justify-center text-sage-muted shrink-0 group-hover:scale-105 transition-transform duration-300">
+              <Upload className="w-5 h-5" />
             </div>
             <div className="text-start">
-              <span className="block font-bold text-slate-800 dark:text-slate-100 text-base">{t('selfieCapture.uploadGalleryBtn')}</span>
-              <span className="block text-sm text-slate-500 dark:text-slate-400 mt-0.5">
+              <span className="block font-bold text-on-background text-base">{t('selfieCapture.uploadGalleryBtn')}</span>
+              <span className="block font-body-md text-xs text-sage-muted mt-1 leading-normal">
                 {t('selfieCapture.selectDeviceBtn')}
               </span>
             </div>
@@ -291,9 +287,9 @@ export function SelfieCapture({ onCapture }: SelfieCaptureProps) {
         </div>
       )}
 
-      {/* Mode: Camera Live Stream */}
+      {/* Camera Live Preview */}
       {mode === 'camera' && (
-        <div className="relative aspect-[3/4] rounded-3xl overflow-hidden border border-slate-200 dark:border-slate-800 bg-slate-950 flex flex-col justify-end">
+        <div className="relative aspect-[3/4] rounded-lg overflow-hidden border border-surface-border bg-background flex flex-col justify-end">
           <video
             ref={videoRef}
             autoPlay
@@ -303,26 +299,26 @@ export function SelfieCapture({ onCapture }: SelfieCaptureProps) {
           />
 
           {loading && (
-            <div className="absolute inset-0 bg-slate-950/60 backdrop-blur-sm flex flex-col items-center justify-center gap-3">
-              <Loader2 className="w-10 h-10 animate-spin text-amber-500" />
-              <span className="text-sm font-semibold text-slate-200">{t('selfieCapture.analyzing')}</span>
+            <div className="absolute inset-0 bg-background/80 backdrop-blur-sm flex flex-col items-center justify-center gap-3">
+              <Loader2 className="w-8 h-8 animate-spin text-copper-accent" />
+              <span className="text-xs font-semibold text-sage-muted">{t('selfieCapture.analyzing')}</span>
             </div>
           )}
 
-          {/* Action HUD */}
-          <div className="relative z-10 p-5 bg-gradient-to-t from-slate-950 to-transparent flex gap-3 items-center">
+          {/* HUD buttons */}
+          <div className="relative z-10 p-5 bg-gradient-to-t from-background to-transparent flex gap-3 items-center">
             <button
               type="button"
               onClick={handleCapture}
               disabled={loading}
-              className="flex-1 py-3 rounded-2xl bg-amber-500 hover:bg-amber-400 text-white dark:text-slate-950 font-bold text-sm transition-all cursor-pointer shadow-lg active:scale-95 disabled:opacity-50"
+              className="flex-1 py-3 rounded bg-deep-forest hover:bg-primary text-background font-bold text-xs uppercase tracking-wider transition-all cursor-pointer shadow active:scale-95 disabled:opacity-50 border-none"
             >
               {t('selfieCapture.captureBtn')}
             </button>
             <button
               type="button"
               onClick={handleCancel}
-              className="px-6 py-3 rounded-2xl bg-white/10 hover:bg-white/20 text-white font-medium text-sm transition-all cursor-pointer"
+              className="px-5 py-3 rounded bg-surface-container border border-surface-border hover:bg-surface-container-high text-on-background font-medium text-xs transition-all cursor-pointer"
             >
               {t('common.cancel')}
             </button>
@@ -330,72 +326,72 @@ export function SelfieCapture({ onCapture }: SelfieCaptureProps) {
         </div>
       )}
 
-      {/* Mode: Preview & Validate */}
+      {/* Captured Preview & Verify */}
       {mode === 'preview' && pendingResult && (
-        <div className="relative aspect-[3/4] rounded-3xl overflow-hidden border border-slate-200 dark:border-slate-800 bg-slate-950 flex flex-col justify-end">
+        <div className="relative aspect-[3/4] rounded-lg overflow-hidden border border-surface-border bg-background flex flex-col justify-end">
           <img
             src={pendingResult.previewSrc}
             alt="Preview"
             className="absolute inset-0 w-full h-full object-cover"
           />
 
-          {/* Status Badge overlay */}
+          {/* Validation indicators */}
           <div className="absolute top-4 start-4 z-10">
             {validated ? (
-              <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold bg-emerald-500 text-white shadow-lg">
-                <CheckCircle2 className="w-4 h-4" />
+              <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded text-[10px] uppercase tracking-wider font-bold bg-emerald-500/90 text-white shadow-lg">
+                <CheckCircle2 className="w-3.5 h-3.5" />
                 {t('common.success')}
               </span>
             ) : (
-              <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold bg-amber-500 text-white shadow-lg">
-                <Loader2 className="w-4 h-4 animate-spin" />
+              <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded text-[10px] uppercase tracking-wider font-bold bg-copper-accent/90 text-background shadow-lg">
+                <Loader2 className="w-3.5 h-3.5 animate-spin" />
                 {t('selfieCapture.analyzing')}
               </span>
             )}
           </div>
 
-          {/* Action HUD */}
-          <div className="relative z-10 p-5 bg-gradient-to-t from-slate-950 to-transparent flex gap-3 items-center">
+          {/* HUD buttons */}
+          <div className="relative z-10 p-5 bg-gradient-to-t from-background to-transparent flex gap-3 items-center">
             <button
               type="button"
               onClick={handleConfirm}
-              className="flex-1 py-3 rounded-2xl bg-emerald-500 hover:bg-emerald-450 text-white font-bold text-sm transition-all cursor-pointer shadow-lg active:scale-95"
+              className="flex-1 py-3 rounded bg-emerald-500 hover:bg-emerald-400 text-white font-bold text-xs uppercase tracking-wider transition-all cursor-pointer shadow active:scale-95 border-none"
             >
               {t('common.save')}
             </button>
             <button
               type="button"
               onClick={handleRetake}
-              className="p-3 rounded-2xl bg-white/10 hover:bg-white/20 text-white transition-all cursor-pointer"
+              className="p-3 rounded bg-surface-container border border-surface-border text-sage-muted hover:text-on-background transition-all cursor-pointer"
               title={t('selfieCapture.retakeBtn')}
             >
-              <RotateCcw className="w-4 h-4" />
+              <RotateCcw className="w-4 h-4 shrink-0" />
             </button>
             <button
               type="button"
               onClick={handleCancel}
-              className="p-3 rounded-2xl bg-white/10 hover:bg-white/20 text-white transition-all cursor-pointer"
+              className="p-3 rounded bg-surface-container border border-surface-border text-sage-muted hover:text-on-background transition-all cursor-pointer"
               title={t('common.cancel')}
             >
-              <X className="w-4 h-4" />
+              <X className="w-4 h-4 shrink-0" />
             </button>
           </div>
         </div>
       )}
 
-      {/* Loading global spinner */}
+      {/* Model status indicator */}
       {loading && mode === 'select' && (
-        <div className="mt-4 flex items-center justify-center gap-3 py-4 text-slate-500 dark:text-slate-400">
-          <Loader2 className="w-5 h-5 animate-spin text-amber-500" />
-          <span className="text-sm font-semibold">{t('selfieCapture.analyzing')}</span>
+        <div className="mt-4 flex items-center justify-center gap-2.5 py-3 text-sage-muted bg-surface-container/20 rounded border border-surface-border/50">
+          <Loader2 className="w-4 h-4 animate-spin text-copper-accent" />
+          <span className="text-xs font-semibold">{t('selfieCapture.analyzing')}</span>
         </div>
       )}
 
-      {/* Error display */}
+      {/* Errors */}
       {error && (
-        <div className="mt-4 bg-red-500/10 border border-red-500/20 rounded-2xl p-4 flex gap-3 text-start">
-          <AlertCircle className="w-5 h-5 text-red-500 shrink-0 mt-0.5" />
-          <span className="text-sm text-red-600 dark:text-red-400 leading-relaxed font-medium">
+        <div className="mt-4 bg-red-500/10 border border-red-500/20 rounded p-4 flex gap-3 text-start">
+          <AlertCircle className="w-4 h-4 text-red-400 shrink-0 mt-0.5" />
+          <span className="text-xs text-red-400 font-bold leading-relaxed">
             {error}
           </span>
         </div>

@@ -18,10 +18,10 @@ function ProtectedRoute({ children }: { children: React.ReactNode }) {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-slate-50 dark:bg-[#111113] flex items-center justify-center">
+      <div className="min-h-screen bg-background flex items-center justify-center">
         <div className="flex flex-col items-center gap-4">
-          <div className="w-10 h-10 border-4 border-amber-500 border-t-transparent rounded-full animate-spin" />
-          <span className="text-slate-500 dark:text-slate-400 text-sm">טוען...</span>
+          <div className="w-10 h-10 border-4 border-copper-accent border-t-transparent rounded-full animate-spin" />
+          <span className="text-sage-muted text-sm">טוען...</span>
         </div>
       </div>
     );
@@ -56,9 +56,11 @@ function GuestViewWrapper() {
   return <GuestView shareCode={shareCode} />;
 }
 
+import { PrivacyPage } from './components/PrivacyPage';
+
 function AppRoutes() {
   return (
-    <div className="min-h-screen bg-slate-50 dark:bg-[#111113] text-slate-900 dark:text-slate-100 flex flex-col font-sans transition-colors duration-300">
+    <div className="min-h-screen bg-background text-on-background flex flex-col font-sans transition-colors duration-300">
       <SettingsModal />
       <CookieBanner />
       <PreferencesModal />
@@ -67,7 +69,8 @@ function AppRoutes() {
         <Route path="/" element={<LandingPage />} />
         <Route path="/event/:shareCode" element={<GuestViewWrapper />} />
         <Route path="/legal" element={<LegalPage defaultTab="privacy" />} />
-        <Route path="/privacy" element={<LegalPage defaultTab="privacy" />} />
+        <Route path="/privacy" element={<PrivacyPage />} />
+        <Route path="/privacy-policy" element={<LegalPage defaultTab="privacy" />} />
         <Route path="/terms" element={<LegalPage defaultTab="terms" />} />
 
         {/* Protected owner routes */}

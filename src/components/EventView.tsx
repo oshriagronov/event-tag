@@ -79,14 +79,14 @@ function CloudPhotoImage({ driveFileId, accessToken, className = '', alt = '' }:
 
   if (error) {
     return (
-      <div className={`flex flex-col items-center justify-center bg-slate-900 border border-slate-800 text-slate-500 p-2 text-center text-xs ${className}`}>
-        <AlertCircle className="w-4 h-4 text-red-500" />
+      <div className={`flex flex-col items-center justify-center bg-surface-container-low border border-surface-border text-sage-muted p-2 text-center text-xs ${className}`}>
+        <AlertCircle className="w-4 h-4 text-red-400" />
       </div>
     );
   }
 
   if (loading) {
-    return <div className={`bg-slate-900 animate-pulse ${className}`} />;
+    return <div className={`bg-surface-container-low animate-pulse ${className}`} />;
   }
 
   return (
@@ -210,11 +210,8 @@ export function EventView({ eventId, onBack }: EventViewProps) {
 
     try {
       setLoading(true);
-      
-      // 1. Reset event state in DB
       await resetCloudEventForScanning(eventId);
       
-      // 2. Fetch the photos again and reset local status
       const existingPhotos = await getCloudPhotos(eventId);
       const resetPhotos = existingPhotos.map(p => ({
         ...p,
@@ -232,8 +229,6 @@ export function EventView({ eventId, onBack }: EventViewProps) {
       } : null);
       
       setLoading(false);
-      
-      // 3. Start scanning
       startCloudScanning(eventId, resetPhotos, googleAccessToken);
     } catch (err) {
       console.error('Failed to reset and rescan:', err);
@@ -250,25 +245,25 @@ export function EventView({ eventId, onBack }: EventViewProps) {
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
     } catch {
-      prompt('העתק קישור:', link);
+      prompt(language === 'he' ? 'העתק קישור:' : 'Copy link:', link);
     }
   };
 
   const formatETA = (seconds: number | null) => {
-    if (seconds === null) return 'מחשב זמן נותר...';
-    if (seconds === 0) return 'מסתיים כעת...';
-    if (seconds < 60) return `זמן נותר מוערך: כ-${seconds} שניות`;
+    if (seconds === null) return language === 'he' ? 'מחשב זמן נותר...' : 'Calculating...';
+    if (seconds === 0) return language === 'he' ? 'מסתיים כעת...' : 'Finishing...';
+    if (seconds < 60) return language === 'he' ? `זמן נותר: כ-${seconds} שניות` : `Remaining: ~${seconds}s`;
     const mins = Math.floor(seconds / 60);
     const secs = seconds % 60;
-    return `זמן נותר מוערך: כ-${mins} דקות ו-${secs} שניות`;
+    return language === 'he' ? `זמן נותר: כ-${mins} דקות ו-${secs} שניות` : `Remaining: ~${mins}m ${secs}s`;
   };
 
   if (loading) {
     return (
-      <div className="max-w-6xl mx-auto px-4 py-16 flex justify-center items-center flex-grow text-start animate-pulse" dir={isRtl ? 'rtl' : 'ltr'}>
-        <div className="flex flex-col items-center gap-4">
-          <Loader2 className="w-10 h-10 animate-spin text-amber-500" />
-          <span className="text-slate-500 dark:text-slate-400">{t('common.loading')}</span>
+      <div className="max-w-6xl w-full mx-auto px-6 py-16 flex justify-center items-center flex-grow text-start" dir={isRtl ? 'rtl' : 'ltr'}>
+        <div className="flex flex-col items-center gap-4 py-20">
+          <Loader2 className="w-8 h-8 animate-spin text-copper-accent" />
+          <span className="text-sage-muted font-body-md text-sm">{t('common.loading')}</span>
         </div>
       </div>
     );
@@ -276,10 +271,13 @@ export function EventView({ eventId, onBack }: EventViewProps) {
 
   if (!event) {
     return (
-      <div className="max-w-6xl mx-auto px-4 py-16 flex flex-col items-center gap-4 flex-grow text-center" dir={isRtl ? 'rtl' : 'ltr'}>
-        <AlertCircle className="w-12 h-12 text-red-500" />
-        <h3 className="text-xl font-bold m-0">{language === 'he' ? 'אירוע לא נמצא' : 'Event not found'}</h3>
-        <button onClick={onBack} className="px-5 py-2.5 bg-slate-800 hover:bg-slate-700 text-white rounded-xl font-bold transition-all cursor-pointer">
+      <div className="max-w-6xl w-full mx-auto px-6 py-16 flex flex-col items-center gap-6 flex-grow text-center" dir={isRtl ? 'rtl' : 'ltr'}>
+        <AlertCircle className="w-12 h-12 text-red-400" />
+        <h3 className="font-display-lg text-2xl text-on-background m-0">{language === 'he' ? 'האירוע לא נמצא' : 'Event not found'}</h3>
+        <button 
+          onClick={onBack} 
+          className="px-6 py-3 bg-surface-container hover:bg-surface-container-high border border-surface-border text-on-background rounded font-bold text-sm transition-all cursor-pointer"
+        >
           {t('eventView.backToDashboard')}
         </button>
       </div>
@@ -289,22 +287,23 @@ export function EventView({ eventId, onBack }: EventViewProps) {
   const shareLink = `${window.location.origin}/event/${event.shareCode}`;
 
   return (
-    <div className="max-w-6xl w-full mx-auto px-4 py-8 flex-grow flex flex-col gap-6 text-start transition-colors duration-300" dir={isRtl ? 'rtl' : 'ltr'}>
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-slate-200 dark:border-slate-800 pb-6">
+    <div className="max-w-6xl w-full mx-auto px-6 py-10 flex-grow flex flex-col gap-8 text-start" dir={isRtl ? 'rtl' : 'ltr'}>
+      {/* Header bar */}
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-surface-border/30 pb-6">
         <div className="flex items-center gap-4">
           <button
             onClick={onBack}
-            className="p-2 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-800 text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 transition-all cursor-pointer shadow-sm"
+            className="p-2.5 rounded bg-surface-container border border-surface-border hover:bg-surface-container-high hover:border-copper-accent/40 text-sage-muted hover:text-on-background transition-all cursor-pointer"
             title={t('eventView.backToDashboard')}
           >
-            {isRtl ? <ArrowRight className="w-5 h-5" /> : <ArrowLeft className="w-5 h-5" />}
+            {isRtl ? <ArrowRight className="w-4 h-4" /> : <ArrowLeft className="w-4 h-4" />}
           </button>
           <div className="flex flex-col text-start">
-            <h2 className="text-2xl font-bold text-slate-800 dark:text-slate-100 m-0 leading-tight">
+            <h2 className="font-display-lg text-2xl md:text-3xl text-on-background m-0 leading-tight">
               {event.name}
             </h2>
-            <p className="text-slate-500 text-sm m-0 mt-1">
-              {language === 'he' ? `אירוע בענן | תיקייה: ${event.driveFolderName}` : `Cloud Event | Folder: ${event.driveFolderName}`}
+            <p className="font-body-md text-sage-muted text-xs md:text-sm m-0 mt-1">
+              {language === 'he' ? `אירוע בענן | תיקייה ב-Drive: ${event.driveFolderName}` : `Cloud Event | Drive Folder: ${event.driveFolderName}`}
             </p>
           </div>
         </div>
@@ -312,7 +311,7 @@ export function EventView({ eventId, onBack }: EventViewProps) {
         <div className="flex items-center gap-3">
           <button
             onClick={loadEventDetails}
-            className="p-2.5 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-800 text-slate-500 transition-all cursor-pointer"
+            className="p-2.5 rounded bg-surface-container border border-surface-border hover:bg-surface-container-high text-sage-muted hover:text-on-background transition-all cursor-pointer"
             title={language === 'he' ? 'רענן נתונים' : 'Refresh data'}
           >
             <RefreshCw className="w-4 h-4" />
@@ -320,30 +319,31 @@ export function EventView({ eventId, onBack }: EventViewProps) {
         </div>
       </div>
 
+      {/* Pending Scan View */}
       {event.status === 'pending' && !isThisEventScanning && (
-        <div className="border border-dashed border-slate-300 dark:border-slate-800 rounded-3xl p-16 text-center flex flex-col items-center justify-center gap-6 bg-white/50 dark:bg-slate-900/10 flex-grow py-24 shadow-sm">
-          <div className="w-16 h-16 rounded-3xl bg-amber-500/10 flex items-center justify-center text-amber-500">
-            <FolderOpen className="w-8 h-8" />
+        <div className="border border-dashed border-surface-border rounded-xl p-16 text-center flex flex-col items-center justify-center gap-6 bg-surface-container/20 py-24">
+          <div className="w-14 h-14 rounded-xl bg-surface-container border border-surface-border flex items-center justify-center text-copper-accent shadow">
+            <FolderOpen className="w-6 h-6" />
           </div>
           <div className="max-w-md">
-            <h3 className="text-xl font-bold text-slate-800 dark:text-slate-100 m-0">{language === 'he' ? 'האירוע מוכן לסריקה' : 'Event ready to scan'}</h3>
-            <p className="text-slate-500 dark:text-slate-400 text-sm mt-2 leading-relaxed m-0">
+            <h3 className="font-title-md text-lg font-bold text-on-background m-0">{language === 'he' ? 'האירוע מוכן לסריקה' : 'Event Ready to Scan'}</h3>
+            <p className="font-body-md text-sage-muted text-sm mt-2 leading-relaxed m-0">
               {t('eventView.localProcessingNotice')}
             </p>
           </div>
           <button
             onClick={handleStartScan}
             disabled={!googleAccessToken}
-            className="px-8 py-3.5 rounded-2xl bg-amber-500 hover:bg-amber-400 text-white dark:text-slate-950 font-bold text-base shadow-lg shadow-amber-500/20 active:scale-95 transition-all cursor-pointer disabled:opacity-50"
+            className="px-8 py-3.5 rounded bg-deep-forest hover:bg-primary text-background font-bold text-sm shadow transition-all cursor-pointer disabled:opacity-50 border-none"
           >
             {t('eventView.startAIScan')}
           </button>
           {!googleAccessToken && (
             <div className="flex flex-col items-center gap-3">
-              <p className="text-red-500 text-xs m-0">יש להתחבר מחדש עם חשבון Google כדי לאפשר גישה לתיקייה.</p>
+              <p className="text-red-400 text-xs m-0 font-bold">{language === 'he' ? 'יש להתחבר מחדש עם חשבון Google כדי לאפשר גישה לתיקייה.' : 'Reconnect to Google to allow folders authorization.'}</p>
               <button
                 onClick={signIn}
-                className="px-6 py-2.5 rounded-xl bg-amber-500 hover:bg-amber-400 text-white dark:text-slate-950 font-bold text-xs shadow-sm transition-all cursor-pointer active:scale-95"
+                className="px-5 py-2.5 rounded bg-copper-accent hover:bg-copper-accent/90 text-background font-bold text-xs shadow transition-all cursor-pointer"
               >
                 {language === 'he' ? 'התחבר לחשבון Google' : 'Connect Google Account'}
               </button>
@@ -352,36 +352,37 @@ export function EventView({ eventId, onBack }: EventViewProps) {
         </div>
       )}
 
+      {/* Active Scanning Progress Panel */}
       {(event.status === 'scanning' || isThisEventScanning) && (
-        <div className="bg-white dark:bg-slate-900/40 border border-slate-200 dark:border-slate-800 rounded-3xl p-8 flex flex-col gap-6 shadow-xl max-w-2xl mx-auto w-full my-8">
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 text-sm border-b border-slate-100 dark:border-slate-800/80 pb-5">
+        <div className="bg-surface-container border border-surface-border rounded-xl p-8 flex flex-col gap-6 shadow-2xl max-w-xl mx-auto w-full my-6">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 text-sm border-b border-surface-border pb-5">
             <div className="flex items-center gap-3">
-              <Loader2 className="w-5 h-5 text-amber-500 animate-spin" />
-              <span className="font-bold text-slate-800 dark:text-slate-200 text-base">{t('eventView.scanningPhotos')}</span>
+              <Loader2 className="w-4 h-4 text-copper-accent animate-spin" />
+              <span className="font-bold text-on-background text-base">{t('eventView.scanningPhotos')}</span>
             </div>
-            <div className="flex items-center gap-3.5">
+            <div className="flex items-center gap-3 shrink-0">
               <button
                 onClick={togglePause}
-                className={`w-10 h-10 rounded-xl flex items-center justify-center transition-all cursor-pointer shadow-sm ${
+                className={`w-9 h-9 rounded flex items-center justify-center transition-all cursor-pointer border ${
                   isPaused
-                    ? 'bg-amber-100 dark:bg-amber-500 text-amber-900 dark:text-slate-950 border border-amber-200 dark:border-transparent'
-                    : 'bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-700'
+                    ? 'border-copper-accent text-copper-accent bg-copper-accent/10'
+                    : 'border-surface-border text-sage-muted hover:bg-surface-container-high hover:text-on-background bg-surface-container-low'
                 }`}
               >
                 {isPaused ? <Play className="w-4 h-4" /> : <Pause className="w-4 h-4" />}
               </button>
-              <div className="text-xs bg-slate-50 dark:bg-slate-800 px-3 py-1.5 rounded-lg border border-slate-200 dark:border-slate-700">
+              <div className="text-xs bg-surface-container-low px-3 py-1.5 rounded border border-surface-border text-sage-muted">
                 {isPaused ? t('dashboard.statusPaused') : formatETA(etaSeconds)}
               </div>
-              <div className="font-mono bg-slate-50 dark:bg-slate-800 px-2.5 py-1 rounded-md border border-slate-200 dark:border-slate-700 text-xs">
+              <div className="font-mono bg-surface-container-low px-2.5 py-1 rounded border border-surface-border text-xs text-on-background font-bold">
                 {scannedCount} / {totalToScan || event.photoCount}
               </div>
             </div>
           </div>
 
-          <div className="w-full bg-slate-100 dark:bg-slate-800 rounded-full h-3 overflow-hidden border border-slate-200 dark:border-slate-700">
+          <div className="w-full bg-surface-container-low rounded-full h-2 overflow-hidden border border-surface-border">
             <div
-              className="bg-amber-500 h-3 rounded-full transition-all duration-300 ease-out relative"
+              className="bg-copper-accent h-2 rounded-full transition-all duration-300 ease-out relative"
               style={{
                 width: `${
                   (totalToScan || event.photoCount) > 0
@@ -390,90 +391,95 @@ export function EventView({ eventId, onBack }: EventViewProps) {
                 }%`,
               }}
             >
-              <div className="absolute inset-0 bg-white/20 animate-pulse"></div>
+              <div className="absolute inset-0 bg-white/10 animate-pulse"></div>
             </div>
           </div>
 
-          <p className="text-slate-500 dark:text-slate-400 text-xs leading-relaxed text-center m-0">
-            {language === 'he' ? 'אנא השאר את הדפדפן פתוח במהלך הסריקה. המערכת מעבדת את התמונות אחת אחרי השנייה. התמונות אינן מועלות לשרת, העיבוד נעשה כולו במכשיר שלך!' : 'Please keep the browser window open during scanning. The system is processing photos one by one. Photos are not uploaded to servers, the processing happens entirely on your device!'}
+          <p className="font-body-md text-sage-muted text-xs leading-relaxed text-center m-0">
+            {language === 'he' 
+              ? 'אנא השאר את הדפדפן פתוח במהלך הסריקה. המערכת מעבדת את התמונות מקומית במכשיר שלך ואינה מעלה אותן לשרת.' 
+              : 'Please keep the browser open. Processing is entirely local on your device; images are not sent to any servers.'}
           </p>
           {scanError === 'auth_expired' && (
-            <div className="flex flex-col items-center gap-4 bg-red-500/10 border border-red-500/20 rounded-2xl p-6 text-center mt-2">
-              <AlertCircle className="w-8 h-8 text-red-550" />
-              <div className="flex flex-col gap-1">
-                <h4 className="font-bold text-red-500 text-sm">חיבור ה-Google פג תוקף</h4>
-                <p className="text-slate-400 text-xs">כדי להמשיך בסריקה, יש להתחבר מחדש לחשבון ה-Google שלך.</p>
+            <div className="flex flex-col items-center gap-4 bg-red-500/10 border border-red-500/20 rounded-xl p-5 text-center mt-2">
+              <AlertCircle className="w-7 h-7 text-red-400" />
+              <div className="flex flex-col gap-1 text-center">
+                <h4 className="font-bold text-red-400 text-sm m-0">{language === 'he' ? 'חיבור ה-Google פג תוקף' : 'Google Authentication Expired'}</h4>
+                <p className="text-sage-muted text-xs m-0">{language === 'he' ? 'כדי להמשיך בסריקה, יש להתחבר מחדש לחשבון ה-Google שלך.' : 'Please reconnect your Google account to proceed with scanning.'}</p>
               </div>
               <button
                 onClick={signIn}
-                className="px-5 py-2.5 rounded-xl bg-amber-500 hover:bg-amber-400 text-white dark:text-slate-950 font-bold text-xs shadow-sm transition-all cursor-pointer active:scale-95"
+                className="px-5 py-2.5 rounded bg-copper-accent hover:bg-copper-accent/90 text-background font-bold text-xs shadow transition-all cursor-pointer border-none"
               >
-                התחבר מחדש ל-Google
+                {language === 'he' ? 'התחבר מחדש ל-Google' : 'Reconnect Google'}
               </button>
             </div>
           )}
           {scanError === 'network_error' && (
-            <div className="flex flex-col items-center gap-4 bg-red-500/10 border border-red-500/20 rounded-2xl p-6 text-center mt-2">
-              <AlertCircle className="w-8 h-8 text-red-550" />
+            <div className="flex flex-col items-center gap-3 bg-red-500/10 border border-red-500/20 rounded-xl p-5 text-center mt-2">
+              <AlertCircle className="w-7 h-7 text-red-400" />
               <div className="flex flex-col gap-1">
-                <h4 className="font-bold text-red-500 text-sm">שגיאת תקשורת או חיבור איטי</h4>
-                <p className="text-slate-400 text-xs">אנא ודא שחיבור האינטרנט שלך יציב ולחץ על כפתור הנגן למעלה כדי להמשיך בסריקה.</p>
+                <h4 className="font-bold text-red-400 text-sm m-0">{language === 'he' ? 'שגיאת תקשורת' : 'Network Error'}</h4>
+                <p className="text-sage-muted text-xs m-0">{language === 'he' ? 'אנא ודא שחיבור האינטרנט שלך יציב ולחץ על כפתור ההמשך למעלה.' : 'Please check your connection and click the resume button to retry.'}</p>
               </div>
             </div>
           )}
         </div>
       )}
 
+      {/* Ready View */}
       {event.status === 'ready' && !isThisEventScanning && (
         <div className="flex flex-col gap-8">
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-            <div className="bg-white dark:bg-slate-900/40 border border-slate-200 dark:border-slate-800 rounded-3xl p-6 shadow-sm flex flex-col justify-between">
-              <div className="flex flex-col gap-2">
-                <h4 className="font-bold text-slate-400 text-xs uppercase tracking-wider m-0">{language === 'he' ? 'נתוני אירוע' : 'Event Data'}</h4>
-                <div className="flex items-baseline gap-2 mt-2">
-                  <span className="text-3xl font-black text-slate-800 dark:text-white">{event.photoCount}</span>
-                  <span className="text-slate-500 text-sm">{language === 'he' ? 'תמונות נסרקו' : 'Photos Scanned'}</span>
+            {/* Event Stats Card */}
+            <div className="bg-surface-container border border-surface-border rounded-xl p-6 shadow-sm flex flex-col justify-between text-start">
+              <div className="flex flex-col gap-1.5 text-start">
+                <h4 className="font-label-sm text-[10px] text-sage-muted uppercase tracking-wider m-0">{language === 'he' ? 'נתוני אירוע' : 'Event Statistics'}</h4>
+                <div className="flex items-baseline gap-2 mt-3">
+                  <span className="font-display-lg text-3xl text-on-background">{event.photoCount}</span>
+                  <span className="text-sage-muted text-xs font-body-md">{language === 'he' ? 'תמונות נסרקו' : 'Photos Scanned'}</span>
                 </div>
                 <div className="flex items-baseline gap-2">
-                  <span className="text-3xl font-black text-amber-500">{event.faceCount}</span>
-                  <span className="text-slate-500 text-sm">{language === 'he' ? 'פנים זוהו' : 'Faces Detected'}</span>
+                  <span className="font-display-lg text-3xl text-copper-accent">{event.faceCount}</span>
+                  <span className="text-sage-muted text-xs font-body-md">{language === 'he' ? 'פנים מזוהות' : 'Detected Faces'}</span>
                 </div>
               </div>
               {photos.some(p => !p.processed) && (
-                <div className="mt-4 pt-4 border-t border-slate-200/50 dark:border-slate-800 flex flex-col gap-2">
-                  <p className="text-[11px] text-red-500 m-0 leading-normal">
+                <div className="mt-4 pt-4 border-t border-surface-border flex flex-col gap-2">
+                  <p className="text-[11px] text-red-400 m-0 leading-normal font-semibold">
                     {language === 'he'
-                      ? `שים לב: רק ${photos.filter(p => p.processed).length} מתוך ${photos.length} תמונות נסרקו.`
-                      : `Note: Only ${photos.filter(p => p.processed).length} out of ${photos.length} photos scanned.`}
+                      ? `רק ${photos.filter(p => p.processed).length} מתוך ${photos.length} תמונות נסרקו בהצלחה.`
+                      : `Only ${photos.filter(p => p.processed).length} of ${photos.length} photos were processed.`}
                   </p>
                   <button
                     onClick={handleStartScan}
                     disabled={!googleAccessToken}
-                    className="w-full py-2.5 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-xs shadow-sm transition-all active:scale-95 cursor-pointer flex items-center justify-center gap-1.5"
+                    className="w-full py-2 rounded bg-copper-accent hover:bg-copper-accent/90 text-background font-bold text-xs shadow flex items-center justify-center gap-1.5 cursor-pointer border-none"
                   >
-                    <RefreshCw className="w-3.5 h-3.5" />
-                    <span>{language === 'he' ? 'המשך סריקה' : 'Resume Scan'}</span>
+                    <RefreshCw className="w-3 h-3 shrink-0" />
+                    <span>{language === 'he' ? 'המשך סריקה' : 'Resume Scanning'}</span>
                   </button>
                 </div>
               )}
-              <div className="border-t border-slate-100 dark:border-slate-800 pt-4 mt-6 flex items-center justify-between text-xs text-slate-550">
-                <span>{language === 'he' ? `תיקייה: ${event.driveFolderName}` : `Folder: ${event.driveFolderName}`}</span>
+              <div className="border-t border-surface-border pt-4 mt-6 flex items-center justify-between text-[11px] text-sage-muted">
+                <span className="truncate max-w-[140px]">{language === 'he' ? `תיקייה: ${event.driveFolderName}` : `Folder: ${event.driveFolderName}`}</span>
                 <button
                   onClick={handleRescanAll}
                   disabled={!googleAccessToken}
-                  className="flex items-center gap-1 text-slate-550 dark:text-slate-400 hover:text-amber-500 dark:hover:text-amber-500 transition-colors font-bold cursor-pointer disabled:opacity-50"
+                  className="flex items-center gap-1 text-sage-muted hover:text-copper-accent transition-colors font-bold cursor-pointer bg-transparent border-none outline-none text-[11px]"
                   title={language === 'he' ? 'איפוס וסריקה מחדש של כל התמונות' : 'Reset and rescan all photos'}
                 >
-                  <RefreshCw className="w-3.5 h-3.5 animate-none" />
+                  <RefreshCw className="w-3 h-3 shrink-0" />
                   <span>{language === 'he' ? 'סרוק מחדש' : 'Rescan'}</span>
                 </button>
               </div>
             </div>
 
-            <div className="md:col-span-2 bg-white dark:bg-slate-900/40 border border-slate-200 dark:border-slate-800 rounded-3xl p-6 shadow-sm flex flex-col justify-between text-start">
+            {/* Sharing link card */}
+            <div className="md:col-span-2 bg-surface-container border border-surface-border rounded-xl p-6 shadow-sm flex flex-col justify-between text-start">
               <div className="flex flex-col gap-2 text-start">
-                <h4 className="font-bold text-slate-400 text-xs uppercase tracking-wider m-0">{t('eventView.sharingWithGuests')}</h4>
-                <p className="text-slate-500 text-xs mt-1 m-0">
+                <h4 className="font-label-sm text-[10px] text-sage-muted uppercase tracking-wider m-0">{t('eventView.sharingWithGuests')}</h4>
+                <p className="font-body-md text-sage-muted text-xs leading-normal m-0 mt-1">
                   {t('eventView.sharingDesc')}
                 </p>
 
@@ -482,85 +488,89 @@ export function EventView({ eventId, onBack }: EventViewProps) {
                     type="text"
                     readOnly
                     value={shareLink}
-                    className="flex-grow px-4 py-3 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-slate-650 dark:text-slate-400 text-sm font-mono focus:outline-none"
+                    className="flex-grow px-4 py-3 rounded bg-surface-container-low border border-surface-border text-sage-muted text-sm font-mono focus:outline-none"
                   />
                   <button
                     onClick={handleCopyLink}
-                    className="px-5 py-3 rounded-xl bg-amber-500 text-slate-950 font-bold text-sm shadow-sm flex items-center gap-2 hover:bg-amber-400 transition-colors cursor-pointer active:scale-95"
+                    className="px-5 py-3 rounded bg-deep-forest hover:bg-primary text-background font-bold text-sm shadow flex items-center gap-2 transition-colors cursor-pointer border-none"
                   >
-                    {copied ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
+                    {copied ? <Check className="w-4 h-4 text-emerald-600" /> : <Copy className="w-4 h-4" />}
                     <span>{copied ? t('common.copied') : t('common.copy')}</span>
                   </button>
                   <button
                     onClick={() => setShowQr(true)}
-                    className="p-3 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors cursor-pointer"
+                    className="p-3 rounded bg-surface-container-low border border-surface-border text-sage-muted hover:text-on-background transition-colors cursor-pointer"
                     title={language === 'he' ? 'הצג QR' : 'Show QR'}
                   >
-                    <QrCode className="w-5 h-5" />
+                    <QrCode className="w-4 h-4" />
                   </button>
                 </div>
               </div>
-              <div className="border-t border-slate-100 dark:border-slate-800 pt-4 mt-6 flex items-center gap-2">
+              <div className="border-t border-surface-border pt-4 mt-6 flex items-center gap-2">
                 <a
                   href={shareLink}
                   target="_blank"
                   rel="noreferrer"
-                  className="inline-flex items-center gap-1.5 text-xs text-amber-500 hover:underline font-bold"
+                  className="inline-flex items-center gap-1.5 text-xs text-copper-accent hover:underline font-bold no-underline uppercase tracking-wider"
                 >
-                  {t('eventView.openGuestPage')} <ExternalLink className="w-3.5 h-3.5" />
+                  {t('eventView.openGuestPage')} <ExternalLink className="w-3 h-3 shrink-0" />
                 </a>
               </div>
             </div>
           </div>
 
+          {/* Photo Gallery Grid */}
           <div className="flex flex-col gap-4 text-start">
-            <h3 className="text-xl font-bold text-slate-800 dark:text-slate-100 m-0">{language === 'he' ? 'גלריית תמונות אירוע' : 'Event Photo Gallery'}</h3>
+            <h3 className="font-display-lg text-2xl text-on-background m-0">{language === 'he' ? 'גלריית תמונות' : 'Photo Gallery'}</h3>
+            <div className="botanical-divider w-full" />
+            
             {!googleAccessToken ? (
-              <div className="text-center py-12 px-6 border border-dashed border-slate-200 dark:border-slate-800 rounded-3xl flex flex-col items-center gap-4 bg-slate-50 dark:bg-slate-900/10">
-                <AlertCircle className="w-8 h-8 text-amber-500 animate-pulse" />
-                <p className="text-slate-650 dark:text-slate-400 text-sm max-w-sm m-0 leading-relaxed text-center">
+              <div className="text-center py-16 px-6 border border-dashed border-surface-border rounded-xl flex flex-col items-center gap-4 bg-surface-container/20">
+                <AlertCircle className="w-8 h-8 text-copper-accent" />
+                <p className="font-body-md text-sage-muted text-sm max-w-sm m-0 leading-relaxed text-center">
                   {language === 'he'
                     ? 'פג תוקף החיבור לחשבון Google. יש להתחבר מחדש כדי לצפות בתמונות שבתיקייה.'
-                    : 'Google account connection expired. Please reconnect to view the folder photos.'}
+                    : 'Google session expired. Re-authenticate to access drive contents.'}
                 </p>
                 <button
                   onClick={signIn}
-                  className="px-6 py-2.5 rounded-xl bg-amber-500 hover:bg-amber-400 text-white dark:text-slate-950 font-bold text-sm shadow-sm transition-all cursor-pointer active:scale-95"
+                  className="px-6 py-2.5 rounded bg-copper-accent hover:bg-copper-accent/90 text-background font-bold text-sm shadow transition-all cursor-pointer border-none"
                 >
                   {language === 'he' ? 'התחבר לחשבון Google' : 'Connect Google Account'}
                 </button>
               </div>
             ) : photos.length === 0 ? (
-              <div className="text-center py-12 text-slate-500">{t('common.loading')}</div>
+              <div className="text-center py-16 text-sage-muted font-body-md">{t('common.loading')}</div>
             ) : (
               <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4">
                 {photos.slice(0, visibleCount).map((photo) => (
                   <div
                     key={photo.id}
-                    className="relative aspect-square border border-slate-200 dark:border-slate-800 rounded-2xl overflow-hidden shadow-sm bg-slate-100 dark:bg-slate-900/50"
+                    className="relative aspect-square border border-surface-border rounded overflow-hidden shadow bg-surface-container-low group"
                   >
                     <CloudPhotoImage
                       driveFileId={photo.driveFileId}
                       accessToken={googleAccessToken || ''}
                       alt={photo.fileName}
-                      className="w-full h-full object-cover hover:scale-105 transition-transform duration-300"
+                      className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
                     />
                   </div>
                 ))}
               </div>
             )}
+
             {photos.length > 24 && (
-              <div className="flex flex-col items-center gap-3 mt-4 border-t border-slate-100 dark:border-slate-800/80 pt-6">
-                <p className="text-slate-500 dark:text-slate-400 text-xs text-center m-0">
+              <div className="flex flex-col items-center gap-3 mt-6 border-t border-surface-border pt-6">
+                <p className="font-body-md text-sage-muted text-xs text-center m-0">
                   {language === 'he'
                     ? `מציג ${Math.min(visibleCount, photos.length)} תמונות מתוך ${photos.length}.`
-                    : `Showing ${Math.min(visibleCount, photos.length)} photos out of ${photos.length}.`}
+                    : `Showing ${Math.min(visibleCount, photos.length)} of ${photos.length} photos.`}
                 </p>
                 <div className="flex items-center gap-3">
                   {visibleCount < photos.length && (
                     <button
                       onClick={() => setVisibleCount((prev) => prev + 24)}
-                      className="px-5 py-2.5 rounded-xl bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 border border-slate-200 dark:border-slate-700 font-bold text-xs transition-all cursor-pointer active:scale-95"
+                      className="px-5 py-2.5 rounded bg-surface-container border border-surface-border hover:bg-surface-container-high text-on-background font-bold text-xs transition-all cursor-pointer border-none"
                     >
                       {language === 'he' ? 'הצג עוד' : 'Show More'}
                     </button>
@@ -568,7 +578,7 @@ export function EventView({ eventId, onBack }: EventViewProps) {
                   {visibleCount < photos.length && (
                     <button
                       onClick={() => setVisibleCount(photos.length)}
-                      className="px-5 py-2.5 rounded-xl bg-amber-500 hover:bg-amber-400 text-white dark:text-slate-950 font-bold text-xs shadow-sm transition-all cursor-pointer active:scale-95"
+                      className="px-5 py-2.5 rounded bg-deep-forest hover:bg-primary text-background font-bold text-xs shadow transition-all cursor-pointer border-none"
                     >
                       {language === 'he' ? 'הצג הכל' : 'Show All'}
                     </button>
@@ -576,7 +586,7 @@ export function EventView({ eventId, onBack }: EventViewProps) {
                   {visibleCount > 24 && (
                     <button
                       onClick={() => setVisibleCount(24)}
-                      className="px-5 py-2.5 rounded-xl bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 border border-slate-200 dark:border-slate-700 font-bold text-xs transition-all cursor-pointer active:scale-95"
+                      className="px-5 py-2.5 rounded bg-surface-container border border-surface-border hover:bg-surface-container-high text-on-background font-bold text-xs transition-all cursor-pointer border-none"
                     >
                       {language === 'he' ? 'הצג פחות' : 'Show Less'}
                     </button>
@@ -588,23 +598,24 @@ export function EventView({ eventId, onBack }: EventViewProps) {
         </div>
       )}
 
+      {/* QR Share Modal */}
       {showQr && (
-        <div className="fixed inset-0 bg-slate-950/70 backdrop-blur-sm flex items-center justify-center z-50 p-4" onClick={() => setShowQr(false)}>
-          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl p-8 max-w-sm w-full shadow-2xl flex flex-col items-center gap-6" onClick={(e) => e.stopPropagation()} dir={isRtl ? 'rtl' : 'ltr'}>
-            <h3 className="text-lg font-bold text-slate-800 dark:text-slate-100 m-0">{event.name}</h3>
-            <div className="bg-white p-4 rounded-2xl shadow-inner">
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4" onClick={() => setShowQr(false)}>
+          <div className="bg-surface-container border border-surface-border rounded-xl p-8 max-w-sm w-full shadow-2xl flex flex-col items-center gap-6" onClick={(e) => e.stopPropagation()} dir={isRtl ? 'rtl' : 'ltr'}>
+            <h3 className="font-display-lg text-lg text-on-background m-0">{event.name}</h3>
+            <div className="bg-white p-4 rounded-xl shadow-inner border border-surface-border">
               <QRCodeSVG
                 value={shareLink}
                 size={220}
                 level="M"
                 bgColor="#ffffff"
-                fgColor="#0f172a"
+                fgColor="#111413"
               />
             </div>
-            <p className="text-xs text-slate-500 dark:text-slate-400 text-center m-0">{language === 'he' ? 'האורחים יכולים לסרוק את הקישור כדי להעלות סלפי' : 'Guests can scan the link to upload a selfie'}</p>
+            <p className="text-xs text-sage-muted text-center m-0 leading-relaxed">{language === 'he' ? 'האורחים יכולים לסרוק את הקישור כדי להעלות סלפי' : 'Guests can scan the code to load photo lookup.'}</p>
             <button
               onClick={() => setShowQr(false)}
-              className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 text-sm transition-colors cursor-pointer"
+              className="text-sage-muted hover:text-on-background text-sm transition-colors cursor-pointer border-none bg-transparent outline-none"
             >
               {t('common.close')}
             </button>
