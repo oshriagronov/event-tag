@@ -17,8 +17,11 @@ const app = initializeApp(firebaseConfig);
 export const auth = getAuth(app);
 export const googleProvider = new GoogleAuthProvider();
 
-// Request Google Drive scope alongside standard auth (only files opened/created by the app)
-googleProvider.addScope('https://www.googleapis.com/auth/drive.file');
+// Request Google Drive scope alongside standard auth (read-only access to Drive files)
+googleProvider.addScope('https://www.googleapis.com/auth/drive.readonly');
+googleProvider.setCustomParameters({
+  prompt: 'consent',
+});
 
 export const firestore = getFirestore(app);
 export const storage = getStorage(app);

@@ -55,7 +55,6 @@ export interface CloudFaceEntry {
   driveFileId: string;
   embedding: number[];
   box: { x: number; y: number; width: number; height: number };
-  thumbnail: string; // base64 face crop
 }
 
 // ---- Helper: Generate short share code ----
@@ -309,4 +308,58 @@ export async function getAllFaceDescriptors(
     allFaces.push(...(data.faces || []));
   }
   return allFaces;
+}
+
+export async function resetCloudEventForScanning(eventId: string): Promise<void> {
+  // 1. Reset event status and progress counts
+  await updateCloudEvent(eventId, {
+    status: 'scanning',
+    photoCount: 0,
+    faceCount: 0,
+  });
+
+  // 2. Get all photos of the event
+  const photosSnap = await getDocs(collection(firestore, 'events', eventId, 'photos'));
+
+  // 3. Reset photos processed status in batches of 400
+  const BATCH_SIZE = 400;
+  let batch = writeBatch(firestore);
+  let opCount = 0;
+
+  for (const docSnap of photosSnap.docs) {
+    batch.update(docSnap.ref, {
+      processed: false,
+      width: 0,
+      height: 0,
+    });
+    opCount++;
+
+    if (opCount >= BATCH_SIZE) {
+      await batch.commit();
+      batch = writeBatch(firestore);
+      opCount = 0;
+    }
+  }
+  if (opCount > 0) {
+    await batch.commit();
+  }
+
+  // 4. Delete all existing face batches
+  const facesSnap = await getDocs(collection(firestore, 'events', eventId, 'faceBatches'));
+  batch = writeBatch(firestore);
+  opCount = 0;
+
+  for (const docSnap of facesSnap.docs) {
+    batch.delete(docSnap.ref);
+    opCount++;
+
+    if (opCount >= BATCH_SIZE) {
+      await batch.commit();
+      batch = writeBatch(firestore);
+      opCount = 0;
+    }
+  }
+  if (opCount > 0) {
+    await batch.commit();
+  }
 }

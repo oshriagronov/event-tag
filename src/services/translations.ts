@@ -201,7 +201,7 @@ export const translations = {
       privacySection2Title: 'חיבור ל-Google Picker וגישה ל-Google Drive',
       privacySection2Text: 'האפליקציה משתמשת בממשק Google Picker API הרשמי כדי לאפשר לבעל האירוע לבחור תיקייה מתוך ה-Google Drive האישי שלו המכילה את תמונות האירוע.',
       privacySection2Bullets: [
-        'הגישה ל-Google Drive מוגבלת אך ורק לקבצים ותיקיות שנבחרו על ידך (drive.file) ומבוצעת ישירות מהדפדפן של המשתמש אל שרתי Google באמצעות קוד גישה מאובטח (OAuth Token) המאוחסן זמנית בדפדפן המשתמש.',
+        'הגישה ל-Google Drive מוגבלת אך ורק לקבצים ותיקיות שנבחרו על ידך ומבוצעת ישירות מהדפדפן של המשתמש אל שרתי Google באמצעות קוד גישה מאובטח (OAuth Token) המאוחסן זמנית בדפדפן המשתמש.',
         'התמונות נקראות ישירות מ-Google Drive אל זיכרון הדפדפן המקומי לצורך עיבוד זיהוי הפנים המקומי, ולא מועברות לשום שרת של EventTag או שרת צד שלישי אחר.'
       ],
       privacySection3Title: 'שמירת נתונים וסנכרון ענן מאובטח',

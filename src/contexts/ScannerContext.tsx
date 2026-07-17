@@ -1,8 +1,6 @@
 import { createContext, useContext, useState, useRef, useEffect, type ReactNode } from 'react';
 import * as faceapi from '@vladmandic/face-api';
-import { db } from '../db';
-import { IncrementalClusterer } from '../clustering';
-import { getPhotoBlob } from '../services/googleDrive';
+import { getPhotoBlob, checkTokenValidity } from '../services/googleDrive';
 import { getONNXSession, extractEmbedding } from '../services/onnxModel';
 import { alignFace } from '../services/faceAlignment';
 import {
@@ -12,6 +10,7 @@ import {
   type CloudFaceEntry,
   type CloudPhoto,
 } from '../services/firestore';
+import { useAuth } from './AuthContext';
 
 interface ScannerContextType {
   isScanning: boolean;
@@ -19,8 +18,8 @@ interface ScannerContextType {
   scannedCount: number;
   totalToScan: number;
   etaSeconds: number | null;
-  activeScanningEventId: number | string | null;
-  startScanning: (eventId: number, filesList: any[]) => Promise<void>;
+  activeScanningEventId: string | null;
+  scanError: 'auth_expired' | 'network_error' | null;
   startCloudScanning: (
     eventId: string,
     photos: CloudPhoto[],
@@ -69,7 +68,6 @@ async function processPhotoLocally(fileBlob: Blob): Promise<{
   detections: Array<{
     embedding: number[];
     box: { x: number; y: number; width: number; height: number };
-    thumbnail: string;
   }>;
 }> {
   await ensureModelsLoaded();
@@ -133,13 +131,9 @@ async function processPhotoLocally(fileBlob: Blob): Promise<{
     // Extract embedding using SFace ONNX model
     const embedding = await extractEmbedding(alignedCanvas);
 
-    // Generate base64 thumbnail from the aligned face
-    const thumbnail = alignedCanvas.toDataURL('image/jpeg', 0.85);
-
     results.push({
       embedding,
       box: relBox,
-      thumbnail,
     });
   }
 
@@ -150,184 +144,35 @@ export function ScannerProvider({ children }: { children: ReactNode }) {
   const [isScanning, setIsScanning] = useState(false);
   const [isPaused, setIsPaused] = useState(false);
   const [scannedCount, setScannedCount] = useState(0);
-
-  // Clear local DB tables if shifting from face-api.js to SFace model.
-  useEffect(() => {
-    const checkDatabaseMigration = async () => {
-      const CURRENT_MODEL_VERSION = 'sface_v3';
-      const storedVersion = localStorage.getItem('eventtag_face_model_version');
-      if (storedVersion !== CURRENT_MODEL_VERSION) {
-        console.log('Detected face recognition model change. Resetting database caches...');
-        try {
-          await db.transaction('rw', [db.faces, db.photos, db.clusters], async () => {
-            await db.faces.clear();
-            await db.photos.clear();
-            await db.clusters.clear();
-          });
-          localStorage.setItem('eventtag_face_model_version', CURRENT_MODEL_VERSION);
-          console.log('Database successfully reset for new model.');
-        } catch (err) {
-          console.error('Failed to reset database for new model:', err);
-        }
-      }
-    };
-    checkDatabaseMigration();
-  }, []);
   const [totalToScan, setTotalToScan] = useState(0);
   const [etaSeconds, setEtaSeconds] = useState<number | null>(null);
-  const [activeScanningEventId, setActiveScanningEventId] = useState<number | string | null>(null);
+  const [activeScanningEventId, setActiveScanningEventId] = useState<string | null>(null);
+  const [scanError, setScanError] = useState<'auth_expired' | 'network_error' | null>(null);
+
+  const { googleAccessToken } = useAuth();
+  const tokenRef = useRef(googleAccessToken);
+
+  useEffect(() => {
+    tokenRef.current = googleAccessToken;
+    if (googleAccessToken && scanError === 'auth_expired') {
+      setScanError(null);
+      setIsPaused(false);
+      isPausedRef.current = false;
+    }
+  }, [googleAccessToken, scanError]);
 
   const isPausedRef = useRef(isPaused);
   isPausedRef.current = isPaused;
 
   const togglePause = () => {
-    setIsPaused((prev) => !prev);
-  };
-
-  /**
-   * Local scanning flow using client-side face-api.js
-   */
-  const startScanning = async (
-    eventId: number,
-    filesList: Array<{ fileHandle?: FileSystemFileHandle; fallbackBlob?: Blob; name: string }>
-  ) => {
-    if (isScanning) {
-      alert('סריקה כבר מתבצעת. אנא המתן לסיומה.');
-      return;
-    }
-
-    setIsScanning(true);
-    setTotalToScan(filesList.length);
-    setScannedCount(0);
-    setEtaSeconds(null);
-    setActiveScanningEventId(eventId);
-    setIsPaused(false);
-
-    // Save metadata first
-    const photosToProcess: Array<{ id: number; item: typeof filesList[0] }> = [];
-
-    for (const item of filesList) {
-      const existing = await db.photos.where({ eventId, fileName: item.name }).first();
-      if (existing) {
-        if (!existing.processed) {
-          photosToProcess.push({ id: existing.id!, item });
-        }
-        continue;
+    setIsPaused((prev) => {
+      const next = !prev;
+      isPausedRef.current = next;
+      if (!next) {
+        setScanError(null);
       }
-
-      const photoId = await db.photos.add({
-        eventId,
-        fileName: item.name,
-        fileHandle: item.fileHandle,
-        fallbackBlob: item.fallbackBlob,
-        width: 0,
-        height: 0,
-        processed: false,
-      });
-
-      photosToProcess.push({ id: photoId, item });
-    }
-
-    setTotalToScan(photosToProcess.length);
-
-    if (photosToProcess.length === 0) {
-      setIsScanning(false);
-      setActiveScanningEventId(null);
-      return;
-    }
-
-    const clusterer = new IncrementalClusterer(eventId);
-    await clusterer.init();
-
-    // Cache preloaded blobs
-    const preloadCache = new Map<number, Promise<Blob | null>>();
-
-    function preloadFile(entry: typeof photosToProcess[0]): Promise<Blob | null> {
-      if (preloadCache.has(entry.id)) return preloadCache.get(entry.id)!;
-
-      const promise = (async () => {
-        try {
-          if (entry.item.fileHandle) {
-            return await entry.item.fileHandle.getFile();
-          } else if (entry.item.fallbackBlob) {
-            return entry.item.fallbackBlob;
-          }
-          return null;
-        } catch {
-          return null;
-        }
-      })();
-
-      preloadCache.set(entry.id, promise);
-      return promise;
-    }
-
-    let progress = 0;
-    let totalActiveTime = 0;
-
-    for (let idx = 0; idx < photosToProcess.length; idx++) {
-      while (isPausedRef.current) {
-        await new Promise((resolve) => setTimeout(resolve, 200));
-      }
-
-      // Preload future files
-      for (let ahead = 1; ahead <= PRELOAD_AHEAD; ahead++) {
-        const futureIdx = idx + ahead;
-        if (futureIdx < photosToProcess.length) {
-          preloadFile(photosToProcess[futureIdx]);
-        }
-      }
-
-      const photoStart = Date.now();
-      const entry = photosToProcess[idx];
-
-      try {
-        const fileBlob = await preloadFile(entry);
-        preloadCache.delete(entry.id);
-
-        if (!fileBlob) continue;
-
-        // Process locally via client-side face-api.js
-        const { width, height, detections } = await processPhotoLocally(fileBlob);
-
-        if (detections && detections.length > 0) {
-          const facesToAdd = [];
-          for (const det of detections) {
-            const clusterId = await clusterer.assign(det.embedding);
-            facesToAdd.push({
-              eventId,
-              photoId: entry.id,
-              clusterId,
-              box: det.box,
-              embedding: det.embedding,
-              thumbnail: det.thumbnail,
-            });
-          }
-          await db.faces.bulkAdd(facesToAdd);
-        }
-
-        await db.photos.update(entry.id, {
-          processed: true,
-          width,
-          height,
-        });
-      } catch (err) {
-        console.error(`Error scanning photo ID: ${entry.id}`, err);
-      }
-
-      const duration = (Date.now() - photoStart) / 1000;
-      totalActiveTime += duration;
-
-      progress++;
-      setScannedCount(progress);
-
-      const avgTime = totalActiveTime / progress;
-      const remaining = photosToProcess.length - progress;
-      setEtaSeconds(Math.round(remaining * avgTime));
-    }
-
-    setIsScanning(false);
-    setActiveScanningEventId(null);
+      return next;
+    });
   };
 
   /**
@@ -349,6 +194,7 @@ export function ScannerProvider({ children }: { children: ReactNode }) {
     setEtaSeconds(null);
     setActiveScanningEventId(eventId);
     setIsPaused(false);
+    setScanError(null);
 
     let progress = 0;
     let totalActiveTime = 0;
@@ -358,18 +204,14 @@ export function ScannerProvider({ children }: { children: ReactNode }) {
     let facesBuffer: CloudFaceEntry[] = [];
 
     // Cache preloaded blobs for Google Drive downloads
-    const preloadCache = new Map<string, Promise<Blob | null>>();
+    const preloadCache = new Map<string, Promise<Blob>>();
 
-    function preloadDriveFile(fileId: string): Promise<Blob | null> {
+    function preloadDriveFile(fileId: string): Promise<Blob> {
       if (preloadCache.has(fileId)) return preloadCache.get(fileId)!;
 
       const promise = (async () => {
-        try {
-          return await getPhotoBlob(googleAccessToken, fileId);
-        } catch (err) {
-          console.error(`Failed to pre-download file ${fileId}:`, err);
-          return null;
-        }
+        const token = tokenRef.current || googleAccessToken;
+        return await getPhotoBlob(token || '', fileId);
       })();
 
       preloadCache.set(fileId, promise);
@@ -381,22 +223,27 @@ export function ScannerProvider({ children }: { children: ReactNode }) {
         await new Promise((resolve) => setTimeout(resolve, 200));
       }
 
-      // Preload future files
-      for (let ahead = 1; ahead <= PRELOAD_AHEAD; ahead++) {
-        const futureIdx = idx + ahead;
-        if (futureIdx < photos.length) {
-          preloadDriveFile(photos[futureIdx].driveFileId);
-        }
-      }
-
       const photoStart = Date.now();
       const photo = photos[idx];
+
+      // If the photo was already processed in a previous scan, skip it immediately!
+      if (photo.processed) {
+        progress++;
+        setScannedCount(progress);
+        continue;
+      }
+
+      // Preload future files (only if they aren't processed already)
+      for (let ahead = 1; ahead <= PRELOAD_AHEAD; ahead++) {
+        const futureIdx = idx + ahead;
+        if (futureIdx < photos.length && !photos[futureIdx].processed) {
+          preloadDriveFile(photos[futureIdx].driveFileId).catch(() => {});
+        }
+      }
 
       try {
         const fileBlob = await preloadDriveFile(photo.driveFileId);
         preloadCache.delete(photo.driveFileId);
-
-        if (!fileBlob) continue;
 
         // Process locally via client-side face-api.js
         const { width, height, detections } = await processPhotoLocally(fileBlob);
@@ -415,7 +262,6 @@ export function ScannerProvider({ children }: { children: ReactNode }) {
             driveFileId: photo.driveFileId,
             embedding: det.embedding,
             box: det.box,
-            thumbnail: det.thumbnail,
           }));
 
           facesBuffer.push(...facesToAdd);
@@ -427,8 +273,51 @@ export function ScannerProvider({ children }: { children: ReactNode }) {
           await appendFaceDescriptors(eventId, facesBuffer);
           facesBuffer = [];
         }
-      } catch (err) {
+      } catch (err: any) {
         console.error(`Error scanning Google Drive photo ${photo.fileName}:`, err);
+        try {
+          // Check if the token is expired/invalid
+          const token = tokenRef.current || googleAccessToken;
+          const isValid = await checkTokenValidity(token || '');
+          if (!isValid) {
+            // Token is invalid/expired! Pause scanner, set scanError, clear cache
+            setScanError('auth_expired');
+            setIsPaused(true);
+            isPausedRef.current = true;
+            preloadCache.clear();
+            // Decrement idx so we retry this photo when resumed
+            idx--;
+            continue;
+          } else {
+            const errStr = err instanceof Error ? err.message : String(err);
+            if (errStr.includes('timed out') || errStr.includes('Failed to fetch') || errStr.includes('NetworkError') || errStr.includes('timeout') || errStr.includes('aborted')) {
+              // This is a network timeout or connection error!
+              // Pause scanner and prompt network error in UI
+              setScanError('network_error');
+              setIsPaused(true);
+              isPausedRef.current = true;
+              preloadCache.clear();
+              // Decrement idx so we retry this photo when resumed
+              idx--;
+              continue;
+            } else {
+              // Token is valid but this file failed (e.g. 404 because file was deleted)
+              // We mark it as processed in Firestore so it's skipped next time.
+              await updateCloudPhoto(eventId, photo.id!, {
+                processed: true,
+              });
+            }
+          }
+        } catch (innerErr) {
+          console.error('Fatal error in scanner loop recovery:', innerErr);
+          // If we had a network/database error during recovery, pause and retry
+          setScanError('network_error');
+          setIsPaused(true);
+          isPausedRef.current = true;
+          preloadCache.clear();
+          idx--;
+          continue;
+        }
       }
 
       const duration = (Date.now() - photoStart) / 1000;
@@ -479,7 +368,7 @@ export function ScannerProvider({ children }: { children: ReactNode }) {
         totalToScan,
         etaSeconds,
         activeScanningEventId,
-        startScanning,
+        scanError,
         startCloudScanning,
         togglePause,
       }}

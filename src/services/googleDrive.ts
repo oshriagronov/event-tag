@@ -5,6 +5,33 @@
 
 const DRIVE_API_BASE = 'https://www.googleapis.com/drive/v3';
 
+/**
+ * Helper to execute fetch with a timeout using AbortController
+ */
+async function fetchWithTimeout(
+  url: string,
+  options: RequestInit = {},
+  timeoutMs = 15000
+): Promise<Response> {
+  const controller = new AbortController();
+  const id = setTimeout(() => controller.abort(), timeoutMs);
+
+  try {
+    const res = await fetch(url, {
+      ...options,
+      signal: controller.signal,
+    });
+    clearTimeout(id);
+    return res;
+  } catch (err: any) {
+    clearTimeout(id);
+    if (err.name === 'AbortError') {
+      throw new Error(`Request timed out after ${timeoutMs}ms`);
+    }
+    throw err;
+  }
+}
+
 export interface DriveFile {
   id: string;
   name: string;
@@ -34,9 +61,11 @@ export async function listFolders(
     fields: 'files(id,name,modifiedTime)',
     orderBy: 'name',
     pageSize: '100',
+    supportsAllDrives: 'true',
+    includeItemsFromAllDrives: 'true',
   });
 
-  const res = await fetch(`${DRIVE_API_BASE}/files?${params}`, {
+  const res = await fetchWithTimeout(`${DRIVE_API_BASE}/files?${params}`, {
     headers: { Authorization: `Bearer ${accessToken}` },
   });
 
@@ -66,10 +95,12 @@ export async function listPhotosInFolder(
       fields: 'nextPageToken,files(id,name,mimeType,thumbnailLink,webContentLink,size,modifiedTime)',
       orderBy: 'name',
       pageSize: '1000',
+      supportsAllDrives: 'true',
+      includeItemsFromAllDrives: 'true',
     });
     if (pageToken) params.set('pageToken', pageToken);
 
-    const res = await fetch(`${DRIVE_API_BASE}/files?${params}`, {
+    const res = await fetchWithTimeout(`${DRIVE_API_BASE}/files?${params}`, {
       headers: { Authorization: `Bearer ${accessToken}` },
     });
 
@@ -91,17 +122,41 @@ export async function listPhotosInFolder(
  */
 export async function getPhotoBlob(
   accessToken: string,
-  fileId: string
+  fileId: string,
+  timeoutMs = 25000
 ): Promise<Blob> {
-  const res = await fetch(`${DRIVE_API_BASE}/files/${fileId}?alt=media`, {
-    headers: { Authorization: `Bearer ${accessToken}` },
+  const params = new URLSearchParams({
+    alt: 'media',
+    supportsAllDrives: 'true',
   });
+  const res = await fetchWithTimeout(`${DRIVE_API_BASE}/files/${fileId}?${params}`, {
+    headers: { Authorization: `Bearer ${accessToken}` },
+  }, timeoutMs);
 
   if (!res.ok) {
     throw new Error(`Failed to download file ${fileId}: ${res.status}`);
   }
 
   return await res.blob();
+}
+
+/**
+ * Check if the Google access token is still valid
+ */
+export async function checkTokenValidity(accessToken: string): Promise<boolean> {
+  try {
+    const params = new URLSearchParams({
+      pageSize: '1',
+      supportsAllDrives: 'true',
+      includeItemsFromAllDrives: 'true',
+    });
+    const res = await fetchWithTimeout(`${DRIVE_API_BASE}/files?${params}`, {
+      headers: { Authorization: `Bearer ${accessToken}` },
+    }, 5000); // 5 seconds is plenty to check token validity
+    return res.ok;
+  } catch (err) {
+    return false;
+  }
 }
 
 /**
@@ -121,9 +176,10 @@ export async function getFileMetadata(
 ): Promise<DriveFile> {
   const params = new URLSearchParams({
     fields: 'id,name,mimeType,thumbnailLink,webContentLink,size,modifiedTime',
+    supportsAllDrives: 'true',
   });
 
-  const res = await fetch(`${DRIVE_API_BASE}/files/${fileId}?${params}`, {
+  const res = await fetchWithTimeout(`${DRIVE_API_BASE}/files/${fileId}?${params}`, {
     headers: { Authorization: `Bearer ${accessToken}` },
   });
 
@@ -146,9 +202,11 @@ export async function countPhotosInFolder(
     q: query,
     fields: 'files(id)',
     pageSize: '1000',
+    supportsAllDrives: 'true',
+    includeItemsFromAllDrives: 'true',
   });
 
-  const res = await fetch(`${DRIVE_API_BASE}/files?${params}`, {
+  const res = await fetchWithTimeout(`${DRIVE_API_BASE}/files?${params}`, {
     headers: { Authorization: `Bearer ${accessToken}` },
   });
 

@@ -40,12 +40,9 @@ function EventViewWrapper() {
 
   if (!eventId) return <Navigate to="/dashboard" replace />;
 
-  // Parse as integer only if it is fully numeric, preserving it as a string for cloud events
-  const parsedId = /^\d+$/.test(eventId) ? parseInt(eventId, 10) : eventId;
-
   return (
     <EventView
-      eventId={parsedId}
+      eventId={eventId}
       onBack={() => navigate('/dashboard')}
     />
   );

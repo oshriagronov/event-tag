@@ -8,13 +8,13 @@ import {
   addCloudPhotosBatch,
   type CloudEvent,
 } from '../services/firestore';
-import { openGooglePhotoPicker } from '../services/googlePicker';
+import { openGooglePhotoPicker, openGoogleFolderPicker } from '../services/googlePicker';
 import { QRCodeSVG } from 'qrcode.react';
 import {
   Calendar, Image as ImageIcon, Users, Trash2,
   ArrowLeft, LogOut, Cloud, Link2, QrCode,
   CheckCircle2, Loader2, Clock, Copy, Check, X,
-  Plus, Sparkles, Play, Pause,
+  Plus, Sparkles, Play, Pause, FolderOpen,
 } from 'lucide-react';
 import { useScanner } from '../contexts/ScannerContext';
 import { useTranslation } from '../services/translations';
@@ -51,6 +51,7 @@ export function Dashboard() {
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [creating, setCreating] = useState(false);
   const [pendingPhotos, setPendingPhotos] = useState<any[]>([]);
+  const [pendingFolder, setPendingFolder] = useState<{ id: string; name: string } | null>(null);
 
   // QR code modal
   const [qrEvent, setQrEvent] = useState<CloudEvent | null>(null);
@@ -86,36 +87,58 @@ export function Dashboard() {
 
   const handlePhotosSelected = (files: any[]) => {
     setPendingPhotos(files);
+    setPendingFolder(null);
     setShowCreateModal(true);
     if (!newEventName) {
       setNewEventName(language === 'he' ? 'אירוע חדש' : 'New Event');
     }
   };
 
+  const handleFolderSelected = (folder: { id: string; name: string }) => {
+    setPendingFolder(folder);
+    setPendingPhotos([]);
+    setShowCreateModal(true);
+    setNewEventName(folder.name);
+  };
+
   const handleCreateEvent = async () => {
-    if (!user || pendingPhotos.length === 0 || !newEventName.trim()) return;
+    if (!user || (!pendingFolder && pendingPhotos.length === 0) || !newEventName.trim()) return;
     setCreating(true);
     try {
-      const eventId = await createCloudEvent(
-        user.uid,
-        newEventName.trim(),
-        "selected_files",
-        language === 'he' ? `${pendingPhotos.length} תמונות` : `${pendingPhotos.length} photos`
-      );
+      let eventId: string;
 
-      const basePhotos = pendingPhotos.map(file => ({
-        driveFileId: file.id,
-        fileName: file.name,
-        width: 0,
-        height: 0,
-        processed: false
-      }));
+      if (pendingFolder) {
+        // Folder selection
+        eventId = await createCloudEvent(
+          user.uid,
+          newEventName.trim(),
+          pendingFolder.id,
+          pendingFolder.name
+        );
+      } else {
+        // Individual files selection
+        eventId = await createCloudEvent(
+          user.uid,
+          newEventName.trim(),
+          "selected_files",
+          language === 'he' ? `${pendingPhotos.length} תמונות` : `${pendingPhotos.length} photos`
+        );
 
-      await addCloudPhotosBatch(eventId, basePhotos);
+        const basePhotos = pendingPhotos.map(file => ({
+          driveFileId: file.id,
+          fileName: file.name,
+          width: 0,
+          height: 0,
+          processed: false
+        }));
+
+        await addCloudPhotosBatch(eventId, basePhotos);
+      }
 
       setShowCreateModal(false);
       setNewEventName('');
       setPendingPhotos([]);
+      setPendingFolder(null);
       navigate(`/dashboard/event/${eventId}`);
     } catch (err) {
       console.error('Failed to create event:', err);
@@ -217,28 +240,55 @@ export function Dashboard() {
       {/* Dashboard Actions */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <h2 className="text-xl font-bold text-slate-800 dark:text-slate-100 m-0">{language === 'he' ? 'האירועים שלי בענן' : 'My Cloud Events'}</h2>
-        <button
-          onClick={async () => {
-            if (!googleAccessToken) return;
-            setNewEventName('');
-            setPendingPhotos([]);
-            const apiKey = import.meta.env.VITE_GOOGLE_API_KEY;
-            const clientId = import.meta.env.VITE_GOOGLE_CLIENT_ID;
-            await openGooglePhotoPicker({
-              accessToken: googleAccessToken,
-              apiKey,
-              clientId,
-              onSelected: (files) => {
-                handlePhotosSelected(files);
-              },
-            });
-          }}
-          disabled={!googleAccessToken}
-          className="px-5 py-2.5 rounded-xl bg-amber-100 hover:bg-amber-200 text-amber-900 dark:bg-amber-500 dark:hover:bg-amber-400 dark:text-slate-950 font-bold text-sm flex items-center gap-2 transition-all cursor-pointer shadow-md shadow-amber-900/5 dark:shadow-amber-500/20 active:scale-95 border border-amber-200 dark:border-amber-600/30 disabled:opacity-50 disabled:cursor-not-allowed"
-        >
-          <Plus className="w-4 h-4" />
-          <span>{language === 'he' ? 'אירוע חדש' : 'New Event'}</span>
-        </button>
+        <div className="flex flex-wrap items-center gap-3">
+          <button
+            onClick={async () => {
+              if (!googleAccessToken) return;
+              setNewEventName('');
+              setPendingPhotos([]);
+              setPendingFolder(null);
+              const apiKey = import.meta.env.VITE_GOOGLE_API_KEY;
+              const clientId = import.meta.env.VITE_GOOGLE_CLIENT_ID;
+              await openGoogleFolderPicker({
+                accessToken: googleAccessToken,
+                apiKey,
+                clientId,
+                onSelected: (folder) => {
+                  handleFolderSelected(folder);
+                },
+              });
+            }}
+            disabled={!googleAccessToken}
+            className="px-5 py-2.5 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-sm flex items-center gap-2 transition-all cursor-pointer shadow-md shadow-amber-500/20 active:scale-95 border border-amber-600/30 disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            <FolderOpen className="w-4 h-4 animate-none" />
+            <span>{language === 'he' ? 'אירוע מתיקייה' : 'Event from Folder'}</span>
+          </button>
+          
+          <button
+            onClick={async () => {
+              if (!googleAccessToken) return;
+              setNewEventName('');
+              setPendingPhotos([]);
+              setPendingFolder(null);
+              const apiKey = import.meta.env.VITE_GOOGLE_API_KEY;
+              const clientId = import.meta.env.VITE_GOOGLE_CLIENT_ID;
+              await openGooglePhotoPicker({
+                accessToken: googleAccessToken,
+                apiKey,
+                clientId,
+                onSelected: (files) => {
+                  handlePhotosSelected(files);
+                },
+              });
+            }}
+            disabled={!googleAccessToken}
+            className="px-5 py-2.5 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 font-bold text-sm flex items-center gap-2 transition-all cursor-pointer active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            <Plus className="w-4 h-4" />
+            <span>{language === 'he' ? 'בחירת תמונות' : 'Choose Photos'}</span>
+          </button>
+        </div>
       </div>
 
       {/* Cloud Events */}
@@ -386,13 +436,13 @@ export function Dashboard() {
       </div>
 
       {/* Create Event Modal (after folder selection) */}
-      {showCreateModal && pendingPhotos.length > 0 && (
+      {showCreateModal && (pendingPhotos.length > 0 || pendingFolder) && (
         <div className="fixed inset-0 bg-slate-950/70 backdrop-blur-sm flex items-center justify-center z-50 p-4">
           <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl p-8 max-w-md w-full shadow-2xl flex flex-col gap-6" dir={isRtl ? 'rtl' : 'ltr'}>
             <div className="flex items-center justify-between">
               <h3 className="text-xl font-bold text-slate-800 dark:text-slate-100 m-0">{language === 'he' ? 'אירוע חדש' : 'New Event'}</h3>
               <button
-                onClick={() => { setShowCreateModal(false); setPendingPhotos([]); }}
+                onClick={() => { setShowCreateModal(false); setPendingPhotos([]); setPendingFolder(null); }}
                 className="p-1.5 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-400 transition-colors cursor-pointer"
               >
                 <X className="w-5 h-5" />
@@ -400,11 +450,21 @@ export function Dashboard() {
             </div>
 
             <div className="flex flex-col gap-2 text-start">
-              <label className="text-sm font-medium text-slate-600 dark:text-slate-400">{language === 'he' ? 'תמונות שנבחרו:' : 'Selected Photos:'}</label>
+              <label className="text-sm font-medium text-slate-600 dark:text-slate-400">
+                {pendingFolder
+                  ? (language === 'he' ? 'תיקייה שנבחרה:' : 'Selected Folder:')
+                  : (language === 'he' ? 'תמונות שנבחרו:' : 'Selected Photos:')}
+              </label>
               <div className="flex items-center gap-2 bg-slate-50 dark:bg-slate-800/50 rounded-xl px-4 py-3 border border-slate-200 dark:border-slate-800">
-                <ImageIcon className="w-4 h-4 text-amber-500 shrink-0" />
+                {pendingFolder ? (
+                  <FolderOpen className="w-4 h-4 text-amber-500 shrink-0" />
+                ) : (
+                  <ImageIcon className="w-4 h-4 text-amber-500 shrink-0" />
+                )}
                 <span className="text-sm text-slate-700 dark:text-slate-300 truncate">
-                  {language === 'he' ? `נבחרו ${pendingPhotos.length} תמונות` : `${pendingPhotos.length} photos selected`}
+                  {pendingFolder
+                    ? pendingFolder.name
+                    : (language === 'he' ? `נבחרו ${pendingPhotos.length} תמונות` : `${pendingPhotos.length} photos selected`)}
                 </span>
               </div>
             </div>
@@ -434,7 +494,7 @@ export function Dashboard() {
                 )}
               </button>
               <button
-                onClick={() => { setShowCreateModal(false); setPendingPhotos([]); }}
+                onClick={() => { setShowCreateModal(false); setPendingPhotos([]); setPendingFolder(null); }}
                 className="px-6 py-3 rounded-xl bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-300 font-medium text-sm transition-all cursor-pointer"
               >
                 {t('common.cancel')}

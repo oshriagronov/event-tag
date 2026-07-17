@@ -10,7 +10,6 @@ export interface MatchResult {
   driveFileId: string;
   photoId: string;
   distance: number;
-  faceThumbnail: string;
   box: { x: number; y: number; width: number; height: number };
 }
 
@@ -54,7 +53,6 @@ export async function matchSelfieToEvent(
         driveFileId: face.driveFileId,
         photoId: face.photoId,
         distance: dist,
-        faceThumbnail: face.thumbnail,
         box: face.box,
       });
     }
@@ -93,7 +91,6 @@ export function matchSelfieAgainstFaces(
         driveFileId: face.driveFileId,
         photoId: face.photoId,
         distance: dist,
-        faceThumbnail: face.thumbnail,
         box: face.box,
       });
     }
