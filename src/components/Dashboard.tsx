@@ -1,6 +1,7 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
+import { useSettings } from '../contexts/SettingsContext';
 import {
   subscribeOwnerEvents,
   createCloudEvent,
@@ -11,10 +12,11 @@ import {
 import { FolderPicker } from './FolderPicker';
 import { QRCodeSVG } from 'qrcode.react';
 import {
-  Calendar, Image as ImageIcon, Users, Trash2,
+  Calendar, Image as ImageIcon, Trash2,
   ArrowLeft, LogOut, Cloud, Link2, QrCode,
   CheckCircle2, Loader2, Clock, Copy, Check, X,
-  Plus, Play, Pause, FolderOpen, Search, Menu, BarChart2, Settings
+  Plus, Play, Pause, FolderOpen, Search, Menu, BarChart2, Settings,
+  Sun, Moon, Type, AlertTriangle
 } from 'lucide-react';
 import { useScanner } from '../contexts/ScannerContext';
 import { useTranslation } from '../services/translations';
@@ -22,7 +24,8 @@ import { useTranslation } from '../services/translations';
 export function Dashboard() {
   const navigate = useNavigate();
   const { t, isRtl, language } = useTranslation();
-  const { user, dropboxAccessToken, signOut, connectDropbox } = useAuth();
+  const { user, dropboxAccessToken, signOut, connectDropbox, disconnectDropbox } = useAuth();
+  const { theme, fontSize, setTheme, setFontSize, setLanguage } = useSettings();
   const [showFolderPicker, setShowFolderPicker] = useState(false);
   const {
     isScanning,
@@ -34,10 +37,22 @@ export function Dashboard() {
     togglePause,
   } = useScanner();
 
+  const [activeTab, setActiveTab] = useState<'events' | 'settings'>('events');
+  const [showProviderModal, setShowProviderModal] = useState(false);
+  const [selectedProvider, setSelectedProvider] = useState<'dropbox' | 'google' | 'onedrive'>('dropbox');
+
   const [cloudEvents, setCloudEvents] = useState<CloudEvent[]>([]);
   const [loadingEvents, setLoadingEvents] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [showMobileSearch, setShowMobileSearch] = useState(false);
+  const mobileSearchInputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    if (showMobileSearch && mobileSearchInputRef.current) {
+      mobileSearchInputRef.current.focus();
+    }
+  }, [showMobileSearch]);
 
   const formatETA = (seconds: number | null) => {
     if (seconds === null) return language === 'he' ? 'מחשב זמן...' : 'Calculating...';
@@ -104,7 +119,8 @@ export function Dashboard() {
           user.uid,
           newEventName.trim(),
           pendingFolder.id,
-          pendingFolder.name
+          pendingFolder.name,
+          selectedProvider
         );
       } else {
         // Individual files selection
@@ -112,7 +128,8 @@ export function Dashboard() {
           user.uid,
           newEventName.trim(),
           "selected_files",
-          language === 'he' ? `${pendingPhotos.length} תמונות` : `${pendingPhotos.length} photos`
+          language === 'he' ? `${pendingPhotos.length} תמונות` : `${pendingPhotos.length} photos`,
+          selectedProvider
         );
 
         const basePhotos = pendingPhotos.map(file => ({
@@ -136,6 +153,75 @@ export function Dashboard() {
       alert(language === 'he' ? 'שגיאה ביצירת האירוע. נסה שוב.' : 'Error creating event. Please try again.');
     } finally {
       setCreating(false);
+    }
+  };
+
+  const handleDisconnectProvider = async (provider: 'dropbox' | 'google' | 'onedrive') => {
+    const providerName = provider === 'dropbox' ? 'Dropbox' : provider === 'google' ? 'Google Drive' : 'Microsoft OneDrive';
+    const warningMsg = language === 'he'
+      ? `אזהרה: ניתוק ספק הענן ${providerName} ימחק לצמיתות את כל האירועים המשתמשים בספק זה ואת כל נתוני הפנים שנסרקו בהם.\nהאם ברצונך להמשיך?`
+      : `Warning: Disconnecting ${providerName} will permanently delete all events that use this provider and their face descriptors.\nDo you want to proceed?`;
+
+    if (!confirm(warningMsg)) return;
+
+    try {
+      setLoadingEvents(true);
+      const eventsToDelete = cloudEvents.filter(e => (e.provider || 'dropbox') === provider);
+      for (const ev of eventsToDelete) {
+        await deleteCloudEvent(ev.id!);
+      }
+
+      if (provider === 'dropbox') {
+        disconnectDropbox();
+      }
+      alert(language === 'he' ? 'הספק נותק בהצלחה והאירועים המשויכים נמחקו.' : 'Provider disconnected and associated events deleted successfully.');
+    } catch (err) {
+      console.error('Failed to disconnect provider:', err);
+      alert(language === 'he' ? 'שגיאה בניתוק ספק הענן.' : 'Error disconnecting cloud provider.');
+    } finally {
+      setLoadingEvents(false);
+    }
+  };
+
+  const handleDeleteAccount = async () => {
+    if (!user) return;
+    const warningMsg = language === 'he'
+      ? 'אזהרה חמורה!\nפעולה זו תמחוק לצמיתות את החשבון שלך ואת כל האירועים, התמונות והפנים שנסרקו. לא ניתן לשחזר פעולה זו!\n\nהאם אתה בטוח לחלוטין שברצונך להמשיך?'
+      : 'CRITICAL WARNING!\nThis will permanently delete your account and all associated events, photos, and scanned faces. This action CANNOT be undone!\n\nAre you absolutely sure you want to proceed?';
+
+    if (!confirm(warningMsg)) return;
+
+    try {
+      setLoadingEvents(true);
+      // 1. Delete all user events
+      const userEvents = [...cloudEvents];
+      for (const ev of userEvents) {
+        await deleteCloudEvent(ev.id!);
+      }
+
+      // 2. Disconnect Dropbox
+      disconnectDropbox();
+
+      // 3. Delete Firebase user account
+      await user.delete();
+      alert(language === 'he' ? 'החשבון והנתונים נמחקו בהצלחה.' : 'Account and data successfully deleted.');
+      signOut();
+      navigate('/');
+    } catch (err: any) {
+      console.error('Failed to delete account:', err);
+      if (err.code === 'auth/requires-recent-login') {
+        alert(language === 'he'
+          ? 'לשם אבטחה, עליך להתחבר מחדש לחשבון לפני מחיקתו. אנא התנתק, התחבר שוב ונסה שנית.'
+          : 'For security reasons, you must re-authenticate before deleting your account. Please sign out, sign in again, and retry.'
+        );
+      } else {
+        alert(language === 'he'
+          ? 'שגיאה במחיקת החשבון. אנא נסה שוב או פנה לתמיכה.'
+          : 'Error deleting account. Please try again or contact support.'
+        );
+      }
+    } finally {
+      setLoadingEvents(false);
     }
   };
 
@@ -188,9 +274,17 @@ export function Dashboard() {
     }
   };
 
-  const filteredEvents = cloudEvents.filter(event => 
-    event.name.toLowerCase().includes(searchQuery.toLowerCase())
-  );
+  const filteredEvents = cloudEvents.filter(event => {
+    const query = searchQuery.trim().toLowerCase();
+    if (!query) return true;
+    
+    const nameMatches = event.name?.toLowerCase().includes(query);
+    const folderMatches = event.driveFolderName?.toLowerCase().includes(query);
+    const codeMatches = event.shareCode?.toLowerCase().includes(query);
+    const providerMatches = event.provider?.toLowerCase().includes(query);
+    
+    return nameMatches || folderMatches || codeMatches || providerMatches;
+  });
 
   const sidebarContent = (
     <div className="flex flex-col h-full py-8 gap-y-6 text-start" dir={isRtl ? 'rtl' : 'ltr'}>
@@ -205,9 +299,11 @@ export function Dashboard() {
       {/* Navigation */}
       <nav className="flex-1 flex flex-col gap-1 px-3">
         <button 
-          onClick={() => { setMobileMenuOpen(false); }}
+          onClick={() => { setActiveTab('events'); setMobileMenuOpen(false); }}
           className={`flex items-center gap-3 font-bold py-3 px-4 rounded-lg transition-all text-start cursor-pointer border-none bg-transparent outline-none w-full ${
-            isRtl ? 'border-r-4 border-copper-accent pr-3 text-on-background bg-surface-container' : 'border-l-4 border-copper-accent pl-3 text-on-background bg-surface-container'
+            activeTab === 'events'
+              ? (isRtl ? 'border-r-4 border-copper-accent pr-3 text-on-background bg-surface-container' : 'border-l-4 border-copper-accent pl-3 text-on-background bg-surface-container')
+              : 'text-sage-muted hover:text-on-background'
           }`}
         >
           <Calendar className="w-4 h-4 text-copper-accent" />
@@ -219,10 +315,16 @@ export function Dashboard() {
           <span className="font-label-sm text-xs uppercase tracking-wider group-hover:text-on-background transition-colors">{language === 'he' ? 'אנליטיקה' : 'Analytics'}</span>
         </button>
 
-
-        <button className="flex items-center gap-3 text-sage-muted hover:text-on-background py-3 px-4 rounded-lg transition-all text-start cursor-not-allowed border-none bg-transparent outline-none w-full group">
-          <Settings className="w-4 h-4 group-hover:text-on-background transition-colors" />
-          <span className="font-label-sm text-xs uppercase tracking-wider group-hover:text-on-background transition-colors">{t('settings.title')}</span>
+        <button 
+          onClick={() => { setActiveTab('settings'); setMobileMenuOpen(false); }}
+          className={`flex items-center gap-3 font-bold py-3 px-4 rounded-lg transition-all text-start cursor-pointer border-none bg-transparent outline-none w-full ${
+            activeTab === 'settings'
+              ? (isRtl ? 'border-r-4 border-copper-accent pr-3 text-on-background bg-surface-container' : 'border-l-4 border-copper-accent pl-3 text-on-background bg-surface-container')
+              : 'text-sage-muted hover:text-on-background'
+          }`}
+        >
+          <Settings className="w-4 h-4 text-copper-accent" />
+          <span className="font-label-sm text-xs uppercase tracking-wider">{t('settings.title')}</span>
         </button>
       </nav>
 
@@ -230,23 +332,15 @@ export function Dashboard() {
       <div className="px-5 mt-auto flex flex-col gap-2">
         <button
           onClick={() => {
-            if (!dropboxAccessToken) {
-              connectDropbox();
-            } else {
-              setNewEventName('');
-              setPendingPhotos([]);
-              setPendingFolder(null);
-              setShowFolderPicker(true);
-            }
+            setNewEventName('');
+            setPendingPhotos([]);
+            setPendingFolder(null);
+            setShowProviderModal(true);
           }}
           className="w-full bg-deep-forest hover:bg-primary text-background font-label-sm text-xs uppercase tracking-widest py-3.5 rounded flex items-center justify-center gap-2 transition-colors shadow-sm cursor-pointer"
         >
           <FolderOpen className="w-4 h-4" />
-          <span>
-            {!dropboxAccessToken
-              ? (language === 'he' ? 'חבר את Dropbox' : 'Connect Dropbox')
-              : (language === 'he' ? 'אירוע מתיקייה' : 'Event from Folder')}
-          </span>
+          <span>{language === 'he' ? 'אירוע מתיקייה' : 'Event from Folder'}</span>
         </button>
       </div>
     </div>
@@ -282,224 +376,588 @@ export function Dashboard() {
         isRtl ? 'md:mr-64' : 'md:ml-64'
       }`}>
         {/* Top Header Bar */}
-        <header className="sticky top-0 z-30 bg-background/90 backdrop-blur-md px-6 md:px-12 py-5 flex items-center justify-between border-b border-surface-border/30 w-full">
-          {/* Mobile Menu Toggle */}
-          <button 
-            onClick={() => setMobileMenuOpen(true)}
-            className="md:hidden text-on-background p-2 rounded hover:bg-surface-container transition-colors"
-          >
-            <Menu className="w-5 h-5" />
-          </button>
-
-          {/* Search bar */}
-          <div className="hidden sm:flex items-center bg-surface-container rounded-full px-4 py-2 border border-surface-border focus-within:border-sage-muted/50 transition-colors w-64 lg:w-96 text-start">
-            <Search className="text-sage-muted mr-2 shrink-0 w-4 h-4" />
-            <input 
-              type="text" 
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder={language === 'he' ? 'חפש אירועים...' : 'Search events...'}
-              className="bg-transparent border-none focus:ring-0 text-sm text-on-background w-full placeholder-sage-muted outline-none"
-            />
-          </div>
-
-          {/* User Profile */}
-          <div className={`flex items-center gap-4 ${isRtl ? 'mr-auto' : 'ml-auto'}`}>
-            {user && (
-              <div className="flex items-center gap-3 text-start bg-surface-container-low px-4 py-2 rounded-xl border border-surface-border/50">
-                {user.photoURL && (
-                  <img src={user.photoURL} alt="" className="w-8 h-8 rounded-full border border-surface-border shadow" />
+        <header className="sticky top-0 z-30 bg-background/90 backdrop-blur-md px-6 md:px-12 py-5 flex items-center justify-between border-b border-surface-border/30 w-full min-h-[72px]">
+          {activeTab === 'events' && showMobileSearch ? (
+            /* Mobile Search Bar Overlay */
+            <div className="flex items-center gap-2 w-full text-start animate-in fade-in duration-200" dir={isRtl ? 'rtl' : 'ltr'}>
+              <button
+                onClick={() => {
+                  setShowMobileSearch(false);
+                  setSearchQuery('');
+                }}
+                className="p-2 rounded text-sage-muted hover:text-on-background transition-colors cursor-pointer"
+                title={language === 'he' ? 'חזור' : 'Back'}
+              >
+                <ArrowLeft className={`w-5 h-5 ${isRtl ? 'rotate-180' : ''}`} />
+              </button>
+              <div className="flex-1 flex items-center bg-surface-container rounded-full px-4 py-2 border border-surface-border focus-within:border-sage-muted/50 transition-colors text-start relative">
+                <Search className={`text-sage-muted shrink-0 w-4 h-4 ${isRtl ? 'ml-2' : 'mr-2'}`} />
+                <input
+                  ref={mobileSearchInputRef}
+                  type="text"
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  placeholder={t('dashboard.searchPlaceholder')}
+                  className="bg-transparent border-none focus:ring-0 text-sm text-on-background w-full placeholder-sage-muted outline-none pe-8"
+                />
+                {searchQuery && (
+                  <button
+                    onClick={() => setSearchQuery('')}
+                    className={`absolute p-1 rounded-full text-sage-muted hover:text-on-background hover:bg-surface-container-high transition-all cursor-pointer ${
+                      isRtl ? 'left-3' : 'right-3'
+                    }`}
+                    title={language === 'he' ? 'נקה חיפוש' : 'Clear search'}
+                  >
+                    <X className="w-3.5 h-3.5" />
+                  </button>
                 )}
-                <div className="flex flex-col text-start">
-                  <p className="font-title-md text-xs font-bold text-on-background m-0 line-clamp-1">{user.displayName}</p>
-                  <p className="font-label-sm text-[9px] text-sage-muted uppercase tracking-wider m-0 line-clamp-1">{language === 'he' ? 'מנהל אירוע' : 'Event Manager'}</p>
-                </div>
-                <button
-                  onClick={signOut}
-                  className="p-1.5 rounded-lg hover:bg-surface-container text-sage-muted hover:text-red-400 transition-all cursor-pointer border-none bg-transparent"
-                  title={language === 'he' ? 'התנתק' : 'Sign Out'}
-                >
-                  <LogOut className="w-4 h-4" />
-                </button>
               </div>
-            )}
-          </div>
+            </div>
+          ) : (
+            /* Standard Header (with Search button on mobile & Desktop Search) */
+            <>
+              {/* Mobile Menu Toggle */}
+              <button 
+                onClick={() => setMobileMenuOpen(true)}
+                className="md:hidden text-on-background p-2 rounded hover:bg-surface-container transition-colors"
+              >
+                <Menu className="w-5 h-5" />
+              </button>
+
+              {/* Desktop Search bar */}
+              {activeTab === 'events' ? (
+                <div className="hidden sm:flex items-center bg-surface-container rounded-full px-4 py-2 border border-surface-border focus-within:border-sage-muted/50 transition-colors w-64 lg:w-96 text-start relative">
+                  <Search className={`text-sage-muted shrink-0 w-4 h-4 ${isRtl ? 'ml-2' : 'mr-2'}`} />
+                  <input 
+                    type="text" 
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    placeholder={t('dashboard.searchPlaceholder')}
+                    className="bg-transparent border-none focus:ring-0 text-sm text-on-background w-full placeholder-sage-muted outline-none pe-8"
+                  />
+                  {searchQuery && (
+                    <button
+                      onClick={() => setSearchQuery('')}
+                      className={`absolute p-1 rounded-full text-sage-muted hover:text-on-background hover:bg-surface-container-high transition-all cursor-pointer ${
+                        isRtl ? 'left-3' : 'right-3'
+                      }`}
+                      title={language === 'he' ? 'נקה חיפוש' : 'Clear search'}
+                    >
+                      <X className="w-3.5 h-3.5" />
+                    </button>
+                  )}
+                </div>
+              ) : (
+                /* Spacer if not events tab and not on mobile */
+                <div className="hidden sm:block w-64 lg:w-96" />
+              )}
+
+              {/* User Profile & Mobile Search Toggle */}
+              <div className={`flex items-center gap-2 sm:gap-4 ${isRtl ? 'mr-auto' : 'ml-auto'}`}>
+                {/* Mobile Search Toggle (only on events tab, hidden on sm and larger) */}
+                {activeTab === 'events' && (
+                  <button
+                    onClick={() => setShowMobileSearch(true)}
+                    className="sm:hidden text-on-background p-2 rounded hover:bg-surface-container transition-colors cursor-pointer"
+                    title={language === 'he' ? 'חיפוש' : 'Search'}
+                  >
+                    <Search className="w-5 h-5 text-sage-muted" />
+                  </button>
+                )}
+                
+                {user && (
+                  <div className="flex items-center gap-3 text-start bg-surface-container-low px-4 py-2 rounded-xl border border-surface-border/50">
+                    {user.photoURL && (
+                      <img src={user.photoURL} alt="" className="w-8 h-8 rounded-full border border-surface-border shadow" />
+                    )}
+                    <div className="flex flex-col text-start">
+                      <p className="font-title-md text-xs font-bold text-on-background m-0 line-clamp-1">{user.displayName}</p>
+                    </div>
+                    <button
+                      onClick={signOut}
+                      className="p-1.5 rounded-lg hover:bg-surface-container text-sage-muted hover:text-red-400 transition-all cursor-pointer border-none bg-transparent"
+                      title={language === 'he' ? 'התנתק' : 'Sign Out'}
+                    >
+                      <LogOut className="w-4 h-4" />
+                    </button>
+                  </div>
+                )}
+              </div>
+            </>
+          )}
         </header>
 
         {/* Canvas Area */}
         <div className="px-6 md:px-12 py-10 max-w-7xl mx-auto w-full flex-grow flex flex-col gap-8 text-start">
-          <div className="flex flex-col md:flex-row md:items-end justify-between gap-4">
-            <div>
-              <h2 className="font-display-lg text-3xl md:text-4xl text-on-background m-0 mb-2">{language === 'he' ? 'האירועים שלי' : 'My Events'}</h2>
-              <p className="font-body-md text-sage-muted m-0">{language === 'he' ? 'נהל את גלריות התמונות וסנכרון הפנים שלך.' : 'Manage your photography galleries and face synchronization.'}</p>
-            </div>
-            
-            {/* Choose photos backup button */}
-            <div className="flex items-center gap-3">
-              <button
-                onClick={() => {
-                  if (!dropboxAccessToken) {
-                    connectDropbox();
-                  } else {
-                    setNewEventName('');
-                    setPendingPhotos([]);
-                    setPendingFolder(null);
-                    setShowFolderPicker(true);
-                  }
-                }}
-                className="px-5 py-2.5 rounded border border-surface-border text-on-background hover:bg-surface-container font-label-sm text-xs uppercase tracking-wider flex items-center gap-2 transition-all cursor-pointer"
-              >
-                <Plus className="w-4 h-4" />
-                <span>
-                  {!dropboxAccessToken
-                    ? (language === 'he' ? 'חבר את Dropbox' : 'Connect Dropbox')
-                    : (language === 'he' ? 'יצירת אירוע מתיקייה' : 'Create Event from Folder')}
-                </span>
-              </button>
-            </div>
-          </div>
-
-          <div className="botanical-divider" />
-
-          {/* Grid list of events */}
-          {loadingEvents ? (
-            <div className="text-center py-20 text-sage-muted flex flex-col items-center gap-4">
-              <Loader2 className="w-8 h-8 animate-spin text-copper-accent" />
-              <span className="font-body-md">{language === 'he' ? 'טוען אירועים...' : 'Loading events...'}</span>
-            </div>
-          ) : filteredEvents.length === 0 ? (
-            <div className="border border-dashed border-surface-border rounded-xl p-16 text-center flex flex-col items-center justify-center gap-6 bg-surface-container/20">
-              <div className="w-12 h-12 rounded-full bg-surface-container-high border border-surface-border flex items-center justify-center text-sage-muted shadow">
-                <Cloud className="w-6 h-6" />
-              </div>
-              <div className="max-w-md">
-                <h3 className="font-title-md text-lg font-bold text-on-background m-0">{language === 'he' ? 'אין אירועים פעילים' : 'No Active Events'}</h3>
-                <p className="font-body-md text-sage-muted text-sm mt-2 leading-relaxed">
-                  {language === 'he' ? 'חבר תיקיית תמונות מ-Dropbox כדי להתחיל את הסריקה המקומית והזיהוי.' : 'Connect a folder from Dropbox to initialize on-device facial scanning.'}
-                </p>
-              </div>
-            </div>
-          ) : (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-              {filteredEvents.map((event) => {
-                const isThisEventScanning = isScanning && activeScanningEventId === event.id;
-                return (
-                  <div
-                    key={event.id}
-                    onClick={() => navigate(`/dashboard/event/${event.id}`)}
-                    className="group relative border border-surface-border/60 hover:border-copper-accent/35 bg-surface-container rounded-xl p-6 cursor-pointer transition-all duration-300 flex flex-col gap-6 shadow hover:shadow-2xl hover:-translate-y-0.5 text-start"
+          {activeTab === 'events' ? (
+            <>
+              <div className="flex flex-col md:flex-row md:items-end justify-between gap-4">
+                <div>
+                  <h2 className="font-display-lg text-3xl md:text-4xl text-on-background m-0 mb-2">{language === 'he' ? 'האירועים שלי' : 'My Events'}</h2>
+                  <p className="font-body-md text-sage-muted m-0">{language === 'he' ? 'נהל את גלריות התמונות וסנכרון הפנים שלך.' : 'Manage your photography galleries and face synchronization.'}</p>
+                </div>
+                
+                {/* Choose photos backup button */}
+                <div className="flex items-center gap-3">
+                  <button
+                    onClick={() => {
+                      setNewEventName('');
+                      setPendingPhotos([]);
+                      setPendingFolder(null);
+                      setShowProviderModal(true);
+                    }}
+                    className="px-5 py-2.5 rounded border border-surface-border text-on-background hover:bg-surface-container font-label-sm text-xs uppercase tracking-wider flex items-center gap-2 transition-all cursor-pointer"
                   >
-                    {/* Action overlays */}
-                    <div className={`absolute top-4 ${isRtl ? 'left-4' : 'right-4'} flex items-center gap-1.5 opacity-0 group-hover:opacity-100 transition-all z-10`}>
-                      <button
-                        onClick={(e) => handleCopyShareLink(event, e)}
-                        title={language === 'he' ? 'העתק קישור שיתוף' : 'Copy share link'}
-                        className="p-2 rounded bg-surface-container-high border border-surface-border text-sage-muted hover:text-copper-accent transition-all cursor-pointer"
-                      >
-                        {copiedId === event.id ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Link2 className="w-3.5 h-3.5" />}
-                      </button>
-                      <button
-                        onClick={(e) => { e.stopPropagation(); setQrEvent(event); }}
-                        title={language === 'he' ? 'הצג QR קוד' : 'Show QR code'}
-                        className="p-2 rounded bg-surface-container-high border border-surface-border text-sage-muted hover:text-copper-accent transition-all cursor-pointer"
-                      >
-                        <QrCode className="w-3.5 h-3.5" />
-                      </button>
-                      <button
-                        onClick={(e) => handleDeleteCloudEvent(event, e)}
-                        title={language === 'he' ? 'מחק אירוע' : 'Delete event'}
-                        className="p-2 rounded bg-surface-container-high border border-surface-border text-sage-muted hover:text-red-400 transition-all cursor-pointer"
-                      >
-                        <Trash2 className="w-3.5 h-3.5" />
-                      </button>
-                    </div>
+                    <Plus className="w-4 h-4" />
+                    <span>{language === 'he' ? 'יצירת אירוע מתיקייה' : 'Create Event from Folder'}</span>
+                  </button>
+                </div>
+              </div>
 
-                    <div className="flex flex-col gap-2 text-start">
-                      <div className="flex items-center">
-                        {isThisEventScanning ? (
-                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider bg-copper-accent/15 text-copper-accent border border-copper-accent/20 animate-pulse">
-                            <Loader2 className="w-2.5 h-2.5 animate-spin" /> {language === 'he' ? 'סורק כעת' : 'Scanning now'}
-                          </span>
-                        ) : (
-                          getStatusBadge(event.status)
-                        )}
-                      </div>
-                      <h3 className="font-display-lg text-xl text-on-background group-hover:text-copper-accent transition-colors line-clamp-1 m-0 mt-1">
-                        {event.name}
-                      </h3>
-                      <div className="flex items-center gap-1.5 text-xs text-sage-muted">
-                        <Calendar className="w-3.5 h-3.5 shrink-0" />
-                        <span>{event.createdAt && typeof event.createdAt === 'object' && 'toDate' in event.createdAt ? event.createdAt.toDate().toLocaleDateString(language === 'he' ? 'he-IL' : 'en-US') : (language === 'he' ? 'ממתין' : 'Pending')}</span>
-                      </div>
-                    </div>
+              <div className="botanical-divider" />
 
-                    {isThisEventScanning && (
-                      <div className="flex flex-col gap-2 w-full text-start" onClick={(e) => e.stopPropagation()}>
-                        <div className="flex items-center justify-between text-xs">
-                          <span className="text-sage-muted font-medium truncate">
-                            {isPaused ? t('dashboard.statusPaused') : formatETA(etaSeconds)}
-                          </span>
-                          <div className="flex items-center gap-1.5 shrink-0">
-                            <button
-                              onClick={(e) => {
-                                  e.stopPropagation();
-                                  togglePause();
-                                }}
-                              className={`p-1.5 rounded transition-all cursor-pointer border bg-transparent ${
-                                  isPaused
-                                    ? 'border-copper-accent/30 text-copper-accent bg-copper-accent/10'
-                                    : 'border-surface-border text-sage-muted hover:bg-surface-container-high'
-                                }`}
-                              title={isPaused ? t('eventView.isResumed') : t('eventView.isPaused')}
-                            >
-                              {isPaused ? <Play className="w-3.5 h-3.5" /> : <Pause className="w-3.5 h-3.5" />}
-                            </button>
-                            <span className="font-mono font-bold text-on-background">
-                              {scannedCount} / {totalToScan || event.photoCount || 0}
-                            </span>
+              {/* Grid list of events */}
+              {loadingEvents ? (
+                <div className="text-center py-20 text-sage-muted flex flex-col items-center gap-4">
+                  <Loader2 className="w-8 h-8 animate-spin text-copper-accent" />
+                  <span className="font-body-md">{language === 'he' ? 'טוען אירועים...' : 'Loading events...'}</span>
+                </div>
+              ) : cloudEvents.length === 0 ? (
+                /* No Events At All */
+                <div className="border border-dashed border-surface-border rounded-xl p-16 text-center flex flex-col items-center justify-center gap-6 bg-surface-container/20">
+                  <div className="w-12 h-12 rounded-full bg-surface-container-high border border-surface-border flex items-center justify-center text-sage-muted shadow">
+                    <Cloud className="w-6 h-6" />
+                  </div>
+                  <div className="max-w-md">
+                    <h3 className="font-title-md text-lg font-bold text-on-background m-0">{language === 'he' ? 'אין אירועים פעילים' : 'No Active Events'}</h3>
+                    <p className="font-body-md text-sage-muted text-sm mt-2 leading-relaxed">
+                      {language === 'he' ? 'חבר תיקיית תמונות מ-Dropbox כדי להתחיל את הסריקה המקומית והזיהוי.' : 'Connect a folder from Dropbox to initialize on-device facial scanning.'}
+                    </p>
+                  </div>
+                </div>
+              ) : filteredEvents.length === 0 ? (
+                /* No Matches for Search */
+                <div className="border border-dashed border-surface-border rounded-xl p-16 text-center flex flex-col items-center justify-center gap-6 bg-surface-container/20 animate-in fade-in duration-200">
+                  <div className="w-12 h-12 rounded-full bg-surface-container-high border border-surface-border flex items-center justify-center text-sage-muted shadow">
+                    <Search className="w-6 h-6 text-sage-muted" />
+                  </div>
+                  <div className="max-w-md flex flex-col items-center justify-center">
+                    <h3 className="font-title-md text-lg font-bold text-on-background m-0">
+                      {t('dashboard.noMatchingEvents')}
+                    </h3>
+                    <p className="font-body-md text-sage-muted text-sm mt-2 leading-relaxed">
+                      {t('dashboard.noMatchingEventsDesc')}
+                    </p>
+                    <button
+                      onClick={() => setSearchQuery('')}
+                      className="mt-6 px-5 py-2 rounded-lg bg-surface-container-high border border-surface-border text-on-background hover:bg-surface-container transition-all cursor-pointer font-bold text-xs"
+                    >
+                      {t('dashboard.clearSearch')}
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                  {filteredEvents.map((event) => {
+                    const isThisEventScanning = isScanning && activeScanningEventId === event.id;
+                    return (
+                      <div
+                        key={event.id}
+                        onClick={() => navigate(`/dashboard/event/${event.id}`)}
+                        className="group relative border border-surface-border/60 hover:border-copper-accent/35 bg-surface-container rounded-xl p-6 cursor-pointer transition-all duration-300 flex flex-col gap-6 shadow hover:shadow-2xl hover:-translate-y-0.5 text-start"
+                      >
+                        {/* Action overlays */}
+                        <div className={`absolute top-4 ${isRtl ? 'left-4' : 'right-4'} flex items-center gap-1.5 opacity-0 group-hover:opacity-100 transition-all z-10`}>
+                          <button
+                            onClick={(e) => handleCopyShareLink(event, e)}
+                            title={language === 'he' ? 'העתק קישור שיתוף' : 'Copy share link'}
+                            className="p-2 rounded bg-surface-container-high border border-surface-border text-sage-muted hover:text-copper-accent transition-all cursor-pointer"
+                          >
+                            {copiedId === event.id ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Link2 className="w-3.5 h-3.5" />}
+                          </button>
+                          <button
+                            onClick={(e) => { e.stopPropagation(); setQrEvent(event); }}
+                            title={language === 'he' ? 'הצג QR קוד' : 'Show QR code'}
+                            className="p-2 rounded bg-surface-container-high border border-surface-border text-sage-muted hover:text-copper-accent transition-all cursor-pointer"
+                          >
+                            <QrCode className="w-3.5 h-3.5" />
+                          </button>
+                          <button
+                            onClick={(e) => handleDeleteCloudEvent(event, e)}
+                            title={language === 'he' ? 'מחק אירוע' : 'Delete event'}
+                            className="p-2 rounded bg-surface-container-high border border-surface-border text-sage-muted hover:text-red-400 transition-all cursor-pointer"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
+
+                        <div className="flex flex-col gap-2 text-start">
+                          <div className="flex items-center">
+                            {isThisEventScanning ? (
+                              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider bg-copper-accent/15 text-copper-accent border border-copper-accent/20 animate-pulse">
+                                <Loader2 className="w-2.5 h-2.5 animate-spin" /> {language === 'he' ? 'סורק כעת' : 'Scanning now'}
+                              </span>
+                            ) : (
+                              getStatusBadge(event.status)
+                            )}
+                          </div>
+                          <h3 className="font-display-lg text-xl text-on-background group-hover:text-copper-accent transition-colors line-clamp-1 m-0 mt-1">
+                            {event.name}
+                          </h3>
+                          <div className="flex items-center gap-1.5 text-xs text-sage-muted">
+                            <Calendar className="w-3.5 h-3.5 shrink-0" />
+                            <span>{event.createdAt && typeof event.createdAt === 'object' && 'toDate' in event.createdAt ? event.createdAt.toDate().toLocaleDateString(language === 'he' ? 'he-IL' : 'en-US') : (language === 'he' ? 'ממתין' : 'Pending')}</span>
                           </div>
                         </div>
-                        <div className="w-full bg-surface-container-low rounded-full h-1.5 overflow-hidden border border-surface-border">
-                          <div
-                            className="bg-copper-accent h-1.5 rounded-full transition-all duration-300 ease-out"
-                            style={{
-                              width: `${(totalToScan || event.photoCount) > 0 ? (scannedCount / (totalToScan || event.photoCount)) * 100 : 0}%`,
-                            }}
-                          />
-                        </div>
-                      </div>
-                    )}
 
-                    <div className="grid grid-cols-2 gap-4 border-t border-surface-border pt-4 mt-auto">
-                      <div className="flex items-center gap-2">
-                        <div className="p-2 rounded bg-surface-container-low text-sage-muted border border-surface-border/50">
-                          <ImageIcon className="w-3.5 h-3.5" />
+                        {isThisEventScanning && (
+                          <div className="flex flex-col gap-2 w-full text-start" onClick={(e) => e.stopPropagation()}>
+                            <div className="flex items-center justify-between text-xs">
+                              <span className="text-sage-muted font-medium truncate">
+                                {isPaused ? t('dashboard.statusPaused') : formatETA(etaSeconds)}
+                              </span>
+                              <div className="flex items-center gap-1.5 shrink-0">
+                                <button
+                                  onClick={(e) => {
+                                      e.stopPropagation();
+                                      togglePause();
+                                    }}
+                                  className={`p-1.5 rounded transition-all cursor-pointer border bg-transparent ${
+                                      isPaused
+                                        ? 'border-copper-accent/30 text-copper-accent bg-copper-accent/10'
+                                        : 'border-surface-border text-sage-muted hover:bg-surface-container-high'
+                                    }`}
+                                  title={isPaused ? t('eventView.isResumed') : t('eventView.isPaused')}
+                                >
+                                  {isPaused ? <Play className="w-3.5 h-3.5" /> : <Pause className="w-3.5 h-3.5" />}
+                                </button>
+                                <span className="font-mono font-bold text-on-background">
+                                  {scannedCount} / {totalToScan || event.photoCount || 0}
+                                </span>
+                              </div>
+                            </div>
+                            <div className="w-full bg-surface-container-low rounded-full h-1.5 overflow-hidden border border-surface-border">
+                              <div
+                                className="bg-copper-accent h-1.5 rounded-full transition-all duration-300 ease-out"
+                                style={{
+                                  width: `${(totalToScan || event.photoCount) > 0 ? (scannedCount / (totalToScan || event.photoCount)) * 100 : 0}%`,
+                                }}
+                              />
+                            </div>
+                          </div>
+                        )}
+
+                        <div className="grid grid-cols-2 gap-4 border-t border-surface-border pt-4 mt-auto">
+                          <div className="flex items-center gap-2">
+                            <div className="p-2 rounded bg-surface-container-low text-sage-muted border border-surface-border/50">
+                              <ImageIcon className="w-3.5 h-3.5" />
+                            </div>
+                            <div className="flex flex-col text-start">
+                              <span className="text-[10px] text-sage-muted uppercase tracking-wider">{language === 'he' ? 'תמונות' : 'Photos'}</span>
+                              <span className="text-sm font-bold text-on-background">
+                                {isThisEventScanning ? scannedCount : event.photoCount}
+                              </span>
+                            </div>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <div className="p-2 rounded bg-surface-container-low border border-surface-border/50 shrink-0 flex items-center justify-center">
+                              {event.provider === 'google' ? (
+                                <svg viewBox="0 0 24 24" className="w-3.5 h-3.5 shrink-0" xmlns="http://www.w3.org/2000/svg">
+                                  <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4" />
+                                  <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853" />
+                                  <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z" fill="#FBBC05" />
+                                  <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z" fill="#EA4335" />
+                                </svg>
+                              ) : event.provider === 'onedrive' ? (
+                                <svg viewBox="0 0 24 24" className="w-3.5 h-3.5 text-blue-400 fill-current shrink-0" xmlns="http://www.w3.org/2000/svg">
+                                  <path d="M19.33 11.5A5 5 0 0 0 10.08 9A6.5 6.5 0 0 0 4.67 19.5H19.33A4.5 4.5 0 0 0 19.33 11.5Z" />
+                                  <path d="M16 11a4.5 4.5 0 0 0-8.33-2.17A5.5 5.5 0 0 0 2.5 17.5h13.83A3.5 3.5 0 0 0 16 11Z" opacity="0.8" />
+                                </svg>
+                              ) : (
+                                <svg viewBox="0 0 24 24" className="w-3.5 h-3.5 text-blue-400 fill-current shrink-0" xmlns="http://www.w3.org/2000/svg">
+                                  <path d="M6 2L1 5.3L6 8.7L11 5.3L6 2Z" />
+                                  <path d="M18 2L13 5.3L18 8.7L23 5.3L18 2Z" />
+                                  <path d="M6 15.4L1 12.1L6 8.7L11 12.1L6 15.4Z" />
+                                  <path d="M18 15.4L13 12.1L18 8.7L23 12.1L18 15.4Z" />
+                                  <path d="M12 12.5L7 15.8L12 19.2L17 15.8L12 12.5Z" />
+                                  <path d="M12 20.3L7 17.1L6 17.7V19.4L12 23L18 19.4V17.7L17 17.1L12 20.3Z" />
+                                </svg>
+                              )}
+                            </div>
+                            <div className="flex flex-col text-start">
+                              <span className="text-[10px] text-sage-muted uppercase tracking-wider">{language === 'he' ? 'ספק ענן' : 'Cloud Provider'}</span>
+                              <span className="text-sm font-bold text-on-background capitalize">
+                                {event.provider === 'google' ? 'Google' : event.provider === 'onedrive' ? 'OneDrive' : 'Dropbox'}
+                              </span>
+                            </div>
+                          </div>
                         </div>
-                        <div className="flex flex-col text-start">
-                          <span className="text-[10px] text-sage-muted uppercase tracking-wider">{language === 'he' ? 'תמונות' : 'Photos'}</span>
-                          <span className="text-sm font-bold text-on-background">
-                            {isThisEventScanning ? scannedCount : event.photoCount}
-                          </span>
+
+                        <div className="flex items-center gap-1 text-[10px] uppercase tracking-widest font-bold text-copper-accent mt-1 self-start group-hover:underline">
+                          <span>{language === 'he' ? 'פתח אירוע' : 'Open Event'}</span>
+                          <ArrowLeft className={`w-3.5 h-3.5 transform group-hover:-translate-x-1 transition-transform ${isRtl ? '' : 'rotate-180'}`} />
                         </div>
                       </div>
-                      <div className="flex items-center gap-2">
-                        <div className="p-2 rounded bg-surface-container-low text-sage-muted border border-surface-border/50">
-                          <Users className="w-3.5 h-3.5" />
-                        </div>
-                        <div className="flex flex-col text-start">
-                          <span className="text-[10px] text-sage-muted uppercase tracking-wider">{language === 'he' ? 'אורחים' : 'Guests'}</span>
-                          <span className="text-sm font-bold text-on-background">{event.faceCount}</span>
-                        </div>
-                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </>
+          ) : (
+            /* Settings & Accessibility Panel */
+            <div className="flex flex-col gap-8 max-w-3xl">
+              <div>
+                <h2 className="font-display-lg text-3xl text-on-background m-0 mb-2">{t('settings.title')}</h2>
+                <p className="font-body-md text-sage-muted m-0 text-start">
+                  {language === 'he' 
+                    ? 'נהל הגדרות אפליקציה, חיבורי ספקי ענן ופרטיות החשבון.' 
+                    : 'Manage application settings, cloud provider links, and account privacy.'}
+                </p>
+              </div>
+
+              <div className="botanical-divider" />
+
+              {/* Accessibility Settings card */}
+              <div className="bg-surface-container border border-surface-border rounded-xl p-6 flex flex-col gap-6">
+                <h3 className="font-title-md text-lg font-bold text-on-background m-0 flex items-center gap-2">
+                  <Type className="w-5 h-5 text-copper-accent" />
+                  {t('settings.accessibility')}
+                </h3>
+                
+                <div className="flex flex-col gap-5">
+                  {/* Theme Toggle */}
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-surface-border/40 pb-4">
+                    <div className="text-start">
+                      <p className="font-title-sm text-sm font-bold text-on-background m-0">{t('settings.theme')}</p>
+                      <p className="text-xs text-sage-muted m-0">{language === 'he' ? 'בחר מראה בהיר או כהה לממשק.' : 'Choose light or dark appearance.'}</p>
                     </div>
-
-                    <div className="flex items-center gap-1 text-[10px] uppercase tracking-widest font-bold text-copper-accent mt-1 self-start group-hover:underline">
-                      <span>{language === 'he' ? 'פתח אירוע' : 'Open Event'}</span>
-                      <ArrowLeft className={`w-3.5 h-3.5 transform group-hover:-translate-x-1 transition-transform ${isRtl ? '' : 'rotate-180'}`} />
+                    <div className="flex gap-2 bg-surface-container-low p-1.5 rounded border border-surface-border w-full sm:w-auto shrink-0">
+                      <button
+                        onClick={() => setTheme('light')}
+                        className={`flex-1 sm:flex-initial px-4 py-2 rounded text-xs font-bold flex items-center justify-center gap-1.5 transition-all cursor-pointer border-none ${
+                          theme === 'light' 
+                            ? 'bg-surface-container-high text-copper-accent border border-surface-border/50 shadow' 
+                            : 'bg-transparent text-sage-muted hover:text-on-background'
+                        }`}
+                      >
+                        <Sun className="w-3.5 h-3.5" />
+                        {t('settings.light')}
+                      </button>
+                      <button
+                        onClick={() => setTheme('dark')}
+                        className={`flex-1 sm:flex-initial px-4 py-2 rounded text-xs font-bold flex items-center justify-center gap-1.5 transition-all cursor-pointer border-none ${
+                          theme === 'dark' 
+                            ? 'bg-surface-container-high text-copper-accent border border-surface-border/50 shadow' 
+                            : 'bg-transparent text-sage-muted hover:text-on-background'
+                        }`}
+                      >
+                        <Moon className="w-3.5 h-3.5" />
+                        {t('settings.dark')}
+                      </button>
                     </div>
                   </div>
-                );
-              })}
+
+                  {/* Font Size Toggle */}
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-surface-border/40 pb-4">
+                    <div className="text-start">
+                      <p className="font-title-sm text-sm font-bold text-on-background m-0">{t('settings.fontSize')}</p>
+                      <p className="text-xs text-sage-muted m-0">{language === 'he' ? 'התאם את גודל הגופן לשיפור הקריאות.' : 'Adjust typography scale for optimal readability.'}</p>
+                    </div>
+                    <div className="flex gap-2 bg-surface-container-low p-1.5 rounded border border-surface-border w-full sm:w-auto shrink-0">
+                      <button
+                        onClick={() => setFontSize('normal')}
+                        className={`flex-1 sm:flex-initial px-3 py-2 rounded text-xs font-bold transition-all cursor-pointer border-none ${
+                          fontSize === 'normal' 
+                            ? 'bg-surface-container-high text-copper-accent border border-surface-border/50 shadow' 
+                            : 'bg-transparent text-sage-muted hover:text-on-background'
+                        }`}
+                      >
+                        {t('settings.normal')}
+                      </button>
+                      <button
+                        onClick={() => setFontSize('large')}
+                        className={`flex-1 sm:flex-initial px-3 py-2 rounded text-xs font-bold transition-all cursor-pointer border-none ${
+                          fontSize === 'large' 
+                            ? 'bg-surface-container-high text-copper-accent border border-surface-border/50 shadow' 
+                            : 'bg-transparent text-sage-muted hover:text-on-background'
+                        }`}
+                      >
+                        {t('settings.large')}
+                      </button>
+                      <button
+                        onClick={() => setFontSize('xlarge')}
+                        className={`flex-1 sm:flex-initial px-3 py-2 rounded text-xs font-bold transition-all cursor-pointer border-none ${
+                          fontSize === 'xlarge' 
+                            ? 'bg-surface-container-high text-copper-accent border border-surface-border/50 shadow' 
+                            : 'bg-transparent text-sage-muted hover:text-on-background'
+                        }`}
+                      >
+                        {t('settings.xlarge')}
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Language Toggle */}
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                    <div className="text-start">
+                      <p className="font-title-sm text-sm font-bold text-on-background m-0">{t('settings.language')}</p>
+                      <p className="text-xs text-sage-muted m-0">{language === 'he' ? 'בחר את שפת המערכת.' : 'Select system language.'}</p>
+                    </div>
+                    <div className="flex gap-2 bg-surface-container-low p-1.5 rounded border border-surface-border w-full sm:w-auto shrink-0">
+                      <button
+                        onClick={() => setLanguage('he')}
+                        className={`flex-1 sm:flex-initial px-4 py-2 rounded text-xs font-bold transition-all cursor-pointer border-none ${
+                          language === 'he' 
+                            ? 'bg-surface-container-high text-copper-accent border border-surface-border/50 shadow' 
+                            : 'bg-transparent text-sage-muted hover:text-on-background'
+                        }`}
+                      >
+                        {t('settings.hebrew')}
+                      </button>
+                      <button
+                        onClick={() => setLanguage('en')}
+                        className={`flex-1 sm:flex-initial px-4 py-2 rounded text-xs font-bold transition-all cursor-pointer border-none ${
+                          language === 'en' 
+                            ? 'bg-surface-container-high text-copper-accent border border-surface-border/50 shadow' 
+                            : 'bg-transparent text-sage-muted hover:text-on-background'
+                        }`}
+                      >
+                        {t('settings.english')}
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Cloud Providers card */}
+              <div className="bg-surface-container border border-surface-border rounded-xl p-6 flex flex-col gap-6">
+                <div>
+                  <h3 className="font-title-md text-lg font-bold text-on-background m-0 flex items-center gap-2">
+                    <Cloud className="w-5 h-5 text-copper-accent" />
+                    {t('settings.cloudProviders')}
+                  </h3>
+                  <p className="text-xs text-sage-muted mt-1 m-0 text-start">{t('settings.cloudProvidersDesc')}</p>
+                </div>
+
+                <div className="grid grid-cols-1 gap-4">
+                  {/* Dropbox */}
+                  <div className="flex items-center justify-between p-4 rounded-xl bg-surface-container-low border border-surface-border hover:border-surface-border-high transition-all">
+                    <div className="flex items-center gap-3 text-start">
+                      <div className="w-10 h-10 rounded-lg bg-blue-500/10 flex items-center justify-center border border-blue-500/20 shrink-0">
+                        <svg viewBox="0 0 24 24" className="w-5 h-5 text-blue-400 fill-current shrink-0" xmlns="http://www.w3.org/2000/svg">
+                          <path d="M6 2L1 5.3L6 8.7L11 5.3L6 2Z" />
+                          <path d="M18 2L13 5.3L18 8.7L23 5.3L18 2Z" />
+                          <path d="M6 15.4L1 12.1L6 8.7L11 12.1L6 15.4Z" />
+                          <path d="M18 15.4L13 12.1L18 8.7L23 12.1L18 15.4Z" />
+                          <path d="M12 12.5L7 15.8L12 19.2L17 15.8L12 12.5Z" />
+                          <path d="M12 20.3L7 17.1L6 17.7V19.4L12 23L18 19.4V17.7L17 17.1L12 20.3Z" />
+                        </svg>
+                      </div>
+                      <div>
+                        <p className="font-bold text-sm text-on-background m-0">Dropbox</p>
+                        <p className="text-xs text-sage-muted m-0">
+                          {dropboxAccessToken ? (
+                            <span className="text-emerald-400 font-semibold">{t('settings.connected')}</span>
+                          ) : (
+                            <span>{t('settings.notConnected')}</span>
+                          )}
+                        </p>
+                      </div>
+                    </div>
+                    {dropboxAccessToken ? (
+                      <button
+                        onClick={() => handleDisconnectProvider('dropbox')}
+                        className="px-4 py-2 rounded border border-red-500/30 bg-red-500/10 text-red-400 hover:bg-red-500/25 hover:border-red-500/50 text-xs font-bold transition-all cursor-pointer"
+                      >
+                        {t('settings.disconnect')}
+                      </button>
+                    ) : (
+                      <button
+                        onClick={connectDropbox}
+                        className="px-4 py-2 rounded bg-deep-forest hover:bg-primary text-background text-xs font-bold transition-all cursor-pointer border-none"
+                      >
+                        {t('settings.connect')}
+                      </button>
+                    )}
+                  </div>
+
+                  {/* Google Drive - "Soon" */}
+                  <div className="flex items-center justify-between p-4 rounded-xl bg-surface-container-low/40 border border-surface-border/40 opacity-70">
+                    <div className="flex items-center gap-3 text-start">
+                      <div className="w-10 h-10 rounded-lg bg-surface-container-high/50 flex items-center justify-center border border-surface-border/40 shrink-0">
+                        <svg viewBox="0 0 24 24" className="w-5 h-5 shrink-0" xmlns="http://www.w3.org/2000/svg">
+                          <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4" fillOpacity="0.8"/>
+                          <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853" fillOpacity="0.8"/>
+                          <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z" fill="#FBBC05" fillOpacity="0.8"/>
+                          <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z" fill="#EA4335" fillOpacity="0.8"/>
+                        </svg>
+                      </div>
+                      <div>
+                        <div className="flex items-center gap-1.5">
+                          <p className="font-bold text-sm text-on-background m-0">Google Drive</p>
+                          <span className="px-1.5 py-0.5 rounded text-[9px] font-bold bg-copper-accent/15 text-copper-accent border border-copper-accent/20 uppercase tracking-wide">
+                            {t('settings.soon')}
+                          </span>
+                        </div>
+                        <p className="text-xs text-sage-muted m-0">{t('settings.notConnected')}</p>
+                      </div>
+                    </div>
+                    <button
+                      disabled
+                      className="px-4 py-2 rounded bg-surface-container-high text-sage-muted text-xs font-bold border-none cursor-not-allowed"
+                    >
+                      {t('settings.connect')}
+                    </button>
+                  </div>
+
+                  {/* OneDrive - "Soon" */}
+                  <div className="flex items-center justify-between p-4 rounded-xl bg-surface-container-low/40 border border-surface-border/40 opacity-70">
+                    <div className="flex items-center gap-3 text-start">
+                      <div className="w-10 h-10 rounded-lg bg-blue-600/5 flex items-center justify-center border border-blue-600/10 shrink-0">
+                        <svg viewBox="0 0 24 24" className="w-5 h-5 text-blue-500/60 fill-current shrink-0" xmlns="http://www.w3.org/2000/svg">
+                          <path d="M19.33 11.5A5 5 0 0 0 10.08 9A6.5 6.5 0 0 0 4.67 19.5H19.33A4.5 4.5 0 0 0 19.33 11.5Z" />
+                          <path d="M16 11a4.5 4.5 0 0 0-8.33-2.17A5.5 5.5 0 0 0 2.5 17.5h13.83A3.5 3.5 0 0 0 16 11Z" opacity="0.5" />
+                        </svg>
+                      </div>
+                      <div>
+                        <div className="flex items-center gap-1.5">
+                          <p className="font-bold text-sm text-on-background m-0">Microsoft OneDrive</p>
+                          <span className="px-1.5 py-0.5 rounded text-[9px] font-bold bg-copper-accent/15 text-copper-accent border border-copper-accent/20 uppercase tracking-wide">
+                            {t('settings.soon')}
+                          </span>
+                        </div>
+                        <p className="text-xs text-sage-muted m-0">{t('settings.notConnected')}</p>
+                      </div>
+                    </div>
+                    <button
+                      disabled
+                      className="px-4 py-2 rounded bg-surface-container-high text-sage-muted text-xs font-bold border-none cursor-not-allowed"
+                    >
+                      {t('settings.connect')}
+                    </button>
+                  </div>
+                </div>
+              </div>
+
+              {/* Danger Zone */}
+              <div className="bg-surface-container border border-red-500/20 rounded-xl p-6 flex flex-col gap-6">
+                <div className="text-start">
+                  <h3 className="font-title-md text-lg font-bold text-red-400 m-0 flex items-center gap-2">
+                    <AlertTriangle className="w-5 h-5 text-red-400" />
+                    {t('settings.deleteAccount')}
+                  </h3>
+                  <p className="text-xs text-sage-muted mt-1 m-0">{t('settings.deleteAccountDesc')}</p>
+                </div>
+                
+                <div className="flex justify-start">
+                  <button
+                    onClick={handleDeleteAccount}
+                    className="px-5 py-3 rounded border border-red-500/40 bg-red-500/5 text-red-400 hover:bg-red-500/10 hover:border-red-500 transition-all text-sm font-bold cursor-pointer animate-pulse"
+                  >
+                    {t('settings.deleteAccountBtn')}
+                  </button>
+                </div>
+              </div>
             </div>
           )}
         </div>
@@ -608,6 +1066,7 @@ export function Dashboard() {
       )}
       {showFolderPicker && dropboxAccessToken && (
         <FolderPicker
+          provider={selectedProvider}
           accessToken={dropboxAccessToken}
           onSelect={(folderId, folderName) => {
             handleFolderSelected({ id: folderId, name: folderName });
@@ -615,6 +1074,116 @@ export function Dashboard() {
           }}
           onCancel={() => setShowFolderPicker(false)}
         />
+      )}
+
+      {/* Cloud Provider Select Modal */}
+      {showProviderModal && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4" onClick={() => setShowProviderModal(false)}>
+          <div className="bg-surface-container border border-surface-border rounded-xl p-8 max-w-md w-full shadow-2xl flex flex-col gap-6" onClick={(e) => e.stopPropagation()} dir={isRtl ? 'rtl' : 'ltr'}>
+            <div className="flex items-center justify-between">
+              <h3 className="font-display-lg text-xl text-on-background m-0">{t('settings.selectProviderTitle')}</h3>
+              <button
+                onClick={() => setShowProviderModal(false)}
+                className="p-1.5 rounded hover:bg-surface-container-high text-sage-muted hover:text-on-background transition-colors cursor-pointer border-none bg-transparent"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <p className="text-xs text-sage-muted m-0 text-start">{t('settings.selectProviderDesc')}</p>
+
+            <div className="flex flex-col gap-3">
+              {/* Dropbox Button */}
+              <button
+                onClick={() => {
+                  setSelectedProvider('dropbox');
+                  setShowProviderModal(false);
+                  if (!dropboxAccessToken) {
+                    connectDropbox();
+                  } else {
+                    setNewEventName('');
+                    setPendingPhotos([]);
+                    setPendingFolder(null);
+                    setShowFolderPicker(true);
+                  }
+                }}
+                className="flex items-center justify-between p-4 rounded-xl bg-surface-container-low border border-surface-border hover:border-copper-accent/40 hover:bg-surface-container transition-all cursor-pointer text-start w-full text-on-background"
+              >
+                <div className="flex items-center gap-3">
+                  <div className="w-8 h-8 rounded bg-blue-500/10 flex items-center justify-center border border-blue-500/20 shrink-0">
+                    <svg viewBox="0 0 24 24" className="w-4 h-4 text-blue-400 fill-current shrink-0" xmlns="http://www.w3.org/2000/svg">
+                      <path d="M6 2L1 5.3L6 8.7L11 5.3L6 2Z" />
+                      <path d="M18 2L13 5.3L18 8.7L23 5.3L18 2Z" />
+                      <path d="M6 15.4L1 12.1L6 8.7L11 12.1L6 15.4Z" />
+                      <path d="M18 15.4L13 12.1L18 8.7L23 12.1L18 15.4Z" />
+                      <path d="M12 12.5L7 15.8L12 19.2L17 15.8L12 12.5Z" />
+                      <path d="M12 20.3L7 17.1L6 17.7V19.4L12 23L18 19.4V17.7L17 17.1L12 20.3Z" />
+                    </svg>
+                  </div>
+                  <div>
+                    <span className="font-bold text-sm block">Dropbox</span>
+                    <span className="text-[10px] text-sage-muted">
+                      {dropboxAccessToken ? t('settings.connected') : t('settings.notConnected')}
+                    </span>
+                  </div>
+                </div>
+                {dropboxAccessToken && (
+                  <span className="w-2 h-2 rounded-full bg-emerald-400" />
+                )}
+              </button>
+
+              {/* Google Drive Button - "Soon" */}
+              <button
+                disabled
+                className="flex items-center justify-between p-4 rounded-xl bg-surface-container-low/40 border border-surface-border/40 opacity-60 text-start w-full text-on-background cursor-not-allowed"
+              >
+                <div className="flex items-center gap-3">
+                  <div className="w-8 h-8 rounded bg-surface-container-high/50 flex items-center justify-center border border-surface-border/40 shrink-0">
+                    <svg viewBox="0 0 24 24" className="w-4 h-4 shrink-0" xmlns="http://www.w3.org/2000/svg">
+                      <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4" fillOpacity="0.8"/>
+                      <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853" fillOpacity="0.8"/>
+                      <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z" fill="#FBBC05" fillOpacity="0.8"/>
+                      <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z" fill="#EA4335" fillOpacity="0.8"/>
+                    </svg>
+                  </div>
+                  <div>
+                    <div className="flex items-center gap-1.5">
+                      <span className="font-bold text-sm block">Google Drive</span>
+                      <span className="px-1 py-0.2 rounded text-[8px] font-bold bg-copper-accent/15 text-copper-accent border border-copper-accent/20 uppercase tracking-wide">
+                        {t('settings.soon')}
+                      </span>
+                    </div>
+                    <span className="text-[10px] text-sage-muted">{t('settings.notConnected')}</span>
+                  </div>
+                </div>
+              </button>
+
+              {/* OneDrive Button - "Soon" */}
+              <button
+                disabled
+                className="flex items-center justify-between p-4 rounded-xl bg-surface-container-low/40 border border-surface-border/40 opacity-60 text-start w-full text-on-background cursor-not-allowed"
+              >
+                <div className="flex items-center gap-3">
+                  <div className="w-8 h-8 rounded bg-blue-600/5 flex items-center justify-center border border-blue-600/10 shrink-0">
+                    <svg viewBox="0 0 24 24" className="w-4 h-4 text-blue-500/60 fill-current shrink-0" xmlns="http://www.w3.org/2000/svg">
+                      <path d="M19.33 11.5A5 5 0 0 0 10.08 9A6.5 6.5 0 0 0 4.67 19.5H19.33A4.5 4.5 0 0 0 19.33 11.5Z" />
+                      <path d="M16 11a4.5 4.5 0 0 0-8.33-2.17A5.5 5.5 0 0 0 2.5 17.5h13.83A3.5 3.5 0 0 0 16 11Z" opacity="0.5" />
+                    </svg>
+                  </div>
+                  <div>
+                    <div className="flex items-center gap-1.5">
+                      <span className="font-bold text-sm block">Microsoft OneDrive</span>
+                      <span className="px-1 py-0.2 rounded text-[8px] font-bold bg-copper-accent/15 text-copper-accent border border-copper-accent/20 uppercase tracking-wide">
+                        {t('settings.soon')}
+                      </span>
+                    </div>
+                    <span className="text-[10px] text-sage-muted">{t('settings.notConnected')}</span>
+                  </div>
+                </div>
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );

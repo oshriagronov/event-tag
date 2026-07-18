@@ -1,6 +1,6 @@
 import { createContext, useContext, useState, useRef, useEffect, type ReactNode } from 'react';
 import * as faceapi from '@vladmandic/face-api';
-import { getPhotoBlob, checkTokenValidity, getOrCreateSharedLink, convertToRawDropboxUrl } from '../services/dropbox';
+import { getPhotoBlob, checkTokenValidity, getOrCreateSharedLink, convertToRawUrl, type CloudProvider } from '../services/cloudProviders';
 import { getONNXSession, extractEmbedding } from '../services/onnxModel';
 import { alignFace } from '../services/faceAlignment';
 import {
@@ -24,7 +24,8 @@ interface ScannerContextType {
   startCloudScanning: (
     eventId: string,
     photos: CloudPhoto[],
-    dropboxAccessToken: string
+    accessToken: string,
+    provider: CloudProvider
   ) => Promise<void>;
   togglePause: () => void;
 }
@@ -182,7 +183,8 @@ export function ScannerProvider({ children }: { children: ReactNode }) {
   const startCloudScanning = async (
     eventId: string,
     photos: CloudPhoto[],
-    dropboxAccessToken: string
+    accessToken: string,
+    provider: CloudProvider
   ) => {
     if (isScanning) {
       alert('סריקה כבר מתבצעת. אנא המתן לסיומה.');
@@ -214,8 +216,7 @@ export function ScannerProvider({ children }: { children: ReactNode }) {
       if (preloadCache.has(fileId)) return preloadCache.get(fileId)!;
 
       const promise = (async () => {
-        const token = tokenRef.current || dropboxAccessToken;
-        return await getPhotoBlob(token || '', fileId);
+        return await getPhotoBlob(provider, accessToken, fileId);
       })();
 
       preloadCache.set(fileId, promise);
@@ -241,9 +242,8 @@ export function ScannerProvider({ children }: { children: ReactNode }) {
 
         // If it is processed but lacks publicUrl, we generate publicUrl and update Firestore
         try {
-          const token = tokenRef.current || dropboxAccessToken;
-          const sharedLink = await getOrCreateSharedLink(token || '', photo.driveFileId);
-          const publicUrl = convertToRawDropboxUrl(sharedLink);
+          const sharedLink = await getOrCreateSharedLink(provider, accessToken, photo.driveFileId);
+          const publicUrl = convertToRawUrl(provider, sharedLink);
 
           photosBuffer.push({
             id: photo.id!,
@@ -303,9 +303,8 @@ export function ScannerProvider({ children }: { children: ReactNode }) {
         const { width, height, detections } = await processPhotoLocally(fileBlob);
 
         // Get or create public shared link for the photo (propagates errors to outer catch block for recovery)
-        const token = tokenRef.current || dropboxAccessToken;
-        const sharedLink = await getOrCreateSharedLink(token || '', photo.driveFileId);
-        const publicUrl = convertToRawDropboxUrl(sharedLink);
+        const sharedLink = await getOrCreateSharedLink(provider, accessToken, photo.driveFileId);
+        const publicUrl = convertToRawUrl(provider, sharedLink);
 
         // Add photo updates to buffer
         photosBuffer.push({
@@ -367,8 +366,7 @@ export function ScannerProvider({ children }: { children: ReactNode }) {
 
         try {
           // Check if the token is expired/invalid for other errors
-          const token = tokenRef.current || dropboxAccessToken;
-          const isValid = await checkTokenValidity(token || '');
+          const isValid = await checkTokenValidity(provider, accessToken);
           if (!isValid) {
             // Token is invalid/expired! Pause scanner, set scanError, clear cache
             setScanError('auth_expired');

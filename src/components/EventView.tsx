@@ -14,11 +14,12 @@ import {
   type CloudEvent,
   type CloudPhoto,
 } from '../services/firestore';
-import { listPhotosInFolder, getPhotoThumbnailBlob, checkTokenValidity, convertToRawDropboxUrl } from '../services/dropbox';
+import { listPhotosInFolder, getPhotoThumbnailBlob, checkTokenValidity, convertToRawUrl, type CloudProvider } from '../services/cloudProviders';
 import { QRCodeSVG } from 'qrcode.react';
 import { useTranslation } from '../services/translations';
 
 interface CloudPhotoImageProps {
+  provider?: CloudProvider;
   driveFileId: string;
   accessToken: string;
   className?: string;
@@ -26,7 +27,7 @@ interface CloudPhotoImageProps {
   publicUrl?: string;
 }
 
-function CloudPhotoImage({ driveFileId, accessToken, className = '', alt = '', publicUrl }: CloudPhotoImageProps) {
+function CloudPhotoImage({ provider = 'dropbox', driveFileId, accessToken, className = '', alt = '', publicUrl }: CloudPhotoImageProps) {
   const [src, setSrc] = useState<string>('');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
@@ -40,7 +41,7 @@ function CloudPhotoImage({ driveFileId, accessToken, className = '', alt = '', p
       // Use direct publicUrl if available to bypass API calls and avoid CORS issues
       if (publicUrl) {
         if (active) {
-          setSrc(convertToRawDropboxUrl(publicUrl));
+          setSrc(convertToRawUrl(provider, publicUrl));
           setLoading(false);
           setError(false);
         }
@@ -55,19 +56,22 @@ function CloudPhotoImage({ driveFileId, accessToken, className = '', alt = '', p
       setLoading(true);
       setError(false);
       try {
-        const blob = await getPhotoThumbnailBlob(accessToken, driveFileId, 'w256h256');
+        const blob = await getPhotoThumbnailBlob(provider, accessToken, driveFileId, 'w256h256');
         if (active) {
           url = URL.createObjectURL(blob);
           setSrc(url);
           setLoading(false);
+          setError(false);
         }
       } catch (err: any) {
         console.error("Failed to load cloud photo blob:", err);
         const errStr = err instanceof Error ? err.message : String(err);
         if (errStr.includes('401') || errStr.includes('404')) {
-          checkTokenValidity(accessToken).then((isValid) => {
+          checkTokenValidity(provider, accessToken).then((isValid) => {
             if (!isValid) {
-              clearDropboxToken();
+              if (provider === 'dropbox') {
+                clearDropboxToken();
+              }
             }
           }).catch(() => {});
         }
@@ -86,7 +90,7 @@ function CloudPhotoImage({ driveFileId, accessToken, className = '', alt = '', p
         URL.revokeObjectURL(url);
       }
     };
-  }, [driveFileId, accessToken]);
+  }, [driveFileId, accessToken, provider]);
 
   if (error) {
     return (
@@ -168,7 +172,10 @@ export function EventView({ eventId, onBack }: EventViewProps) {
   }, [isScanning, event?.status]);
 
   const handleStartScan = async () => {
-    if (!dropboxAccessToken || !event) return;
+    if (!event) return;
+    const provider = event.provider || 'dropbox';
+    const token = dropboxAccessToken;
+    if (!token) return;
     try {
       await updateCloudEvent(eventId, { status: 'scanning' });
       setEvent(prev => prev ? { ...prev, status: 'scanning' } : null);
@@ -179,7 +186,7 @@ export function EventView({ eventId, onBack }: EventViewProps) {
       if (existingPhotos.length > 0) {
         photosToScan = existingPhotos;
       } else if (event.driveFolderId && event.driveFolderId !== 'selected_files') {
-        const driveFiles = await listPhotosInFolder(dropboxAccessToken, event.driveFolderId);
+        const driveFiles = await listPhotosInFolder(provider, token, event.driveFolderId);
         if (driveFiles.length > 0) {
           const basePhotos = driveFiles.map(file => ({
             driveFileId: file.id,
@@ -203,7 +210,7 @@ export function EventView({ eventId, onBack }: EventViewProps) {
         return;
       }
 
-      startCloudScanning(eventId, photosToScan, dropboxAccessToken);
+      startCloudScanning(eventId, photosToScan, token, provider);
     } catch (err) {
       console.error('Failed to start scanning:', err);
       alert((language === 'he' ? 'שגיאה בהתחלת הסריקה: ' : 'Error starting scan: ') + (err as Error).message);
@@ -213,7 +220,10 @@ export function EventView({ eventId, onBack }: EventViewProps) {
   };
 
   const handleRescanAll = async () => {
-    if (!dropboxAccessToken || !event) return;
+    if (!event) return;
+    const provider = event.provider || 'dropbox';
+    const token = dropboxAccessToken;
+    if (!token) return;
     const confirmMessage = language === 'he'
       ? 'האם אתה בטוח שברצונך למחוק את תוצאות הזיהוי הקודמות ולסרוק מחדש את כל התמונות?'
       : 'Are you sure you want to clear previous face recognition results and rescan all photos?';
@@ -240,7 +250,7 @@ export function EventView({ eventId, onBack }: EventViewProps) {
       } : null);
       
       setLoading(false);
-      startCloudScanning(eventId, resetPhotos, dropboxAccessToken);
+      startCloudScanning(eventId, resetPhotos, token, provider);
     } catch (err) {
       console.error('Failed to reset and rescan:', err);
       alert((language === 'he' ? 'שגיאה באתחול הסריקה מחדש: ' : 'Error resetting and rescanning: ') + (err as Error).message);
@@ -314,20 +324,16 @@ export function EventView({ eventId, onBack }: EventViewProps) {
               {event.name}
             </h2>
             <p className="font-body-md text-sage-muted text-xs md:text-sm m-0 mt-1">
-              {language === 'he' ? `אירוע בענן | תיקייה ב-Dropbox: ${event.driveFolderName}` : `Cloud Event | Dropbox Folder: ${event.driveFolderName}`}
+              {language === 'he' ? (
+                `תיקייה ב-${event.provider === 'google' ? 'Google Drive' : event.provider === 'onedrive' ? 'OneDrive' : 'Dropbox'}: ${event.driveFolderName}`
+              ) : (
+                `${event.provider === 'google' ? 'Google Drive' : event.provider === 'onedrive' ? 'OneDrive' : 'Dropbox'} Folder: ${event.driveFolderName}`
+              )}
             </p>
           </div>
         </div>
 
-        <div className="flex items-center gap-3">
-          <button
-            onClick={loadEventDetails}
-            className="p-2.5 rounded bg-surface-container border border-surface-border hover:bg-surface-container-high text-sage-muted hover:text-on-background transition-all cursor-pointer"
-            title={language === 'he' ? 'רענן נתונים' : 'Refresh data'}
-          >
-            <RefreshCw className="w-4 h-4" />
-          </button>
-        </div>
+
       </div>
 
       {/* Pending Scan View */}
@@ -445,14 +451,37 @@ export function EventView({ eventId, onBack }: EventViewProps) {
             {/* Event Stats Card */}
             <div className="bg-surface-container border border-surface-border rounded-xl p-6 shadow-sm flex flex-col justify-between text-start">
               <div className="flex flex-col gap-1.5 text-start">
-                <h4 className="font-label-sm text-[10px] text-sage-muted uppercase tracking-wider m-0">{language === 'he' ? 'נתוני אירוע' : 'Event Statistics'}</h4>
+                <h4 className="font-label-sm text-[10px] text-sage-muted uppercase tracking-wider m-0">{language === 'he' ? 'מידע על האירוע' : 'Event Information'}</h4>
                 <div className="flex items-baseline gap-2 mt-3">
                   <span className="font-display-lg text-3xl text-on-background">{event.photoCount}</span>
                   <span className="text-sage-muted text-xs font-body-md">{language === 'he' ? 'תמונות נסרקו' : 'Photos Scanned'}</span>
                 </div>
-                <div className="flex items-baseline gap-2">
-                  <span className="font-display-lg text-3xl text-copper-accent">{event.faceCount}</span>
-                  <span className="text-sage-muted text-xs font-body-md">{language === 'he' ? 'פנים מזוהות' : 'Detected Faces'}</span>
+                <div className="flex items-center gap-2 mt-2">
+                  {event.provider === 'google' ? (
+                    <svg viewBox="0 0 24 24" className="w-5 h-5 shrink-0" xmlns="http://www.w3.org/2000/svg">
+                      <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4" />
+                      <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853" />
+                      <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z" fill="#FBBC05" />
+                      <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z" fill="#EA4335" />
+                    </svg>
+                  ) : event.provider === 'onedrive' ? (
+                    <svg viewBox="0 0 24 24" className="w-5 h-5 text-blue-400 fill-current shrink-0" xmlns="http://www.w3.org/2000/svg">
+                      <path d="M19.33 11.5A5 5 0 0 0 10.08 9A6.5 6.5 0 0 0 4.67 19.5H19.33A4.5 4.5 0 0 0 19.33 11.5Z" />
+                      <path d="M16 11a4.5 4.5 0 0 0-8.33-2.17A5.5 5.5 0 0 0 2.5 17.5h13.83A3.5 3.5 0 0 0 16 11Z" opacity="0.8" />
+                    </svg>
+                  ) : (
+                    <svg viewBox="0 0 24 24" className="w-5 h-5 text-blue-400 fill-current shrink-0" xmlns="http://www.w3.org/2000/svg">
+                      <path d="M6 2L1 5.3L6 8.7L11 5.3L6 2Z" />
+                      <path d="M18 2L13 5.3L18 8.7L23 5.3L18 2Z" />
+                      <path d="M6 15.4L1 12.1L6 8.7L11 12.1L6 15.4Z" />
+                      <path d="M18 15.4L13 12.1L18 8.7L23 12.1L18 15.4Z" />
+                      <path d="M12 12.5L7 15.8L12 19.2L17 15.8L12 12.5Z" />
+                      <path d="M12 20.3L7 17.1L6 17.7V19.4L12 23L18 19.4V17.7L17 17.1L12 20.3Z" />
+                    </svg>
+                  )}
+                  <span className="text-sage-muted text-xs font-body-md uppercase">
+                    {event.provider === 'google' ? 'Google Drive' : event.provider === 'onedrive' ? 'OneDrive' : 'Dropbox'}
+                  </span>
                 </div>
               </div>
               {photos.some(p => !p.processed) && (
@@ -560,6 +589,7 @@ export function EventView({ eventId, onBack }: EventViewProps) {
                     className="relative aspect-square border border-surface-border rounded overflow-hidden shadow bg-surface-container-low group"
                   >
                     <CloudPhotoImage
+                      provider={event?.provider || 'dropbox'}
                       driveFileId={photo.driveFileId}
                       accessToken={dropboxAccessToken || ''}
                       publicUrl={photo.publicUrl}

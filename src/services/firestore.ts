@@ -33,6 +33,7 @@ export interface CloudEvent {
   photoCount: number;
   faceCount: number;
   shareCode: string;
+  provider?: 'dropbox' | 'google' | 'onedrive';
 }
 
 export interface CloudPhoto {
@@ -75,7 +76,8 @@ export async function createCloudEvent(
   ownerId: string,
   name: string,
   driveFolderId: string,
-  driveFolderName: string
+  driveFolderName: string,
+  provider?: 'dropbox' | 'google' | 'onedrive'
 ): Promise<string> {
   const shareCode = generateShareCode();
   const eventData: Omit<CloudEvent, 'id'> = {
@@ -88,6 +90,7 @@ export async function createCloudEvent(
     photoCount: 0,
     faceCount: 0,
     shareCode,
+    provider: provider || 'dropbox',
   };
 
   const docRef = await addDoc(collection(firestore, 'events'), eventData);
