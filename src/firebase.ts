@@ -20,7 +20,7 @@ export const googleProvider = new GoogleAuthProvider();
 // Request Google Drive scope alongside standard auth (read-only access to Drive files)
 googleProvider.addScope('https://www.googleapis.com/auth/drive.readonly');
 googleProvider.setCustomParameters({
-  prompt: 'consent',
+  prompt: 'select_account',
 });
 
 export const firestore = getFirestore(app);
