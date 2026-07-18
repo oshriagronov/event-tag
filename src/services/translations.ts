@@ -225,7 +225,7 @@ export const translations = {
     legal: {
       privacyTitle: 'מדיניות פרטיות',
       termsTitle: 'תנאי שימוש בשירות',
-      lastUpdated: 'עודכן לאחרונה: 16 ביולי 2026',
+      lastUpdated: 'עודכן לאחרונה: 18 ביולי 2026',
       backToHome: 'חזרה לדף הבית',
       allRightsReserved: 'כל הזכויות שמורות',
       
@@ -491,7 +491,7 @@ export const translations = {
     legal: {
       privacyTitle: 'Privacy Policy',
       termsTitle: 'Terms of Service',
-      lastUpdated: 'Last updated: July 16, 2026',
+      lastUpdated: 'Last updated: July 18, 2026',
       backToHome: 'Back to Home',
       allRightsReserved: 'All rights reserved',
       

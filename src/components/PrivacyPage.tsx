@@ -98,7 +98,7 @@ export function PrivacyPage() {
               <EyeOff className="w-16 h-16 text-on-background" />
             </div>
             <div className="w-12 h-12 rounded-full bg-surface-container-high border border-surface-border/50 flex items-center justify-center mb-6">
-              <EyeOff className="w-5 h-5 text-copper-accent" />
+              <EyeOff className="w-5 h-5 text-on-background" />
             </div>
             <h3 className="font-display-lg text-xl text-on-background mb-3">
               {language === 'he' ? 'ללא העלאת תמונות לשרתים' : 'No Photo Uploads to Our Servers'}
@@ -143,12 +143,12 @@ export function PrivacyPage() {
                 </div>
               </div>
               <h2 className="font-display-lg text-2xl md:text-3xl text-on-background mb-4 m-0">
-                {language === 'he' ? 'טכנולוגיה טבעית, אלגנטיות מוקפדת.' : 'Organic Tech, Curated Elegance.'}
+                {language === 'he' ? 'אירועים בלתי נשכחים, פרטיות מוחלטת.' : 'Elegant Celebrations, Absolute Privacy.'}
               </h2>
               <p className="font-body-md text-sm text-sage-muted leading-relaxed m-0 mt-2">
                 {language === 'he'
-                  ? 'אנו מאמינים כי טכנולוגיה צריכה לפעול בשקט ובכבוד. הארכיטקטורה שלנו תוכננה בקפידה כדי להבטיח שהרגעים הפרטיים שלך יישארו בדיוק כאלה — פרטיים. תהנה מהאינטגרציה המהירה של ה-AI ללא דאגות טכנולוגיות.'
-                  : 'We believe that technology should operate silently and respectfully. Our architecture is meticulously crafted to ensure your private moments remain exactly that—private. Enjoy the luxury of instant AI curation without the technical anxiety.'}
+                  ? 'אנו מאמינים שחוויות האירוע שלכם צריכות להישאר אישיות ומאובטחות. הארכיטקטורה שלנו תוכננה בקפידה כדי להבטיח שכל תמונת אירוע וכל רגע מרגש של האורחים שלכם יישארו פרטיים לחלוטין. תיהנו מהאלגנטיות של זיהוי מהיר ומתוחכם ללא דאגות אבטחה.'
+                  : 'We believe your celebration memories deserve the highest standard of privacy. Our architecture is meticulously crafted to ensure that every event photo and guest moment remains entirely private. Enjoy the elegance of instant event curation without security worries.'}
               </p>
             </div>
             <div className="z-10 shrink-0">
@@ -156,8 +156,8 @@ export function PrivacyPage() {
                 <div className="absolute inset-0 bg-copper-accent/10 rounded-full blur-2xl -z-10"></div>
                 <img 
                   className="w-48 h-48 md:w-56 md:h-56 object-cover rounded-full border-4 border-surface-container-high shadow-xl grayscale opacity-80 transition-all duration-500 group-hover:grayscale-0" 
-                  alt="A fern leaf rested on a matte dark slate conveying organic tranquility."
-                  src="https://lh3.googleusercontent.com/aida-public/AB6AXuDoe46qNKGx7iUkTfc3YsqORPQB2Ak-rm_fi9YDct8BGdHk_E6LYm_aN1TftewmR3GlEHXGs2i120CYSDO1SjvnopRR9Fed4ELohQBzKCk_vtPOee0RzvD4DHLf94TyI7OGcLLQXqFPKcoIhznTdYnHoVZj8YrEmjCLQru-RuszDWltSr_vkTXnXI_2GmYsFVslnaUi6H3vdAL6SwU6_3WrbBUcExcqEkkfHSuy0F9jilMnRqH5MFxE6w"
+                  alt="An elegant upscale event celebration background with glowing ambient warm lights and sophisticated guests." 
+                  src="/luxury_event.jpg"
                 />
               </div>
             </div>

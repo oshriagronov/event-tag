@@ -79,26 +79,26 @@ export function LegalPage({ defaultTab = 'privacy' }: LegalPageProps) {
           </div>
 
           {/* Document Header */}
-          <div className="mb-16">
+          <div className="max-w-3xl mx-auto mb-16 text-center">
             <h1 className="font-display-lg text-4xl md:text-5xl text-deep-forest mb-4 m-0 leading-tight">
               {t('legal.privacyTitle')}
             </h1>
-            <p className="font-body-lg text-sage-muted m-0 text-sm md:text-base">
+            <p className="font-body-md text-sage-muted m-0 text-sm md:text-base">
               {t('legal.lastUpdated')}
             </p>
           </div>
 
-          {/* Document Body */}
-          <div className="space-y-16">
+          {/* Document Content */}
+          <article className="max-w-3xl mx-auto text-sage-muted space-y-12">
             <section className="space-y-4">
-              <h2 className="font-headline-lg text-2xl md:text-3xl text-deep-forest mb-6 border-b border-surface-border pb-4 m-0">
+              <h2 className="font-headline-lg text-xl md:text-2xl text-deep-forest mb-4 m-0">
                 1. {t('legal.privacySection1Title')}
               </h2>
               <div className="space-y-4">
                 <p className="font-body-md text-sage-muted leading-relaxed m-0">
                   {t('legal.privacySection1Text')}
                 </p>
-                <ul className={`list-disc ${isRtl ? 'pr-6' : 'pl-6'} space-y-3 font-body-md text-sage-muted`}>
+                <ul className={`list-disc ${isRtl ? 'pr-6' : 'pl-6'} space-y-2 text-xs md:text-sm font-body-md`}>
                   {(t('legal.privacySection1Bullets') as string[]).map((bullet, idx) => (
                     <li key={idx} className={idx === 1 ? 'font-semibold text-deep-forest' : ''}>
                       {bullet}
@@ -108,15 +108,15 @@ export function LegalPage({ defaultTab = 'privacy' }: LegalPageProps) {
               </div>
             </section>
 
-            <section className="space-y-4">
-              <h2 className="font-headline-lg text-2xl md:text-3xl text-deep-forest mb-6 border-b border-surface-border pb-4 m-0">
+            <section className="border-t border-surface-border pt-8 space-y-4">
+              <h2 className="font-headline-lg text-xl md:text-2xl text-deep-forest mb-4 m-0">
                 2. {t('legal.privacySection2Title')}
               </h2>
               <div className="space-y-4">
                 <p className="font-body-md text-sage-muted leading-relaxed m-0">
                   {t('legal.privacySection2Text')}
                 </p>
-                <ul className={`list-disc ${isRtl ? 'pr-6' : 'pl-6'} space-y-3 font-body-md text-sage-muted`}>
+                <ul className={`list-disc ${isRtl ? 'pr-6' : 'pl-6'} space-y-2 text-xs md:text-sm font-body-md`}>
                   {(t('legal.privacySection2Bullets') as string[]).map((bullet, idx) => (
                     <li key={idx}>{bullet}</li>
                   ))}
@@ -124,15 +124,15 @@ export function LegalPage({ defaultTab = 'privacy' }: LegalPageProps) {
               </div>
             </section>
 
-            <section className="space-y-4">
-              <h2 className="font-headline-lg text-2xl md:text-3xl text-deep-forest mb-6 border-b border-surface-border pb-4 m-0">
+            <section className="border-t border-surface-border pt-8 space-y-4">
+              <h2 className="font-headline-lg text-xl md:text-2xl text-deep-forest mb-4 m-0">
                 3. {t('legal.privacySection3Title')}
               </h2>
               <div className="space-y-4">
                 <p className="font-body-md text-sage-muted leading-relaxed m-0">
                   {t('legal.privacySection3Text')}
                 </p>
-                <ul className={`list-disc ${isRtl ? 'pr-6' : 'pl-6'} space-y-3 font-body-md text-sage-muted`}>
+                <ul className={`list-disc ${isRtl ? 'pr-6' : 'pl-6'} space-y-2 text-xs md:text-sm font-body-md`}>
                   {(t('legal.privacySection3Bullets') as string[]).map((bullet, idx) => (
                     <li key={idx}>{bullet}</li>
                   ))}
@@ -140,8 +140,8 @@ export function LegalPage({ defaultTab = 'privacy' }: LegalPageProps) {
               </div>
             </section>
 
-            <section className="space-y-4">
-              <h2 className="font-headline-lg text-2xl md:text-3xl text-deep-forest mb-6 border-b border-surface-border pb-4 m-0">
+            <section className="border-t border-surface-border pt-8 space-y-4">
+              <h2 className="font-headline-lg text-xl md:text-2xl text-deep-forest mb-4 m-0">
                 4. {t('legal.privacySection4Title')}
               </h2>
               <div className="space-y-4">
@@ -152,7 +152,7 @@ export function LegalPage({ defaultTab = 'privacy' }: LegalPageProps) {
             </section>
 
             {/* Google Disclosure Box */}
-            <section className="border-t border-surface-border pt-12">
+            <section className="border-t border-surface-border pt-8">
               <div className="bg-surface-container/30 border border-surface-border rounded-xl p-6 flex gap-4 items-start shadow-sm">
                 <CheckCircle2 className="w-5 h-5 text-copper-accent shrink-0 mt-0.5" />
                 <div className="font-body-md">
@@ -175,7 +175,7 @@ export function LegalPage({ defaultTab = 'privacy' }: LegalPageProps) {
             </section>
 
             {/* Support Block */}
-            <section className="border-t border-surface-border pt-12">
+            <section className="border-t border-surface-border pt-8">
               <div className="p-6 rounded-xl bg-surface-container/30 border border-surface-border inline-block text-start">
                 <p className="font-label-sm text-xs text-sage-muted mb-2 uppercase tracking-wider">
                   {language === 'he' ? 'דוא"ל לתמיכה' : 'Email Support'}
@@ -185,7 +185,7 @@ export function LegalPage({ defaultTab = 'privacy' }: LegalPageProps) {
                 </a>
               </div>
             </section>
-          </div>
+          </article>
         </main>
       ) : (
         <main className="flex-grow pt-32 pb-24 px-6 md:px-10 max-w-3xl mx-auto w-full z-10 text-start">
