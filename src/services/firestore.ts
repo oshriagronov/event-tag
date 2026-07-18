@@ -42,6 +42,7 @@ export interface CloudPhoto {
   width: number;
   height: number;
   processed: boolean;
+  publicUrl?: string;
 }
 
 export interface CloudFaceBatch {
@@ -233,6 +234,18 @@ export async function updateCloudPhoto(
   updates: Partial<CloudPhoto>
 ): Promise<void> {
   await updateDoc(doc(firestore, 'events', eventId, 'photos', photoId), updates);
+}
+
+export async function updateCloudPhotosBatch(
+  eventId: string,
+  photoUpdates: { id: string; updates: Partial<CloudPhoto> }[]
+): Promise<void> {
+  const batch = writeBatch(firestore);
+  for (const update of photoUpdates) {
+    const docRef = doc(firestore, 'events', eventId, 'photos', update.id);
+    batch.update(docRef, update.updates);
+  }
+  await batch.commit();
 }
 
 // ---- Face Descriptor Storage (Batched) ----

@@ -4,13 +4,14 @@
  * Runs entirely client-side — no server cost
  */
 
-import { getAllFaceDescriptors, type CloudFaceEntry } from './firestore';
+import { getAllFaceDescriptors, getCloudPhotos, type CloudFaceEntry } from './firestore';
 
 export interface MatchResult {
   driveFileId: string;
   photoId: string;
   distance: number;
   box: { x: number; y: number; width: number; height: number };
+  publicUrl?: string;
 }
 
 /**
@@ -44,6 +45,15 @@ export async function matchSelfieToEvent(
 
   if (allFaces.length === 0) return [];
 
+  // Fetch all photos to map photoId to publicUrl
+  const photos = await getCloudPhotos(eventId);
+  const photoMap = new Map<string, string>();
+  for (const photo of photos) {
+    if (photo.id && photo.publicUrl) {
+      photoMap.set(photo.id, photo.publicUrl);
+    }
+  }
+
   const matches: MatchResult[] = [];
 
   for (const face of allFaces) {
@@ -54,6 +64,7 @@ export async function matchSelfieToEvent(
         photoId: face.photoId,
         distance: dist,
         box: face.box,
+        publicUrl: photoMap.get(face.photoId),
       });
     }
   }

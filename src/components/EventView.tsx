@@ -14,7 +14,7 @@ import {
   type CloudEvent,
   type CloudPhoto,
 } from '../services/firestore';
-import { listPhotosInFolder, getPhotoBlob, checkTokenValidity } from '../services/googleDrive';
+import { listPhotosInFolder, getPhotoThumbnailBlob, checkTokenValidity, convertToRawDropboxUrl } from '../services/dropbox';
 import { QRCodeSVG } from 'qrcode.react';
 import { useTranslation } from '../services/translations';
 
@@ -23,19 +23,30 @@ interface CloudPhotoImageProps {
   accessToken: string;
   className?: string;
   alt?: string;
+  publicUrl?: string;
 }
 
-function CloudPhotoImage({ driveFileId, accessToken, className = '', alt = '' }: CloudPhotoImageProps) {
+function CloudPhotoImage({ driveFileId, accessToken, className = '', alt = '', publicUrl }: CloudPhotoImageProps) {
   const [src, setSrc] = useState<string>('');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
-  const { clearGoogleToken } = useAuth();
+  const { clearDropboxToken } = useAuth();
 
   useEffect(() => {
     let active = true;
     let url = '';
 
     async function load() {
+      // Use direct publicUrl if available to bypass API calls and avoid CORS issues
+      if (publicUrl) {
+        if (active) {
+          setSrc(convertToRawDropboxUrl(publicUrl));
+          setLoading(false);
+          setError(false);
+        }
+        return;
+      }
+
       if (!accessToken || !driveFileId) {
         setLoading(false);
         setError(true);
@@ -44,7 +55,7 @@ function CloudPhotoImage({ driveFileId, accessToken, className = '', alt = '' }:
       setLoading(true);
       setError(false);
       try {
-        const blob = await getPhotoBlob(accessToken, driveFileId);
+        const blob = await getPhotoThumbnailBlob(accessToken, driveFileId, 'w256h256');
         if (active) {
           url = URL.createObjectURL(blob);
           setSrc(url);
@@ -56,7 +67,7 @@ function CloudPhotoImage({ driveFileId, accessToken, className = '', alt = '' }:
         if (errStr.includes('401') || errStr.includes('404')) {
           checkTokenValidity(accessToken).then((isValid) => {
             if (!isValid) {
-              clearGoogleToken();
+              clearDropboxToken();
             }
           }).catch(() => {});
         }
@@ -105,7 +116,7 @@ interface EventViewProps {
 }
 
 export function EventView({ eventId, onBack }: EventViewProps) {
-  const { googleAccessToken, signIn } = useAuth();
+  const { dropboxAccessToken, connectDropbox } = useAuth();
   const { t, isRtl, language } = useTranslation();
   const [event, setEvent] = useState<CloudEvent | null>(null);
   const [photos, setPhotos] = useState<CloudPhoto[]>([]);
@@ -157,7 +168,7 @@ export function EventView({ eventId, onBack }: EventViewProps) {
   }, [isScanning, event?.status]);
 
   const handleStartScan = async () => {
-    if (!googleAccessToken || !event) return;
+    if (!dropboxAccessToken || !event) return;
     try {
       await updateCloudEvent(eventId, { status: 'scanning' });
       setEvent(prev => prev ? { ...prev, status: 'scanning' } : null);
@@ -168,7 +179,7 @@ export function EventView({ eventId, onBack }: EventViewProps) {
       if (existingPhotos.length > 0) {
         photosToScan = existingPhotos;
       } else if (event.driveFolderId && event.driveFolderId !== 'selected_files') {
-        const driveFiles = await listPhotosInFolder(googleAccessToken, event.driveFolderId);
+        const driveFiles = await listPhotosInFolder(dropboxAccessToken, event.driveFolderId);
         if (driveFiles.length > 0) {
           const basePhotos = driveFiles.map(file => ({
             driveFileId: file.id,
@@ -192,7 +203,7 @@ export function EventView({ eventId, onBack }: EventViewProps) {
         return;
       }
 
-      startCloudScanning(eventId, photosToScan, googleAccessToken);
+      startCloudScanning(eventId, photosToScan, dropboxAccessToken);
     } catch (err) {
       console.error('Failed to start scanning:', err);
       alert((language === 'he' ? 'שגיאה בהתחלת הסריקה: ' : 'Error starting scan: ') + (err as Error).message);
@@ -202,7 +213,7 @@ export function EventView({ eventId, onBack }: EventViewProps) {
   };
 
   const handleRescanAll = async () => {
-    if (!googleAccessToken || !event) return;
+    if (!dropboxAccessToken || !event) return;
     const confirmMessage = language === 'he'
       ? 'האם אתה בטוח שברצונך למחוק את תוצאות הזיהוי הקודמות ולסרוק מחדש את כל התמונות?'
       : 'Are you sure you want to clear previous face recognition results and rescan all photos?';
@@ -229,7 +240,7 @@ export function EventView({ eventId, onBack }: EventViewProps) {
       } : null);
       
       setLoading(false);
-      startCloudScanning(eventId, resetPhotos, googleAccessToken);
+      startCloudScanning(eventId, resetPhotos, dropboxAccessToken);
     } catch (err) {
       console.error('Failed to reset and rescan:', err);
       alert((language === 'he' ? 'שגיאה באתחול הסריקה מחדש: ' : 'Error resetting and rescanning: ') + (err as Error).message);
@@ -303,7 +314,7 @@ export function EventView({ eventId, onBack }: EventViewProps) {
               {event.name}
             </h2>
             <p className="font-body-md text-sage-muted text-xs md:text-sm m-0 mt-1">
-              {language === 'he' ? `אירוע בענן | תיקייה ב-Drive: ${event.driveFolderName}` : `Cloud Event | Drive Folder: ${event.driveFolderName}`}
+              {language === 'he' ? `אירוע בענן | תיקייה ב-Dropbox: ${event.driveFolderName}` : `Cloud Event | Dropbox Folder: ${event.driveFolderName}`}
             </p>
           </div>
         </div>
@@ -333,19 +344,19 @@ export function EventView({ eventId, onBack }: EventViewProps) {
           </div>
           <button
             onClick={handleStartScan}
-            disabled={!googleAccessToken}
+            disabled={!dropboxAccessToken}
             className="px-8 py-3.5 rounded bg-deep-forest hover:bg-primary text-background font-bold text-sm shadow transition-all cursor-pointer disabled:opacity-50 border-none"
           >
             {t('eventView.startAIScan')}
           </button>
-          {!googleAccessToken && (
+          {!dropboxAccessToken && (
             <div className="flex flex-col items-center gap-3">
-              <p className="text-red-400 text-xs m-0 font-bold">{language === 'he' ? 'יש להתחבר מחדש עם חשבון Google כדי לאפשר גישה לתיקייה.' : 'Reconnect to Google to allow folders authorization.'}</p>
+              <p className="text-red-400 text-xs m-0 font-bold">{language === 'he' ? 'יש להתחבר מחדש עם חשבון Dropbox כדי לאפשר גישה לתיקייה.' : 'Reconnect to Dropbox to allow folders authorization.'}</p>
               <button
-                onClick={signIn}
+                onClick={connectDropbox}
                 className="px-5 py-2.5 rounded bg-copper-accent hover:bg-copper-accent/90 text-background font-bold text-xs shadow transition-all cursor-pointer"
               >
-                {language === 'he' ? 'התחבר לחשבון Google' : 'Connect Google Account'}
+                {language === 'he' ? 'התחבר לחשבון Dropbox' : 'Connect Dropbox Account'}
               </button>
             </div>
           )}
@@ -404,14 +415,14 @@ export function EventView({ eventId, onBack }: EventViewProps) {
             <div className="flex flex-col items-center gap-4 bg-red-500/10 border border-red-500/20 rounded-xl p-5 text-center mt-2">
               <AlertCircle className="w-7 h-7 text-red-400" />
               <div className="flex flex-col gap-1 text-center">
-                <h4 className="font-bold text-red-400 text-sm m-0">{language === 'he' ? 'חיבור ה-Google פג תוקף' : 'Google Authentication Expired'}</h4>
-                <p className="text-sage-muted text-xs m-0">{language === 'he' ? 'כדי להמשיך בסריקה, יש להתחבר מחדש לחשבון ה-Google שלך.' : 'Please reconnect your Google account to proceed with scanning.'}</p>
+                <h4 className="font-bold text-red-400 text-sm m-0">{language === 'he' ? 'חיבור ה-Dropbox פג תוקף' : 'Dropbox Authentication Expired'}</h4>
+                <p className="text-sage-muted text-xs m-0">{language === 'he' ? 'כדי להמשיך בסריקה, יש להתחבר מחדש לחשבון ה-Dropbox שלך.' : 'Please reconnect your Dropbox account to proceed with scanning.'}</p>
               </div>
               <button
-                onClick={signIn}
+                onClick={connectDropbox}
                 className="px-5 py-2.5 rounded bg-copper-accent hover:bg-copper-accent/90 text-background font-bold text-xs shadow transition-all cursor-pointer border-none"
               >
-                {language === 'he' ? 'התחבר מחדש ל-Google' : 'Reconnect Google'}
+                {language === 'he' ? 'התחבר מחדש ל-Dropbox' : 'Reconnect Dropbox'}
               </button>
             </div>
           )}
@@ -453,7 +464,7 @@ export function EventView({ eventId, onBack }: EventViewProps) {
                   </p>
                   <button
                     onClick={handleStartScan}
-                    disabled={!googleAccessToken}
+                    disabled={!dropboxAccessToken}
                     className="w-full py-2 rounded bg-copper-accent hover:bg-copper-accent/90 text-background font-bold text-xs shadow flex items-center justify-center gap-1.5 cursor-pointer border-none"
                   >
                     <RefreshCw className="w-3 h-3 shrink-0" />
@@ -465,7 +476,7 @@ export function EventView({ eventId, onBack }: EventViewProps) {
                 <span className="truncate max-w-[140px]">{language === 'he' ? `תיקייה: ${event.driveFolderName}` : `Folder: ${event.driveFolderName}`}</span>
                 <button
                   onClick={handleRescanAll}
-                  disabled={!googleAccessToken}
+                  disabled={!dropboxAccessToken}
                   className="flex items-center gap-1 text-sage-muted hover:text-copper-accent transition-colors font-bold cursor-pointer bg-transparent border-none outline-none text-[11px]"
                   title={language === 'he' ? 'איפוס וסריקה מחדש של כל התמונות' : 'Reset and rescan all photos'}
                 >
@@ -524,19 +535,19 @@ export function EventView({ eventId, onBack }: EventViewProps) {
             <h3 className="font-display-lg text-2xl text-on-background m-0">{language === 'he' ? 'גלריית תמונות' : 'Photo Gallery'}</h3>
             <div className="botanical-divider w-full" />
             
-            {!googleAccessToken ? (
+            {!dropboxAccessToken ? (
               <div className="text-center py-16 px-6 border border-dashed border-surface-border rounded-xl flex flex-col items-center gap-4 bg-surface-container/20">
                 <AlertCircle className="w-8 h-8 text-copper-accent" />
                 <p className="font-body-md text-sage-muted text-sm max-w-sm m-0 leading-relaxed text-center">
                   {language === 'he'
-                    ? 'פג תוקף החיבור לחשבון Google. יש להתחבר מחדש כדי לצפות בתמונות שבתיקייה.'
-                    : 'Google session expired. Re-authenticate to access drive contents.'}
+                    ? 'פג תוקף החיבור לחשבון Dropbox. יש להתחבר מחדש כדי לצפות בתמונות שבתיקייה.'
+                    : 'Dropbox session expired. Re-authenticate to access contents.'}
                 </p>
                 <button
-                  onClick={signIn}
+                  onClick={connectDropbox}
                   className="px-6 py-2.5 rounded bg-copper-accent hover:bg-copper-accent/90 text-background font-bold text-sm shadow transition-all cursor-pointer border-none"
                 >
-                  {language === 'he' ? 'התחבר לחשבון Google' : 'Connect Google Account'}
+                  {language === 'he' ? 'התחבר לחשבון Dropbox' : 'Connect Dropbox Account'}
                 </button>
               </div>
             ) : photos.length === 0 ? (
@@ -550,7 +561,8 @@ export function EventView({ eventId, onBack }: EventViewProps) {
                   >
                     <CloudPhotoImage
                       driveFileId={photo.driveFileId}
-                      accessToken={googleAccessToken || ''}
+                      accessToken={dropboxAccessToken || ''}
+                      publicUrl={photo.publicUrl}
                       alt={photo.fileName}
                       className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
                     />

@@ -25,6 +25,7 @@ import {
 } from 'lucide-react';
 import JSZip from 'jszip';
 import { getEventByShareCode, type CloudEvent } from '../services/firestore';
+import { convertToRawDropboxUrl } from '../services/dropbox';
 import { matchSelfieToEvent, type MatchResult } from '../services/faceMatching';
 import { SelfieCapture } from './SelfieCapture';
 import { useConsent } from '../contexts/ConsentContext';
@@ -60,6 +61,7 @@ export function GuestView({ shareCode }: GuestViewProps) {
   const displayedMatches = matches.filter(m => !hiddenPhotoIds.includes(m.driveFileId));
   const downloadableMatches = displayedMatches.filter(m => !failedPhotoIds[m.driveFileId]);
   const matchCount = displayedMatches.length;
+  const selectedPhoto = displayedMatches.find(m => m.driveFileId === selectedPhotoId);
 
   // ---- Load event data ----
   useEffect(() => {
@@ -162,10 +164,8 @@ export function GuestView({ shareCode }: GuestViewProps) {
       for (let i = 0; i < downloadableMatches.length; i++) {
         const match = downloadableMatches[i];
         try {
-          const response = await fetch(
-            `https://lh3.googleusercontent.com/d/${match.driveFileId}=s1600`,
-            { mode: 'cors' }
-          );
+          const imageUrl = match.publicUrl ? convertToRawDropboxUrl(match.publicUrl) : `https://lh3.googleusercontent.com/d/${match.driveFileId}=s1600`;
+          const response = await fetch(imageUrl, { mode: 'cors' });
           if (response.ok) {
             const blob = await response.blob();
             const extension = blob.type.includes('png') ? 'png' : 'jpg';
@@ -197,12 +197,19 @@ export function GuestView({ shareCode }: GuestViewProps) {
 
   // ---- Download single photo ----
   const handleDownloadSingle = useCallback((driveFileId: string) => {
-    window.open(
-      `https://drive.google.com/uc?export=download&id=${driveFileId}`,
-      '_blank',
-      'noopener,noreferrer'
-    );
-  }, []);
+    const match = downloadableMatches.find((m) => m.driveFileId === driveFileId);
+    if (match?.publicUrl) {
+      const rawUrl = convertToRawDropboxUrl(match.publicUrl);
+      const downloadUrl = rawUrl.replace('raw=1', 'dl=1');
+      window.open(downloadUrl, '_blank', 'noopener,noreferrer');
+    } else {
+      window.open(
+        `https://drive.google.com/uc?export=download&id=${driveFileId}`,
+        '_blank',
+        'noopener,noreferrer'
+      );
+    }
+  }, [downloadableMatches]);
 
   // ---- Render helpers ----
 
@@ -438,7 +445,7 @@ export function GuestView({ shareCode }: GuestViewProps) {
               className="group relative aspect-square rounded overflow-hidden border border-surface-border cursor-pointer bg-surface-container-low shadow hover:shadow-2xl transition-all hover:scale-[1.01]"
             >
               <img
-                src={`https://lh3.googleusercontent.com/d/${match.driveFileId}=s400`}
+                src={match.publicUrl ? convertToRawDropboxUrl(match.publicUrl) : `https://lh3.googleusercontent.com/d/${match.driveFileId}=s400`}
                 alt=""
                 className="w-full h-full object-cover group-hover:scale-102 transition-transform duration-300"
                 referrerPolicy="no-referrer"
@@ -495,7 +502,7 @@ export function GuestView({ shareCode }: GuestViewProps) {
               </button>
 
               <img
-                src={`https://lh3.googleusercontent.com/d/${selectedPhotoId}=s1600`}
+                src={selectedPhoto?.publicUrl ? convertToRawDropboxUrl(selectedPhoto.publicUrl) : `https://lh3.googleusercontent.com/d/${selectedPhotoId}=s1600`}
                 alt=""
                 className="w-full max-h-[70vh] object-contain rounded border border-surface-border shadow-2xl"
                 referrerPolicy="no-referrer"

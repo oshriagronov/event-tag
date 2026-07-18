@@ -8,7 +8,7 @@ import {
   addCloudPhotosBatch,
   type CloudEvent,
 } from '../services/firestore';
-import { openGooglePhotoPicker, openGoogleFolderPicker } from '../services/googlePicker';
+import { FolderPicker } from './FolderPicker';
 import { QRCodeSVG } from 'qrcode.react';
 import {
   Calendar, Image as ImageIcon, Users, Trash2,
@@ -22,7 +22,8 @@ import { useTranslation } from '../services/translations';
 export function Dashboard() {
   const navigate = useNavigate();
   const { t, isRtl, language } = useTranslation();
-  const { user, googleAccessToken, signOut } = useAuth();
+  const { user, dropboxAccessToken, signOut, connectDropbox } = useAuth();
+  const [showFolderPicker, setShowFolderPicker] = useState(false);
   const {
     isScanning,
     isPaused,
@@ -83,14 +84,6 @@ export function Dashboard() {
     return () => unsubscribe();
   }, [user]);
 
-  const handlePhotosSelected = (files: any[]) => {
-    setPendingPhotos(files);
-    setPendingFolder(null);
-    setShowCreateModal(true);
-    if (!newEventName) {
-      setNewEventName(language === 'he' ? 'אירוע חדש' : 'New Event');
-    }
-  };
 
   const handleFolderSelected = (folder: { id: string; name: string }) => {
     setPendingFolder(folder);
@@ -236,27 +229,24 @@ export function Dashboard() {
       {/* CTA bottom */}
       <div className="px-5 mt-auto flex flex-col gap-2">
         <button
-          onClick={async () => {
-            if (!googleAccessToken) return;
-            setNewEventName('');
-            setPendingPhotos([]);
-            setPendingFolder(null);
-            const apiKey = import.meta.env.VITE_GOOGLE_API_KEY;
-            const clientId = import.meta.env.VITE_GOOGLE_CLIENT_ID;
-            await openGoogleFolderPicker({
-              accessToken: googleAccessToken,
-              apiKey,
-              clientId,
-              onSelected: (folder) => {
-                handleFolderSelected(folder);
-              },
-            });
+          onClick={() => {
+            if (!dropboxAccessToken) {
+              connectDropbox();
+            } else {
+              setNewEventName('');
+              setPendingPhotos([]);
+              setPendingFolder(null);
+              setShowFolderPicker(true);
+            }
           }}
-          disabled={!googleAccessToken}
-          className="w-full bg-deep-forest hover:bg-primary text-background font-label-sm text-xs uppercase tracking-widest py-3.5 rounded flex items-center justify-center gap-2 transition-colors shadow-sm disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
+          className="w-full bg-deep-forest hover:bg-primary text-background font-label-sm text-xs uppercase tracking-widest py-3.5 rounded flex items-center justify-center gap-2 transition-colors shadow-sm cursor-pointer"
         >
           <FolderOpen className="w-4 h-4" />
-          <span>{language === 'he' ? 'אירוע מתיקייה' : 'Event from Folder'}</span>
+          <span>
+            {!dropboxAccessToken
+              ? (language === 'he' ? 'חבר את Dropbox' : 'Connect Dropbox')
+              : (language === 'he' ? 'אירוע מתיקייה' : 'Event from Folder')}
+          </span>
         </button>
       </div>
     </div>
@@ -347,27 +337,24 @@ export function Dashboard() {
             {/* Choose photos backup button */}
             <div className="flex items-center gap-3">
               <button
-                onClick={async () => {
-                  if (!googleAccessToken) return;
-                  setNewEventName('');
-                  setPendingPhotos([]);
-                  setPendingFolder(null);
-                  const apiKey = import.meta.env.VITE_GOOGLE_API_KEY;
-                  const clientId = import.meta.env.VITE_GOOGLE_CLIENT_ID;
-                  await openGooglePhotoPicker({
-                    accessToken: googleAccessToken,
-                    apiKey,
-                    clientId,
-                    onSelected: (files) => {
-                      handlePhotosSelected(files);
-                    },
-                  });
+                onClick={() => {
+                  if (!dropboxAccessToken) {
+                    connectDropbox();
+                  } else {
+                    setNewEventName('');
+                    setPendingPhotos([]);
+                    setPendingFolder(null);
+                    setShowFolderPicker(true);
+                  }
                 }}
-                disabled={!googleAccessToken}
-                className="px-5 py-2.5 rounded border border-surface-border text-on-background hover:bg-surface-container font-label-sm text-xs uppercase tracking-wider flex items-center gap-2 transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                className="px-5 py-2.5 rounded border border-surface-border text-on-background hover:bg-surface-container font-label-sm text-xs uppercase tracking-wider flex items-center gap-2 transition-all cursor-pointer"
               >
                 <Plus className="w-4 h-4" />
-                <span>{language === 'he' ? 'בחירת תמונות' : 'Choose Photos'}</span>
+                <span>
+                  {!dropboxAccessToken
+                    ? (language === 'he' ? 'חבר את Dropbox' : 'Connect Dropbox')
+                    : (language === 'he' ? 'יצירת אירוע מתיקייה' : 'Create Event from Folder')}
+                </span>
               </button>
             </div>
           </div>
@@ -388,7 +375,7 @@ export function Dashboard() {
               <div className="max-w-md">
                 <h3 className="font-title-md text-lg font-bold text-on-background m-0">{language === 'he' ? 'אין אירועים פעילים' : 'No Active Events'}</h3>
                 <p className="font-body-md text-sage-muted text-sm mt-2 leading-relaxed">
-                  {language === 'he' ? 'חבר תיקיית תמונות מ-Google Drive כדי להתחיל את הסריקה המקומית והזיהוי.' : 'Connect a folder from Google Drive to initialize on-device facial scanning.'}
+                  {language === 'he' ? 'חבר תיקיית תמונות מ-Dropbox כדי להתחיל את הסריקה המקומית והזיהוי.' : 'Connect a folder from Dropbox to initialize on-device facial scanning.'}
                 </p>
               </div>
             </div>
@@ -618,6 +605,16 @@ export function Dashboard() {
             </button>
           </div>
         </div>
+      )}
+      {showFolderPicker && dropboxAccessToken && (
+        <FolderPicker
+          accessToken={dropboxAccessToken}
+          onSelect={(folderId, folderName) => {
+            handleFolderSelected({ id: folderId, name: folderName });
+            setShowFolderPicker(false);
+          }}
+          onCancel={() => setShowFolderPicker(false)}
+        />
       )}
     </div>
   );

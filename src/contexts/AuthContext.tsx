@@ -10,10 +10,12 @@ import { auth, googleProvider } from '../firebase';
 interface AuthContextType {
   user: User | null;
   loading: boolean;
-  googleAccessToken: string | null;
+  dropboxAccessToken: string | null;
   signIn: () => Promise<void>;
   signOut: () => Promise<void>;
-  clearGoogleToken: () => void;
+  clearDropboxToken: () => void;
+  connectDropbox: () => void;
+  disconnectDropbox: () => void;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -21,36 +23,40 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
-  const [googleAccessToken, setGoogleAccessToken] = useState<string | null>(null);
+  const [dropboxAccessToken, setDropboxAccessToken] = useState<string | null>(null);
 
   useEffect(() => {
+    // Try to restore token from sessionStorage
+    const savedToken = sessionStorage.getItem('dropbox_access_token');
+    if (savedToken) {
+      setDropboxAccessToken(savedToken);
+    }
+
+    // Check if there is an access token in the URL hash (from Dropbox OAuth redirect)
+    const hash = window.location.hash;
+    if (hash && hash.includes('access_token=')) {
+      const params = new URLSearchParams(hash.substring(1)); // Remove the leading '#'
+      const token = params.get('access_token');
+      if (token) {
+        setDropboxAccessToken(token);
+        sessionStorage.setItem('dropbox_access_token', token);
+        
+        // Clean up hash from URL
+        window.history.replaceState(null, '', window.location.pathname + window.location.search);
+      }
+    }
+
     const unsubscribe = onAuthStateChanged(auth, (firebaseUser) => {
       setUser(firebaseUser);
       setLoading(false);
-      // Try to restore token from sessionStorage
-      if (firebaseUser) {
-        const savedToken = sessionStorage.getItem('google_access_token');
-        if (savedToken) {
-          setGoogleAccessToken(savedToken);
-        }
-      } else {
-        setGoogleAccessToken(null);
-        sessionStorage.removeItem('google_access_token');
-      }
     });
+
     return () => unsubscribe();
   }, []);
 
   const signIn = async () => {
     try {
-      const result = await signInWithPopup(auth, googleProvider);
-      // Extract the Google OAuth access token for Drive API
-      const credential = (await import('firebase/auth')).GoogleAuthProvider.credentialFromResult(result);
-      const token = credential?.accessToken || null;
-      setGoogleAccessToken(token);
-      if (token) {
-        sessionStorage.setItem('google_access_token', token);
-      }
+      await signInWithPopup(auth, googleProvider);
     } catch (error: any) {
       console.error('שגיאה בהתחברות:', error);
       if (error.code !== 'auth/popup-closed-by-user') {
@@ -61,17 +67,43 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const signOut = async () => {
     await firebaseSignOut(auth);
-    setGoogleAccessToken(null);
-    sessionStorage.removeItem('google_access_token');
+    disconnectDropbox();
   };
 
-  const clearGoogleToken = () => {
-    setGoogleAccessToken(null);
-    sessionStorage.removeItem('google_access_token');
+  const connectDropbox = () => {
+    const clientId = import.meta.env.VITE_DROPBOX_CLIENT_ID;
+    if (!clientId) {
+      console.error('Dropbox Client ID is missing in environment variables.');
+      alert('שגיאה: מזהה לקוח Dropbox חסר בקובץ ההגדרות (.env)');
+      return;
+    }
+    const redirectUri = encodeURIComponent(window.location.origin + '/dashboard');
+    const authUrl = `https://www.dropbox.com/oauth2/authorize?client_id=${clientId}&response_type=token&redirect_uri=${redirectUri}`;
+    window.location.href = authUrl;
+  };
+
+  const disconnectDropbox = () => {
+    setDropboxAccessToken(null);
+    sessionStorage.removeItem('dropbox_access_token');
+  };
+
+  const clearDropboxToken = () => {
+    disconnectDropbox();
   };
 
   return (
-    <AuthContext.Provider value={{ user, loading, googleAccessToken, signIn, signOut, clearGoogleToken }}>
+    <AuthContext.Provider
+      value={{
+        user,
+        loading,
+        dropboxAccessToken,
+        signIn,
+        signOut,
+        clearDropboxToken,
+        connectDropbox,
+        disconnectDropbox,
+      }}
+    >
       {children}
     </AuthContext.Provider>
   );

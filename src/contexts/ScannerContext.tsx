@@ -1,10 +1,11 @@
 import { createContext, useContext, useState, useRef, useEffect, type ReactNode } from 'react';
 import * as faceapi from '@vladmandic/face-api';
-import { getPhotoBlob, checkTokenValidity } from '../services/googleDrive';
+import { getPhotoBlob, checkTokenValidity, getOrCreateSharedLink, convertToRawDropboxUrl } from '../services/dropbox';
 import { getONNXSession, extractEmbedding } from '../services/onnxModel';
 import { alignFace } from '../services/faceAlignment';
 import {
   updateCloudPhoto,
+  updateCloudPhotosBatch,
   appendFaceDescriptors,
   updateCloudEvent,
   type CloudFaceEntry,
@@ -23,7 +24,7 @@ interface ScannerContextType {
   startCloudScanning: (
     eventId: string,
     photos: CloudPhoto[],
-    googleAccessToken: string
+    dropboxAccessToken: string
   ) => Promise<void>;
   togglePause: () => void;
 }
@@ -149,17 +150,17 @@ export function ScannerProvider({ children }: { children: ReactNode }) {
   const [activeScanningEventId, setActiveScanningEventId] = useState<string | null>(null);
   const [scanError, setScanError] = useState<'auth_expired' | 'network_error' | null>(null);
 
-  const { googleAccessToken } = useAuth();
-  const tokenRef = useRef(googleAccessToken);
+  const { dropboxAccessToken } = useAuth();
+  const tokenRef = useRef(dropboxAccessToken);
 
   useEffect(() => {
-    tokenRef.current = googleAccessToken;
-    if (googleAccessToken && scanError === 'auth_expired') {
+    tokenRef.current = dropboxAccessToken;
+    if (dropboxAccessToken && scanError === 'auth_expired') {
       setScanError(null);
       setIsPaused(false);
       isPausedRef.current = false;
     }
-  }, [googleAccessToken, scanError]);
+  }, [dropboxAccessToken, scanError]);
 
   const isPausedRef = useRef(isPaused);
   isPausedRef.current = isPaused;
@@ -181,7 +182,7 @@ export function ScannerProvider({ children }: { children: ReactNode }) {
   const startCloudScanning = async (
     eventId: string,
     photos: CloudPhoto[],
-    googleAccessToken: string
+    dropboxAccessToken: string
   ) => {
     if (isScanning) {
       alert('סריקה כבר מתבצעת. אנא המתן לסיומה.');
@@ -203,14 +204,17 @@ export function ScannerProvider({ children }: { children: ReactNode }) {
     // Buffer to batch Firestore face descriptor updates
     let facesBuffer: CloudFaceEntry[] = [];
 
-    // Cache preloaded blobs for Google Drive downloads
+    // Buffer to batch Firestore photo updates
+    let photosBuffer: { id: string; updates: Partial<CloudPhoto> }[] = [];
+
+    // Cache preloaded blobs for Dropbox downloads
     const preloadCache = new Map<string, Promise<Blob>>();
 
     function preloadDriveFile(fileId: string): Promise<Blob> {
       if (preloadCache.has(fileId)) return preloadCache.get(fileId)!;
 
       const promise = (async () => {
-        const token = tokenRef.current || googleAccessToken;
+        const token = tokenRef.current || dropboxAccessToken;
         return await getPhotoBlob(token || '', fileId);
       })();
 
@@ -226,8 +230,58 @@ export function ScannerProvider({ children }: { children: ReactNode }) {
       const photoStart = Date.now();
       const photo = photos[idx];
 
-      // If the photo was already processed in a previous scan, skip it immediately!
+      // If the photo was already processed in a previous scan
       if (photo.processed) {
+        // If it already has a publicUrl, skip it entirely!
+        if (photo.publicUrl) {
+          progress++;
+          setScannedCount(progress);
+          continue;
+        }
+
+        // If it is processed but lacks publicUrl, we generate publicUrl and update Firestore
+        try {
+          const token = tokenRef.current || dropboxAccessToken;
+          const sharedLink = await getOrCreateSharedLink(token || '', photo.driveFileId);
+          const publicUrl = convertToRawDropboxUrl(sharedLink);
+
+          photosBuffer.push({
+            id: photo.id!,
+            updates: {
+              publicUrl,
+            },
+          });
+
+          // Flush periodically
+          if (photosBuffer.length >= 15) {
+            await updateCloudPhotosBatch(eventId, photosBuffer);
+            for (const p of photosBuffer) {
+              const localPhoto = photos.find((lp) => lp.id === p.id);
+              if (localPhoto) localPhoto.publicUrl = p.updates.publicUrl;
+            }
+            photosBuffer = [];
+          }
+        } catch (sharedLinkErr: any) {
+          console.error(`Failed to generate publicUrl for processed photo ${photo.fileName}:`, sharedLinkErr);
+          const errStr = sharedLinkErr instanceof Error ? sharedLinkErr.message : String(sharedLinkErr);
+          
+          if (errStr.includes('401')) {
+            setScanError('auth_expired');
+            setIsPaused(true);
+            isPausedRef.current = true;
+            preloadCache.clear();
+            idx--;
+            continue;
+          } else if (errStr.includes('timed out') || errStr.includes('Failed to fetch') || errStr.includes('NetworkError') || errStr.includes('timeout') || errStr.includes('aborted')) {
+            setScanError('network_error');
+            setIsPaused(true);
+            isPausedRef.current = true;
+            preloadCache.clear();
+            idx--;
+            continue;
+          }
+        }
+
         progress++;
         setScannedCount(progress);
         continue;
@@ -248,11 +302,20 @@ export function ScannerProvider({ children }: { children: ReactNode }) {
         // Process locally via client-side face-api.js
         const { width, height, detections } = await processPhotoLocally(fileBlob);
 
-        // Update photo metadata in Firestore
-        await updateCloudPhoto(eventId, photo.id!, {
-          width,
-          height,
-          processed: true,
+        // Get or create public shared link for the photo (propagates errors to outer catch block for recovery)
+        const token = tokenRef.current || dropboxAccessToken;
+        const sharedLink = await getOrCreateSharedLink(token || '', photo.driveFileId);
+        const publicUrl = convertToRawDropboxUrl(sharedLink);
+
+        // Add photo updates to buffer
+        photosBuffer.push({
+          id: photo.id!,
+          updates: {
+            width,
+            height,
+            processed: true,
+            publicUrl,
+          },
         });
 
         // Add face descriptors to the buffer
@@ -268,16 +331,43 @@ export function ScannerProvider({ children }: { children: ReactNode }) {
           totalFacesFound += detections.length;
         }
 
-        // Flush face descriptors buffer periodically to Firestore (every 15 photos or if buffer > 50 faces)
-        if (facesBuffer.length >= 50 || (progress > 0 && progress % 15 === 0)) {
-          await appendFaceDescriptors(eventId, facesBuffer);
-          facesBuffer = [];
+        // Flush face descriptors and photo buffers periodically to Firestore (every 15 photos or if buffer > 50 faces)
+        if (facesBuffer.length >= 50 || photosBuffer.length >= 15) {
+          if (facesBuffer.length > 0) {
+            await appendFaceDescriptors(eventId, facesBuffer);
+            facesBuffer = [];
+          }
+          if (photosBuffer.length > 0) {
+            await updateCloudPhotosBatch(eventId, photosBuffer);
+            // Mark processed in the local memory array
+            for (const p of photosBuffer) {
+              const localPhoto = photos.find((lp) => lp.id === p.id);
+              if (localPhoto) {
+                localPhoto.processed = true;
+                localPhoto.publicUrl = p.updates.publicUrl;
+              }
+            }
+            photosBuffer = [];
+          }
         }
       } catch (err: any) {
-        console.error(`Error scanning Google Drive photo ${photo.fileName}:`, err);
+        console.error(`Error scanning Dropbox photo ${photo.fileName}:`, err);
+        const errStr = err instanceof Error ? err.message : String(err);
+        
+        // If it's a 401 error, the token is either expired or lacks the sharing scopes.
+        // We pause immediately and prompt the user to re-authenticate.
+        if (errStr.includes('401')) {
+          setScanError('auth_expired');
+          setIsPaused(true);
+          isPausedRef.current = true;
+          preloadCache.clear();
+          idx--;
+          continue;
+        }
+
         try {
-          // Check if the token is expired/invalid
-          const token = tokenRef.current || googleAccessToken;
+          // Check if the token is expired/invalid for other errors
+          const token = tokenRef.current || dropboxAccessToken;
           const isValid = await checkTokenValidity(token || '');
           if (!isValid) {
             // Token is invalid/expired! Pause scanner, set scanError, clear cache
@@ -289,7 +379,6 @@ export function ScannerProvider({ children }: { children: ReactNode }) {
             idx--;
             continue;
           } else {
-            const errStr = err instanceof Error ? err.message : String(err);
             if (errStr.includes('timed out') || errStr.includes('Failed to fetch') || errStr.includes('NetworkError') || errStr.includes('timeout') || errStr.includes('aborted')) {
               // This is a network timeout or connection error!
               // Pause scanner and prompt network error in UI
@@ -345,6 +434,22 @@ export function ScannerProvider({ children }: { children: ReactNode }) {
         await appendFaceDescriptors(eventId, facesBuffer);
       } catch (err) {
         console.error('Error flushing face descriptors buffer at end of scan:', err);
+      }
+    }
+
+    // Flush any remaining buffered photos at the end of the scan
+    if (photosBuffer.length > 0) {
+      try {
+        await updateCloudPhotosBatch(eventId, photosBuffer);
+        for (const p of photosBuffer) {
+          const localPhoto = photos.find((lp) => lp.id === p.id);
+          if (localPhoto) {
+            localPhoto.processed = true;
+            localPhoto.publicUrl = p.updates.publicUrl;
+          }
+        }
+      } catch (err) {
+        console.error('Error flushing photos buffer at end of scan:', err);
       }
     }
 

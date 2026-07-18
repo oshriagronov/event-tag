@@ -33,13 +33,13 @@ export const translations = {
       aiPowered: 'מופעל בינה מלאכותית',
       heroTitle: 'מערכת חכמה לניהול גלריות אירועים',
       heroSubTitle: 'כל אורח מוצא את עצמו בסלפי אחד',
-      heroDesc: 'סרקו תמונות מ-Google Drive, המודל מזהה פנים אוטומטית, והאורחים מוצאים את התמונות שלהם בסלפי מהיר — הכל בפרטיות מוחלטת.',
+      heroDesc: 'סרקו תמונות מ-Dropbox (ובעתיד מספקי ענן נוספים), המודל מזהה פנים אוטומטית, והאורחים מוצאים את התמונות שלהם בסלפי מהיר — הכל בפרטיות מוחלטת.',
       signInGoogle: 'התחברות עם Google',
       howItWorksBtn: 'איך זה עובד?',
       howItWorksTitle: 'איך זה עובד?',
       howItWorksSub: 'שלושה צעדים פשוטים — מסריקה ועד שיתוף',
       step1Title: 'סרקו תמונות',
-      step1Desc: 'בעל האירוע בוחר תיקייה מ-Google Drive עם כל תמונות האירוע.',
+      step1Desc: 'בעל האירוע בוחר תיקייה מ-Dropbox (או מספקי ענן נתמכים אחרים בעתיד) עם כל תמונות האירוע.',
       step2Title: 'סריקה חכמה',
       step2Desc: 'המודל מזהה פנים ומקבץ אותן אוטומטית ישירות בדפדפן.',
       step3Title: 'סלפי ומצאת',
@@ -55,11 +55,11 @@ export const translations = {
       faqTitle: 'שאלות ותשובות',
       faqSub: 'כל מה שחשוב לדעת על הפעילות, הפרטיות ואבטחת המידע שלכם',
       q1: 'איך המערכת עובדת?',
-      a1: 'בעל האירוע מחבר תיקיית תמונות מ-Google Drive. המערכת מנתחת את הפנים מקומית בדפדפן ומקבצת אותן. האורחים מצלמים סלפי קצר כדי למצוא את כל התמונות שלהם ישירות מתוך התיקייה המקורית.',
+      a1: 'בעל האירוע מחבר תיקיית תמונות מ-Dropbox (או ספקי ענן נתמכים אחרים בעתיד). המערכת מנתחת את הפנים מקומית בדפדפן ומקובצת אותן. האורחים מצלמים סלפי קצר כדי למצוא את כל התמונות שלהם ישירות מתוך התיקייה המקורית.',
       q2: 'האם התמונות והפנים שלי בטוחים ופרטיים?',
       a2: 'בהחלט. כל עיבוד התמונות, זיהוי וסריקת הפנים מתבצעים מקומית לחלוטין על גבי המכשיר שלכם (On-Device). התמונות שלכם אינן מועלות לשרתים של המערכת או לצד שלישי כלשהו.',
       q3: 'איזה מידע נשמר במערכת ואיזה לא?',
-      a3: 'אנו לא שומרים את התמונות שלכם או מידע ביומטרי מזהה. אנו שומרים רק מזהי קבצים (File IDs) של Google Drive ואת וקטורי הפנים המתמטיים (Face Descriptors) הנדרשים לביצוע החיפוש. נתונים אלו מאוחסנים בענן Firebase מאובטח.',
+      a3: 'אנו לא שומרים את התמונות שלכם או מידע ביומטרי מזהה. אנו שומרים רק מזהי קבצים (File IDs) של Dropbox (ובעתיד מספקי ענן נוספים) ואת וקטורי הפנים המתמטיים (Face Descriptors) הנדרשים לביצוע החיפוש. נתונים אלו מאוחסנים בענן Firebase מאובטח.',
       faqMoreDetails: 'למידע נוסף ומפורט, אנא קראו את {privacy} ואת {terms}.',
     },
     dashboard: {
@@ -71,7 +71,7 @@ export const translations = {
       eventNamePlaceholder: 'למשל: חתונת יוסי ודנה 2026',
       creating: 'יוצר...',
       scanFolderLabel: 'תיקיית תמונות ב-Drive:',
-      selectFolderBtn: 'בחר תיקייה מ-Google Drive',
+      selectFolderBtn: 'בחר תיקייה מ-Dropbox',
       selectedFolder: 'תיקייה שנבחרה:',
       qrModalTitle: 'קוד QR לשיתוף',
       qrModalDesc: 'סרקו את הקוד כדי לפתוח את עמוד האירוע',
@@ -101,7 +101,7 @@ export const translations = {
       photosCount: '{count} תמונות',
       recognizedGuestsCount: '{count} אורחים מזוהים',
       sharingWithGuests: 'שיתוף עם אורחים',
-      sharingDesc: 'העתק את הקישור או שתף את קוד ה-QR. האורחים יוכלו להעלות סלפי ולקבל מיידית את כל התמונות שלהם מתיקיית ה-Google Drive.',
+      sharingDesc: 'העתק את הקישור או שתף את קוד ה-QR. האורחים יוכלו להעלות סלפי ולקבל מיידית את כל התמונות שלהם מתיקיית הענן.',
       openGuestPage: 'פתח עמוד אורח',
       localProcessingNotice: 'בתהליך זה, ה-AI יסרוק את התמונות וישמור את מזהי הפנים בענן. לאחר מכן תוכל לשתף את הקישור עם האורחים.',
       photosScanned: 'תמונות שנסרקו',
@@ -137,7 +137,7 @@ export const translations = {
       downloadZipBtn: 'הורד את כל התמונות כקובץ ZIP ({count})',
       restoreRemoved: 'שחזר תמונות שהוסרו ({count})',
       blockedNoticeTitle: 'חלק מהתמונות אינן נטענות',
-      blockedNoticeDesc: 'נראה שהגישה לתמונות ב-Google Drive חסומה. על בעל האירוע להגדיר את שיתוף התיקייה ב-Drive ל-"כל מי שקישור זה ברשותו" (Anyone with the link) כדי שהאורחים יוכלו לצפות בהן.',
+      blockedNoticeDesc: 'נראה שהגישה לתמונות ב-Dropbox חסומה. על בעל האירוע לוודא שתיקיית ה-Dropbox משותפת או נגישה לקריאה כדי שהאורחים יוכלו לצפות בהן.',
       downloadBtn: 'הורד',
       removeBtn: 'הסר תמונה',
       changeSelfie: 'החלף סלפי',
@@ -198,16 +198,16 @@ export const translations = {
         'אף תמונה, תוכן ויזואלי או מאפיין ביומטרי אינם נשלחים, מועלים או נשמרים בשרת חיצוני כלשהו.',
         'כל עיבוד התמונות מתבצע על המחשב או המכשיר הנייד שלך ונשאר תחת שליטתך המלאה.'
       ],
-      privacySection2Title: 'חיבור ל-Google Picker וגישה ל-Google Drive',
-      privacySection2Text: 'האפליקציה משתמשת בממשק Google Picker API הרשמי כדי לאפשר לבעל האירוע לבחור תיקייה מתוך ה-Google Drive האישי שלו המכילה את תמונות האירוע.',
+      privacySection2Title: 'חיבור ל-Dropbox וגישה לתיקיות ענן',
+      privacySection2Text: 'האפליקציה מאפשרת לבעל האירוע לחבר את חשבון ה-Dropbox שלו (ובעתיד ספקי ענן נוספים) ולבחור תיקייה המכילה את תמונות האירוע.',
       privacySection2Bullets: [
-        'הגישה ל-Google Drive מוגבלת אך ורק לקבצים ותיקיות שנבחרו על ידך ומבוצעת ישירות מהדפדפן של המשתמש אל שרתי Google באמצעות קוד גישה מאובטח (OAuth Token) המאוחסן זמנית בדפדפן המשתמש.',
-        'התמונות נקראות ישירות מ-Google Drive אל זיכרון הדפדפן המקומי לצורך עיבוד זיהוי הפנים המקומי, ולא מועברות לשום שרת של EventTag או שרת צד שלישי אחר.'
+        'הגישה ל-Dropbox מוגבלת אך ורק לתיקייה ולקבצים שנבחרו על ידך, ומבוצעת ישירות מהדפדפן של המשתמש אל שרתי הענן באמצעות קוד גישה מאובטח (OAuth Token) המאוחסן זמנית בדפדפן המשתמש.',
+        'התמונות נקראות ישירות מ-Dropbox אל זיכרון הדפדפן המקומי לצורך עיבוד זיהוי הפנים המקומי, ולא מועברות לשום שרת של EventTag או שרת צד שלישי אחר.'
       ],
       privacySection3Title: 'שמירת נתונים וסנכרון ענן מאובטח',
       privacySection3Text: 'כדי לאפשר לאורחים למצוא את התמונות שלהם בעזרת סלפי, אנו מסנכרנים רק נתוני מטא-דאטה טקסטואליים לבסיס הנתונים המאובטח של Firebase Firestore:',
       privacySection3Bullets: [
-        'אנו שומרים רק נתוני מטא-דאטה טקסטואליים: מזהי הקבצים מתוך Google Drive (File IDs) ווקטורי זיהוי פנים מספריים (Face Descriptors) בבסיס הנתונים המאובטח של Firebase Firestore. אף תמונה אינה מועלית לשרתים שלנו.'
+        'אנו שומרים רק נתוני מטא-דאטה טקסטואליים: מזהי הקבצים מתוך ספק הענן (Dropbox או ספקים אחרים בעתיד) ווקטורי זיהוי פנים מספריים (Face Descriptors) בבסיס הנתונים המאובטח של Firebase Firestore. אף תמונה אינה מועלית לשרתים שלנו.'
       ],
       privacySection4Title: 'אבטחת מידע וזכויות המשתמש',
       privacySection4Text: 'מכיוון שאין לנו שרת מרכזי המאחסן את התמונות שלך, המידע שלך מוגן באופן טבעי מפני דליפות מידע מרכזיות. מפתח זיהוי הפנים מאוחסן כווקטור מתמטי בלבד ממנו לא ניתן לשחזר את תמונת הפנים המקורית. באפשרותך למחוק לחלוטין את כל המידע השמור בדפדפן המקומי שלך בכל עת על ידי מחיקת נתוני האתר בדפדפן או מתוך האפליקציה בהגדרות האירוע.',
@@ -222,9 +222,9 @@ export const translations = {
       ],
       privacySection6Title: 'מידע של קטינים (Minors\' Data Policy)',
       privacySection6Text: 'בהתאם לחוק הכשרות המשפטית והאפוטרופסות, התשכ"ב-1962, עיבוד מידע אישי של קטינים מתחת לגיל 18 טעון הסכמת הורה או אפוטרופוס חוקי. המערכת אינה מיועדת לשימוש עצמאי של קטינים ללא אישור והשגחת הוריהם. במקרה שהועלו תמונות של קטינים, על בעל האירוע לוודא קבלת הסכמת ההורים מראש לעיבוד פניהם של הקטינים.',
-      privacyDisclosureTitle: 'הצהרת שימוש במידע של Google (Google API Disclosure)',
-      privacyDisclosureText: 'השימוש וההעברה של EventTag לכל אפליקציה אחרת של מידע שהתקבל מחשבונות Google יתבצעו בכפוף למדיניות נתוני המשתמש של שירותי ה-API של Google, כולל דרישות השימוש המוגבל (Limited Use).',
-      privacyDisclosureLink: 'מדיניות נתוני המשתמש של שירותי ה-API של Google',
+      privacyDisclosureTitle: 'הצהרת שימוש במידע ענן (Cloud APIs Disclosure)',
+      privacyDisclosureText: 'השימוש של EventTag במידע שהתקבל מחשבונות Dropbox וספקי ענן אחרים מוגבל אך ורק לצורך הצגת התמונות וסריקתן המקומית. האפליקציה אינה משתפת מידע זה עם גורמי צד שלישי כלשהם, ועשויה להוסיף תמיכה בספקי ענן נוספים בעתיד.',
+      privacyDisclosureLink: 'תנאי השימוש ומדיניות הפרטיות של ספקי הענן',
 
       // Terms content
       termsHeaderBadge: 'תנאי שימוש בשירות',
@@ -235,15 +235,15 @@ export const translations = {
       termsSection2Text: 'השירות מסופק "כמות שהוא" (As-Is) וללא כל התחייבות או אחריות מכל סוג שהוא, מפורשת או משתמעת. היות וכל העיבוד, סריקת הפנים וקיבוץ התמונות מתבצעים באופן מקומי בדפדפן המשתמש:',
       termsSection2Bullets: [
         'השירות אינו מתחייב לדיוק של 100% בזיהוי הפנים או בקלסטרינג (Clustering).',
-        'EventTag אינה נושאת באחריות לכל אובדן נתונים מקומיים, שגיאות עיבוד פנים או חוסר זמינות של קבצים מתוך Google Drive של המשתמש.',
-        'אנחנו לא מגבים את התמונות שלך. באחריותך לשמור את קבצי המקור ב-Google Drive או בגיבוי עצמאי.'
+        'EventTag אינה נושאת באחריות לכל אובדן נתונים מקומיים, שגיאות עיבוד פנים או חוסר זמינות של קבצים מתוך חשבון הענן (Dropbox וכדומה) של המשתמש.',
+        'אנחנו לא מגבים את התמונות שלך. באחריותך לשמור את קבצי המקור בחשבון הענן שלך (Dropbox או גיבוי עצמאי אחר).'
       ],
       termsSection3Title: 'אחריות המשתמשים והסכמת אורחים',
       termsSection3Text: 'המשתמש נושא באחריות המלאה לתכנים ולתמונות שהוא בוחר לסרוק באמצעות האפליקציה.',
       termsSection3Bullets: [
         'המשתמש מתחייב כי יש לו את כל הזכויות וההסכמות החוקיות הנדרשות מכל המצולמים בתמונות לשם זיהוי פניהם מקומית באפליקציה.',
         'המשתמש מתחייב שלא להעלות או לסרוק תמונות המפרות זכויות יוצרים, פרטיות של צד שלישי או חוקים כלשהם.',
-        'המשתמש מתחייב שלא לעשות שימוש לרעה בשירות או לנסות לעקוף את מנגנוני האבטחה וההרשאות של שירותי Google או Firebase.'
+        'המשתמש מתחייב שלא לעשות שימוש לרעה בשירות או לנסות לעקוף את מנגנוני האבטחה וההרשאות של שירותי הענן או Firebase.'
       ],
       termsSection4Title: 'שינויים בשירות',
       termsSection4Text: 'אנו שומרים לעצמנו את הזכות לשנות או להפסיק זמנית או לצמיתות את השירות (או כל חלק ממנו) בכל עת, ללא הודעה מוקדמת. תנאים אלו עשויים להתעדכן מעת לעת, והמשך השימוש בשירות מהווה הסכמה לתנאים המעודכנים.',
@@ -280,13 +280,13 @@ export const translations = {
       aiPowered: 'AI Powered',
       heroTitle: 'Smart Event Gallery Management',
       heroSubTitle: 'Every guest finds themselves in a single selfie',
-      heroDesc: 'Scan photos from Google Drive, faces are auto-detected, and guests find their photos with a quick selfie — all in absolute privacy.',
+      heroDesc: 'Scan photos from Dropbox (and other cloud providers in the future), faces are auto-detected, and guests find their photos with a quick selfie — all in absolute privacy.',
       signInGoogle: 'Sign in with Google',
       howItWorksBtn: 'How it works?',
       howItWorksTitle: 'How it works?',
       howItWorksSub: 'Three simple steps — from scan to share',
       step1Title: 'Scan Photos',
-      step1Desc: 'The event owner selects a Google Drive folder containing all event photos.',
+      step1Desc: 'The event owner selects a folder from Dropbox (or other supported cloud providers in the future) containing event photos.',
       step2Title: 'Smart Scanning',
       step2Desc: 'The model detects faces and groups them automatically in the browser.',
       step3Title: 'Selfie & Find',
@@ -302,11 +302,11 @@ export const translations = {
       faqTitle: 'Frequently Asked Questions',
       faqSub: 'Everything you need to know about how EventTag works and protects your privacy',
       q1: 'How does EventTag work?',
-      a1: 'The event host connects a Google Drive folder. EventTag analyzes and groups faces locally in the browser. Guests take a quick selfie to find all their photos directly from the source folder.',
+      a1: 'The event host connects a Dropbox folder (with options for other cloud providers in the future). EventTag analyzes and groups faces locally in the browser. Guests take a quick selfie to find all their photos directly from the source folder.',
       q2: 'Is my data secure and private?',
       a2: 'Absolutely. All photo analysis and face recognition happen locally on your device (On-Device). Your actual photos are never uploaded to our servers or any third parties.',
       q3: "What data is saved and what isn't?",
-      a3: 'We never store your actual photos or identifiable biometric data. We only save Google Drive File IDs and numerical face descriptors (mathematical vectors) needed for search matching, stored securely in Firebase.',
+      a3: 'We never store your actual photos or identifiable biometric data. We only save cloud File IDs (Dropbox or other future providers) and numerical face descriptors (mathematical vectors) needed for search matching, stored securely in Firebase.',
       faqMoreDetails: 'For more detailed information, please review our {privacy} and {terms}.',
     },
     dashboard: {
@@ -318,7 +318,7 @@ export const translations = {
       eventNamePlaceholder: 'e.g. Wedding of Yossi & Dana 2026',
       creating: 'Creating...',
       scanFolderLabel: 'Drive Photos Folder:',
-      selectFolderBtn: 'Select Google Drive Folder',
+      selectFolderBtn: 'Select Dropbox Folder',
       selectedFolder: 'Selected Folder:',
       qrModalTitle: 'QR Code for Sharing',
       qrModalDesc: 'Scan the code to open the event page',
@@ -348,7 +348,7 @@ export const translations = {
       photosCount: '{count} photos',
       recognizedGuestsCount: '{count} recognized guests',
       sharingWithGuests: 'Share with Guests',
-      sharingDesc: 'Copy the link or share the QR code. Guests can upload a selfie and instantly get all their photos from the Google Drive folder.',
+      sharingDesc: 'Copy the link or share the QR code. Guests can upload a selfie and instantly get all their photos from the cloud folder.',
       openGuestPage: 'Open Guest Page',
       localProcessingNotice: 'In this process, the AI will scan the photos and save the face descriptors in the cloud. Then you will be able to share the link with guests.',
       photosScanned: 'Scanned Photos',
@@ -384,7 +384,7 @@ export const translations = {
       downloadZipBtn: 'Download all photos as ZIP ({count})',
       restoreRemoved: 'Restore removed photos ({count})',
       blockedNoticeTitle: 'Some photos are not loading',
-      blockedNoticeDesc: 'It seems access to the photos in Google Drive is blocked. The event owner needs to set the Google Drive folder sharing settings to "Anyone with the link" so that guests can view them.',
+      blockedNoticeDesc: 'It seems access to the photos in Dropbox is blocked. The event owner needs to make sure the folder is readable so that guests can view them.',
       downloadBtn: 'Download',
       removeBtn: 'Remove photo',
       changeSelfie: 'Change Selfie',
@@ -445,16 +445,16 @@ export const translations = {
         'No photo content, visual media, or biometric face descriptors are ever uploaded, stored, or processed on external servers.',
         'All processing executes on your local CPU/GPU/NPU and remains under your absolute control.'
       ],
-      privacySection2Title: 'Google Picker and Google Drive Integration',
-      privacySection2Text: 'The Application utilizes the official Google Picker API to allow event hosts to select a folder from their personal Google Drive containing event photos.',
+      privacySection2Title: 'Dropbox and Cloud Storage Integration',
+      privacySection2Text: 'The Application allows event hosts to connect their personal Dropbox account (with potential support for additional cloud providers in the future) to select event photos.',
       privacySection2Bullets: [
-        'This access is restricted only to files and folders selected by the user (drive.file) and is established directly from the user\'s browser to Google\'s servers using a secure OAuth Access Token stored temporarily in the browser session.',
-        'Photos are fetched directly from Google Drive into local browser memory for local face analysis, and are never sent to EventTag\'s servers or any third-party servers.'
+        'This access is restricted only to files and folders selected by the user and is established directly from the user\'s browser to the cloud provider\'s servers using a secure OAuth Access Token stored temporarily in the browser session.',
+        'Photos are fetched directly from the cloud provider into local browser memory for local face analysis, and are never sent to EventTag\'s servers or any third-party servers.'
       ],
       privacySection3Title: 'Data Storage and Cloud Sync',
       privacySection3Text: 'To allow guests to search for photos using a selfie, we sync only non-image metadata to our secure Firebase Firestore database:',
       privacySection3Bullets: [
-        'This includes Google Drive File IDs and numerical face descriptors (mathematical vectors). No actual photos or image files are ever uploaded to our database.'
+        'This includes cloud File IDs and numerical face descriptors (mathematical vectors). No actual photos or image files are ever uploaded to our database.'
       ],
       privacySection4Title: 'Security & User Controls',
       privacySection4Text: 'Since there is no centralized repository of images, your photos are safe from database breaches. You can wipe all local storage data at any time by clearing site cookies/storage or deleting events in the application dashboard.',
@@ -469,9 +469,9 @@ export const translations = {
       ],
       privacySection6Title: 'Minors and Children\'s Data Policy',
       privacySection6Text: 'Under the Legal Capacity and Guardianship Law, 1962, legal acts of a minor (under 18) require parental or guardian consent. EventTag is not intended for independent use by minors. For photos containing minors, event owners must obtain explicit parental consent prior to processing and scanning faces.',
-      privacyDisclosureTitle: 'Google API Disclosure',
-      privacyDisclosureText: 'EventTag\'s use and transfer to any other app of information received from Google APIs will adhere to Google API Services User Data Policy, including the Limited Use requirements.',
-      privacyDisclosureLink: 'Google API Services User Data Policy',
+      privacyDisclosureTitle: 'Cloud APIs Disclosure',
+      privacyDisclosureText: 'EventTag\'s use and transfer of information received from Dropbox and other cloud APIs will adhere to their developer policies. We do not sell, rent, or share user content, and may add support for more cloud storage providers in the future.',
+      privacyDisclosureLink: 'Cloud Provider Terms & Policies',
 
       // Terms content
       termsHeaderBadge: 'Terms of Service',
@@ -482,15 +482,15 @@ export const translations = {
       termsSection2Text: 'The Service is provided on an "as is" and "as available" basis, without any warranties of any kind. Since all processing, face scanning, and clustering happen locally in the browser:',
       termsSection2Bullets: [
         'We do not guarantee 100% accuracy in facial detection, recognition, or photo clustering results.',
-        'EventTag is not liable for any data loss, local browser database errors, or the unavailability of Google Drive files.',
-        'We do not back up your photos. You are responsible for preserving original backups in your Google Drive or secondary storage.'
+        'EventTag is not liable for any data loss, local browser database errors, or the unavailability of cloud storage files.',
+        'We do not back up your photos. You are responsible for preserving original backups in your Dropbox account or secondary storage.'
       ],
       termsSection3Title: 'User Responsibility & Consent',
       termsSection3Text: 'Users bear sole responsibility for the photos they select to analyze and scan.',
       termsSection3Bullets: [
         'You warrant that you have obtained all necessary legal consents and permissions from guests and participants to process their faces locally.',
         'You agree not to scan or upload photos that infringe copyrights, third-party rights, or any local or international laws.',
-        'You agree not to attempt to bypass or exploit authorization mechanisms of Google APIs or Firebase Firestore.'
+        'You agree not to attempt to bypass or exploit authorization mechanisms of cloud APIs or Firebase Firestore.'
       ],
       termsSection4Title: 'Modifications to Service',
       termsSection4Text: 'We reserve the right to modify, suspend, or discontinue the Service at any time without notice. These terms may be updated occasionally, and your continued usage of the Service constitutes acceptance of the modified terms.',
