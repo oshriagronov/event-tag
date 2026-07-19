@@ -88,7 +88,8 @@ export function LandingPage() {
         </div>
       </nav>
 
-      {/* Hero Section */}
+      <main id="main-content" tabIndex={-1} className="flex-grow flex flex-col focus:outline-none">
+        {/* Hero Section */}
       <section className="relative min-h-[90vh] flex items-center justify-center pt-32 pb-20 px-6 overflow-hidden">
         {/* Decorative Background Elements */}
         <div className="absolute inset-0 pattern-dots opacity-[0.03] z-0 pointer-events-none" />
@@ -395,6 +396,7 @@ export function LandingPage() {
           </button>
         </div>
       </section>
+      </main>
 
       {/* Footer */}
       <footer className="py-12 px-6 border-t border-surface-border/30 mt-auto bg-surface-container-lowest">
@@ -407,6 +409,8 @@ export function LandingPage() {
             <Link to="/privacy-policy" className="hover:text-copper-accent transition-colors cursor-pointer no-underline text-sage-muted font-bold">{t('legal.privacyTitle')}</Link>
             <span className="text-surface-border">•</span>
             <Link to="/terms" className="hover:text-copper-accent transition-colors cursor-pointer no-underline text-sage-muted font-bold">{t('legal.termsTitle')}</Link>
+            <span className="text-surface-border">•</span>
+            <Link to="/accessibility" className="hover:text-copper-accent transition-colors cursor-pointer no-underline text-sage-muted font-bold">{t('a11y.accessibilityStatement')}</Link>
             <span className="text-surface-border">•</span>
             <button
               onClick={reopen}

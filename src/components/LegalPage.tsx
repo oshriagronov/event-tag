@@ -2,10 +2,10 @@ import { Link } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { useTranslation } from '../services/translations';
 import { useConsent } from '../contexts/ConsentContext';
-import { Lock, ExternalLink, CheckCircle2 } from 'lucide-react';
+import { Lock, ExternalLink, CheckCircle2, ShieldCheck, Mail, Phone, Clock, FileCheck } from 'lucide-react';
 
 interface LegalPageProps {
-  defaultTab?: 'privacy' | 'terms';
+  defaultTab?: 'privacy' | 'terms' | 'accessibility';
 }
 
 export function LegalPage({ defaultTab = 'privacy' }: LegalPageProps) {
@@ -28,7 +28,7 @@ export function LegalPage({ defaultTab = 'privacy' }: LegalPageProps) {
           </Link>
           
           {/* Navigation Links */}
-          <nav className="hidden md:flex gap-8 items-center list-none">
+          <nav className="hidden md:flex gap-8 items-center list-none" aria-label={language === 'he' ? 'ניווט ראשי' : 'Main Navigation'}>
             <a href="/#how-it-works" className="font-label-sm text-xs uppercase tracking-wider text-sage-muted hover:text-copper-accent transition-colors duration-300 no-underline">
               {t('landing.howItWorksBtn')}
             </a>
@@ -61,8 +61,88 @@ export function LegalPage({ defaultTab = 'privacy' }: LegalPageProps) {
       </header>
 
       {/* Main Content Canvas */}
-      {defaultTab === 'privacy' ? (
-        <main className="flex-grow pt-32 pb-24 px-6 md:px-10 max-w-3xl mx-auto w-full z-10 text-start">
+      {defaultTab === 'accessibility' ? (
+        <main id="main-content" className="flex-grow pt-32 pb-24 px-6 md:px-10 max-w-3xl mx-auto w-full z-10 text-start" tabIndex={-1}>
+          {/* Accessibility Compliance Guarantee Banner */}
+          <div className="mb-12 p-6 rounded-xl border border-surface-border bg-surface-container/40 backdrop-blur-sm flex items-start gap-4 shadow-sm">
+            <ShieldCheck className="w-6 h-6 text-copper-accent shrink-0 mt-1" />
+            <div className="flex flex-col gap-1">
+              <h3 className="font-title-md text-base font-bold text-deep-forest m-0">
+                {t('legal.accessibilityBadge')}
+              </h3>
+              <p className="font-body-md text-xs md:text-sm text-sage-muted leading-relaxed m-0 mt-1">
+                {t('legal.accessibilityIntro')}
+              </p>
+            </div>
+          </div>
+
+          {/* Document Header */}
+          <div className="max-w-3xl mx-auto mb-16 text-center">
+            <h1 className="font-display-lg text-4xl md:text-5xl text-deep-forest mb-4 m-0 leading-tight">
+              {t('legal.accessibilityTitle')}
+            </h1>
+            <p className="font-body-md text-sage-muted m-0 text-sm md:text-base">
+              {t('legal.accessibilityUpdateDate')}
+            </p>
+          </div>
+
+          {/* Document Content */}
+          <article className="max-w-3xl mx-auto text-sage-muted space-y-12">
+            <section className="space-y-4">
+              <h2 className="font-headline-lg text-xl md:text-2xl text-deep-forest mb-4 m-0">
+                1. {t('legal.accessibilitySection1Title')}
+              </h2>
+              <ul className={`list-disc ${isRtl ? 'pr-6' : 'pl-6'} space-y-3 text-xs md:text-sm font-body-md leading-relaxed`}>
+                {(t('legal.accessibilitySection1Bullets') as string[]).map((bullet, idx) => (
+                  <li key={idx}>{bullet}</li>
+                ))}
+              </ul>
+            </section>
+
+            <section className="border-t border-surface-border pt-8 space-y-4">
+              <h2 className="font-headline-lg text-xl md:text-2xl text-deep-forest mb-4 m-0">
+                2. {t('legal.accessibilitySection2Title')}
+              </h2>
+              <p className="font-body-md text-sage-muted leading-relaxed m-0 text-xs md:text-sm">
+                {t('legal.accessibilitySection2Text')}
+              </p>
+            </section>
+
+            {/* Accessibility Coordinator Box */}
+            <section className="border-t border-surface-border pt-8">
+              <div className="bg-surface-container/40 border border-surface-border rounded-xl p-6 md:p-8 space-y-4 shadow-sm">
+                <h3 className="font-headline-lg text-lg md:text-xl text-deep-forest font-bold m-0 flex items-center gap-2">
+                  <FileCheck className="w-5 h-5 text-copper-accent" />
+                  {t('legal.accessibilityCoordinatorTitle')}
+                </h3>
+                <p className="font-body-md text-xs md:text-sm text-sage-muted m-0 leading-relaxed">
+                  {t('legal.accessibilityCoordinatorDesc')}
+                </p>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-2 text-xs md:text-sm">
+                  <div className="flex items-center gap-2.5 text-on-background font-bold">
+                    <Mail className="w-4 h-4 text-copper-accent shrink-0" />
+                    <a href="mailto:accessibility@eventtag.ai" className="hover:underline text-copper-accent">
+                      {t('legal.accessibilityCoordinatorEmail')}
+                    </a>
+                  </div>
+                  <div className="flex items-center gap-2.5 text-on-background font-bold">
+                    <Phone className="w-4 h-4 text-copper-accent shrink-0" />
+                    <span>{t('legal.accessibilityCoordinatorPhone')}</span>
+                  </div>
+                  <div className="flex items-center gap-2.5 text-sage-muted col-span-1 sm:col-span-2">
+                    <Clock className="w-4 h-4 text-copper-accent shrink-0" />
+                    <span>{t('legal.accessibilityCoordinatorHours')}</span>
+                  </div>
+                </div>
+                <div className="pt-4 border-t border-surface-border/40 text-xs text-sage-muted">
+                  <p className="m-0">{t('legal.accessibilityAuditDate')}</p>
+                </div>
+              </div>
+            </section>
+          </article>
+        </main>
+      ) : defaultTab === 'privacy' ? (
+        <main id="main-content" className="flex-grow pt-32 pb-24 px-6 md:px-10 max-w-3xl mx-auto w-full z-10 text-start" tabIndex={-1}>
           {/* Guarantee Banner */}
           <div className="mb-12 p-6 rounded-xl border border-surface-border bg-surface-container/40 backdrop-blur-sm flex items-start gap-4 shadow-sm">
             <Lock className="w-5 h-5 text-copper-accent shrink-0 mt-1" />
@@ -188,7 +268,7 @@ export function LegalPage({ defaultTab = 'privacy' }: LegalPageProps) {
           </article>
         </main>
       ) : (
-        <main className="flex-grow pt-32 pb-24 px-6 md:px-10 max-w-3xl mx-auto w-full z-10 text-start">
+        <main id="main-content" className="flex-grow pt-32 pb-24 px-6 md:px-10 max-w-3xl mx-auto w-full z-10 text-start" tabIndex={-1}>
           {/* Header Section */}
           <div className="max-w-3xl mx-auto mb-16 text-center">
             <h1 className="font-display-lg text-4xl md:text-5xl text-deep-forest mb-4 m-0 leading-tight">
@@ -273,6 +353,8 @@ export function LegalPage({ defaultTab = 'privacy' }: LegalPageProps) {
             <span className="text-surface-border">•</span>
             <Link to="/terms" className={`hover:text-copper-accent transition-colors no-underline font-bold ${defaultTab === 'terms' ? 'text-copper-accent' : 'text-sage-muted'}`}>{t('legal.termsTitle')}</Link>
             <span className="text-surface-border">•</span>
+            <Link to="/accessibility" className={`hover:text-copper-accent transition-colors no-underline font-bold ${defaultTab === 'accessibility' ? 'text-copper-accent' : 'text-sage-muted'}`}>{t('legal.accessibilityTitle')}</Link>
+            <span className="text-surface-border">•</span>
             <button
               onClick={reopen}
               className="hover:text-copper-accent transition-colors cursor-pointer bg-transparent border-none p-0 outline-none font-bold text-sage-muted font-label-sm uppercase tracking-wider text-[10px] md:text-xs"
@@ -285,3 +367,4 @@ export function LegalPage({ defaultTab = 'privacy' }: LegalPageProps) {
     </div>
   );
 }
+

@@ -163,3 +163,119 @@ body {
   height: 1px;
   background: linear-gradient(to right, transparent, rgba(143, 168, 155, 0.3), transparent);
 }
+
+/* ==========================================================================
+   IS 5568 / Regulation 35 Accessibility Utility Classes
+   ========================================================================== */
+
+/* Link Highlighting */
+html.a11y-links a {
+  text-decoration: underline !important;
+  text-underline-offset: 4px !important;
+  font-weight: 700 !important;
+}
+
+/* Heading Highlighting */
+html.a11y-headings h1,
+html.a11y-headings h2,
+html.a11y-headings h3,
+html.a11y-headings h4,
+html.a11y-headings h5,
+html.a11y-headings h6 {
+  border-inline-start: 4px solid var(--copper-accent) !important;
+  padding-inline-start: 8px !important;
+  background-color: rgba(184, 115, 51, 0.08) !important;
+  border-radius: 4px !important;
+}
+
+/* High Contrast Mode */
+html.a11y-contrast-high {
+  --background: #000000 !important;
+  --on-background: #ffff00 !important;
+  --surface-container: #111111 !important;
+  --surface-container-low: #000000 !important;
+  --surface-container-high: #222222 !important;
+  --surface-border: #ffff00 !important;
+  --copper-accent: #ffff00 !important;
+  --sage-muted: #ffffff !important;
+  --deep-forest: #ffff00 !important;
+}
+html.a11y-contrast-high * {
+  border-color: #ffff00 !important;
+}
+
+/* Color Inversion Mode */
+html.a11y-contrast-invert {
+  filter: invert(100%) hue-rotate(180deg) !important;
+}
+html.a11y-contrast-invert img,
+html.a11y-contrast-invert video,
+html.a11y-contrast-invert canvas,
+html.a11y-contrast-invert #a11y-widget-trigger,
+html.a11y-contrast-invert #a11y-widget-panel {
+  filter: invert(100%) hue-rotate(180deg) !important;
+}
+
+/* Monochrome Mode */
+html.a11y-contrast-mono {
+  filter: grayscale(100%) !important;
+}
+
+/* Text Scaling */
+html.a11y-text-115 {
+  font-size: 115% !important;
+}
+html.a11y-text-130 {
+  font-size: 130% !important;
+}
+html.a11y-text-150 {
+  font-size: 150% !important;
+}
+
+/* Line Spacing */
+html.a11y-lines-16 * {
+  line-height: 1.6 !important;
+}
+html.a11y-lines-20 * {
+  line-height: 2.0 !important;
+}
+
+/* Readable Font Stack */
+html.a11y-readable-font * {
+  font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif !important;
+}
+
+/* Animation Disabling */
+html.a11y-stop-anim *,
+html.a11y-stop-anim *::before,
+html.a11y-stop-anim *::after {
+  animation: none !important;
+  transition: none !important;
+  scroll-behavior: auto !important;
+}
+
+/* Large Cursor */
+html.a11y-large-cursor,
+html.a11y-large-cursor * {
+  cursor: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='32' height='32' viewBox='0 0 24 24' fill='%23000' stroke='%23fff' stroke-width='2'%3E%3Cpath d='M3 3l7 18 3-7 7-3L3 3z'/%3E%3C/svg%3E"), auto !important;
+}
+
+/* High Contrast Focus Ring */
+*:focus-visible {
+  outline: 3px solid var(--copper-accent) !important;
+  outline-offset: 2px !important;
+}
+
+/* Print Overrides */
+@media print {
+  html[class*="a11y-"] {
+    filter: none !important;
+  }
+  html[class*="a11y-text-"] {
+    font-size: 100% !important;
+  }
+  html[class*="a11y-lines-"] {
+    line-height: normal !important;
+  }
+}
+

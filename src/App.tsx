@@ -57,13 +57,17 @@ function GuestViewWrapper() {
 }
 
 import { PrivacyPage } from './components/PrivacyPage';
+import { SkipLink } from './components/SkipLink';
+import { AccessibilityWidget } from './components/AccessibilityWidget';
 
 function AppRoutes() {
   return (
     <div className="min-h-screen bg-background text-on-background flex flex-col font-sans transition-colors duration-300">
+      <SkipLink />
       <SettingsModal />
       <CookieBanner />
       <PreferencesModal />
+      <AccessibilityWidget />
       <Routes>
         {/* Public routes */}
         <Route path="/" element={<LandingPage />} />
@@ -72,6 +76,8 @@ function AppRoutes() {
         <Route path="/privacy" element={<PrivacyPage />} />
         <Route path="/privacy-policy" element={<LegalPage defaultTab="privacy" />} />
         <Route path="/terms" element={<LegalPage defaultTab="terms" />} />
+        <Route path="/accessibility" element={<LegalPage defaultTab="accessibility" />} />
+        <Route path="/accessibility-statement" element={<LegalPage defaultTab="accessibility" />} />
 
         {/* Protected owner routes */}
         <Route

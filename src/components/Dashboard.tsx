@@ -372,7 +372,7 @@ export function Dashboard() {
       )}
 
       {/* Main Content Area */}
-      <main className={`flex-1 bg-background relative min-h-screen pb-20 flex flex-col ${
+      <main id="main-content" tabIndex={-1} className={`flex-1 bg-background relative min-h-screen pb-20 flex flex-col focus:outline-none ${
         isRtl ? 'md:mr-64' : 'md:ml-64'
       }`}>
         {/* Top Header Bar */}

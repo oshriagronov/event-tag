@@ -362,7 +362,7 @@ export function GuestView({ shareCode }: GuestViewProps) {
     <div className="min-h-screen bg-background text-on-background flex flex-col text-start" dir={isRtl ? 'rtl' : 'ltr'}>
       {renderHeader()}
 
-      <div className="flex-1 flex flex-col p-6 max-w-2xl mx-auto w-full gap-6">
+      <main id="main-content" tabIndex={-1} className="flex-1 flex flex-col p-6 max-w-2xl mx-auto w-full gap-6 focus:outline-none">
         {/* Results banner */}
         <div className="flex flex-col gap-4">
           <div className="flex items-center gap-3 p-4 rounded bg-surface-container border border-surface-border text-start">
@@ -543,6 +543,8 @@ export function GuestView({ shareCode }: GuestViewProps) {
               <span className="text-surface-border">•</span>
               <Link to="/terms" className="hover:text-copper-accent transition-colors cursor-pointer no-underline text-sage-muted font-bold">{t('legal.termsTitle')}</Link>
               <span className="text-surface-border">•</span>
+              <Link to="/accessibility" className="hover:text-copper-accent transition-colors cursor-pointer no-underline text-sage-muted font-bold">{t('a11y.accessibilityStatement')}</Link>
+              <span className="text-surface-border">•</span>
               <button
                 onClick={reopen}
                 className="hover:text-copper-accent transition-colors cursor-pointer bg-transparent border-none p-0 outline-none font-bold text-sage-muted font-label-sm uppercase tracking-wider text-[10px] md:text-xs"
@@ -552,7 +554,7 @@ export function GuestView({ shareCode }: GuestViewProps) {
             </div>
           </div>
         </div>
-      </div>
+      </main>
     </div>
   );
 }

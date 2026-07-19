@@ -9,6 +9,30 @@
     <link href="https://fonts.googleapis.com/css2?family=EB+Garamond:ital,wght@0,400..700;1,400..700&family=Hanken+Grotesk:ital,wght@0,100..900;1,100..900&display=swap" rel="stylesheet" />
     <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200&display=swap" rel="stylesheet" />
     <title>EventTag | ארגון תמונות חכם</title>
+    <script>
+      (function(){
+        try {
+          var raw = localStorage.getItem('site_a11y_prefs_v1');
+          if (!raw) return;
+          var p = JSON.parse(raw);
+          if (!p || p.version !== 1) return;
+          var c = document.documentElement.classList;
+          c.toggle('a11y-links', !!p.links);
+          c.toggle('a11y-contrast-high', p.contrast === 'high');
+          c.toggle('a11y-contrast-invert', p.contrast === 'invert');
+          c.toggle('a11y-contrast-mono', p.contrast === 'mono');
+          c.toggle('a11y-text-115', p.textSize === 115);
+          c.toggle('a11y-text-130', p.textSize === 130);
+          c.toggle('a11y-text-150', p.textSize === 150);
+          c.toggle('a11y-lines-16', p.lineSpacing === '1.6');
+          c.toggle('a11y-lines-20', p.lineSpacing === '2.0');
+          c.toggle('a11y-readable-font', !!p.readableFont);
+          c.toggle('a11y-headings', !!p.headings);
+          c.toggle('a11y-large-cursor', !!p.largeCursor);
+          c.toggle('a11y-stop-anim', !!p.stopAnim);
+        } catch(e) {}
+      })();
+    </script>
   </head>
   <body>
     <div id="root"></div>

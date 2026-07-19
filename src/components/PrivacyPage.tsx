@@ -24,7 +24,7 @@ export function PrivacyPage() {
           </Link>
           
           {/* Navigation Links */}
-          <nav className="hidden md:flex gap-8 items-center list-none">
+          <nav className="hidden md:flex gap-8 items-center list-none" aria-label={language === 'he' ? 'ניווט ראשי' : 'Main Navigation'}>
             <a href="/#how-it-works" className="font-label-sm text-xs uppercase tracking-wider text-sage-muted hover:text-copper-accent transition-colors duration-300 no-underline">
               {t('landing.howItWorksBtn')}
             </a>
@@ -57,7 +57,7 @@ export function PrivacyPage() {
       </header>
 
       {/* Main Content Area */}
-      <main className="flex-grow pt-32 pb-24 px-6 md:px-12 max-w-5xl mx-auto w-full z-10">
+      <main id="main-content" tabIndex={-1} className="flex-grow pt-32 pb-24 px-6 md:px-12 max-w-5xl mx-auto w-full z-10 focus:outline-none">
         <section className="mb-20 text-center max-w-3xl mx-auto flex flex-col items-center">
           <div className="inline-flex items-center justify-center p-5 bg-surface-container border border-surface-border rounded-full mb-8 shadow-sm">
             <Shield className="w-10 h-10 text-copper-accent" />
@@ -176,6 +176,8 @@ export function PrivacyPage() {
             <Link to="/privacy-policy" className="hover:text-copper-accent transition-colors cursor-pointer no-underline text-sage-muted font-bold">{t('legal.privacyTitle')}</Link>
             <span className="text-surface-border">•</span>
             <Link to="/terms" className="hover:text-copper-accent transition-colors cursor-pointer no-underline text-sage-muted font-bold">{t('legal.termsTitle')}</Link>
+            <span className="text-surface-border">•</span>
+            <Link to="/accessibility" className="hover:text-copper-accent transition-colors cursor-pointer no-underline text-sage-muted font-bold">{t('a11y.accessibilityStatement')}</Link>
             <span className="text-surface-border">•</span>
             <button
               onClick={reopen}

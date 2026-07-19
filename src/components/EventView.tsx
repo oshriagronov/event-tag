@@ -308,7 +308,7 @@ export function EventView({ eventId, onBack }: EventViewProps) {
   const shareLink = `${window.location.origin}/event/${event.shareCode}`;
 
   return (
-    <div className="max-w-6xl w-full mx-auto px-6 py-10 flex-grow flex flex-col gap-8 text-start" dir={isRtl ? 'rtl' : 'ltr'}>
+    <main id="main-content" tabIndex={-1} className="max-w-6xl w-full mx-auto px-6 py-10 flex-grow flex flex-col gap-8 text-start focus:outline-none" dir={isRtl ? 'rtl' : 'ltr'}>
       {/* Header bar */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-surface-border/30 pb-6">
         <div className="flex items-center gap-4">
@@ -664,6 +664,6 @@ export function EventView({ eventId, onBack }: EventViewProps) {
           </div>
         </div>
       )}
-    </div>
+    </main>
   );
 }
