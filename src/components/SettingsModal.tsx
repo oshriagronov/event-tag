@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Settings, X, Moon, Sun, Type, Globe } from 'lucide-react';
+import { Settings, Accessibility, X, Moon, Sun, Type, Globe } from 'lucide-react';
 import { useSettings } from '../contexts/SettingsContext';
 import { useTranslation } from '../services/translations';
 
@@ -12,10 +12,10 @@ export function SettingsModal() {
     return (
       <button
         onClick={() => setIsOpen(true)}
-        className="fixed bottom-6 end-6 z-50 p-3 rounded-lg bg-surface-container border border-surface-border text-on-background hover:bg-surface-container-high hover:border-copper-accent/45 transition-all shadow-xl hover:rotate-90 duration-300 cursor-pointer"
+        className="fixed bottom-6 end-6 z-50 p-3 rounded-lg bg-surface-container border border-surface-border text-on-background hover:bg-surface-container-high hover:border-copper-accent/45 transition-all shadow-xl duration-300 cursor-pointer"
         title={t('settings.title')}
       >
-        <Settings className="w-5 h-5" />
+        <Accessibility className="w-5 h-5" />
       </button>
     );
   }
@@ -31,10 +31,10 @@ export function SettingsModal() {
         dir={isRtl ? 'rtl' : 'ltr'}
       >
         <div className="flex items-center justify-between">
-          <h2 className="font-display-lg text-lg text-on-background flex items-center gap-2.5 m-0">
-            <Settings className="w-5 h-5 text-copper-accent" />
-            {t('settings.title')}
-          </h2>
+          <div className="flex items-center gap-3">
+            <Accessibility className="w-5 h-5 text-copper-accent" />
+            <h2 className="text-xl font-bold m-0 text-on-surface">{t('settings.title')}</h2>
+          </div>
           <button 
             onClick={() => setIsOpen(false)}
             className="p-1.5 rounded hover:bg-surface-container-high text-sage-muted hover:text-on-background transition-colors cursor-pointer border-none bg-transparent"

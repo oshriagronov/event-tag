@@ -3,7 +3,6 @@ import { AuthProvider, useAuth } from './contexts/AuthContext';
 import { SettingsProvider } from './contexts/SettingsContext';
 import { ConsentProvider } from './contexts/ConsentContext';
 import { ScannerProvider } from './contexts/ScannerContext';
-import { SettingsModal } from './components/SettingsModal';
 import { CookieBanner } from './components/CookieBanner';
 import { PreferencesModal } from './components/PreferencesModal';
 import { Dashboard } from './components/Dashboard';
@@ -64,7 +63,6 @@ function AppRoutes() {
   return (
     <div className="min-h-screen bg-background text-on-background flex flex-col font-sans transition-colors duration-300">
       <SkipLink />
-      <SettingsModal />
       <CookieBanner />
       <PreferencesModal />
       <AccessibilityWidget />

@@ -16,26 +16,25 @@ interface SettingsContextType {
 const SettingsContext = createContext<SettingsContextType | undefined>(undefined);
 
 export function SettingsProvider({ children }: { children: ReactNode }) {
-  const [theme, setThemeState] = useState<Theme>('dark');
-  const [fontSize, setFontSizeState] = useState<FontSize>('normal');
-  const [language, setLanguageState] = useState<Language>('he');
-
-  useEffect(() => {
-    // Load from localStorage
+  const [theme, setThemeState] = useState<Theme>(() => {
     const savedTheme = localStorage.getItem('event-tag-theme') as Theme;
+    if (savedTheme && ['light', 'dark'].includes(savedTheme)) return savedTheme;
+    if (window.matchMedia && window.matchMedia('(prefers-color-scheme: light)').matches) return 'light';
+    return 'dark';
+  });
+  
+  const [fontSize, setFontSizeState] = useState<FontSize>(() => {
     const savedFontSize = localStorage.getItem('event-tag-font-size') as FontSize;
+    if (savedFontSize && ['normal', 'large', 'xlarge'].includes(savedFontSize)) return savedFontSize;
+    return 'normal';
+  });
+  
+  const [language, setLanguageState] = useState<Language>(() => {
     const savedLanguage = localStorage.getItem('event-tag-lang') as Language;
-
-    if (savedTheme && ['light', 'dark'].includes(savedTheme)) {
-      setThemeState(savedTheme);
-    }
-    if (savedFontSize && ['normal', 'large', 'xlarge'].includes(savedFontSize)) {
-      setFontSizeState(savedFontSize);
-    }
-    if (savedLanguage && ['he', 'en'].includes(savedLanguage)) {
-      setLanguageState(savedLanguage);
-    }
-  }, []);
+    if (savedLanguage && ['he', 'en'].includes(savedLanguage)) return savedLanguage;
+    const sysLang = navigator.language || '';
+    return sysLang.toLowerCase().startsWith('he') ? 'he' : 'en';
+  });
 
   const setTheme = (t: Theme) => {
     setThemeState(t);

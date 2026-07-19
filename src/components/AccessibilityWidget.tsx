@@ -136,7 +136,7 @@ export function AccessibilityWidget() {
         aria-controls="a11y-widget-panel"
         aria-label={t('a11y.widgetTriggerLabel')}
         title={t('a11y.widgetTriggerLabel')}
-        className="fixed bottom-6 start-6 z-40 p-3.5 bg-deep-forest text-surface-container-lowest dark:bg-copper-accent dark:text-black rounded-full shadow-2xl hover:scale-105 active:scale-95 transition-all duration-200 focus-visible:ring-4 focus-visible:ring-copper-accent focus-visible:outline-none flex items-center justify-center cursor-pointer border border-surface-border/40"
+        className="fixed bottom-6 end-6 z-50 p-3.5 bg-deep-forest text-surface-container-lowest dark:bg-copper-accent dark:text-black rounded-full shadow-2xl hover:scale-105 active:scale-95 transition-all duration-200 focus-visible:ring-4 focus-visible:ring-copper-accent focus-visible:outline-none flex items-center justify-center cursor-pointer border border-surface-border/40"
       >
         <Sparkles className="w-6 h-6 shrink-0" />
       </button>
@@ -150,7 +150,7 @@ export function AccessibilityWidget() {
             aria-modal="true"
             aria-labelledby="a11y-panel-title"
             dir={isRtl ? 'rtl' : 'ltr'}
-            className="relative w-full max-w-xl bg-surface-container border border-surface-border rounded-2xl shadow-2xl p-6 sm:p-8 flex flex-col gap-6 text-start max-h-[90vh] overflow-y-auto"
+            className="relative w-full max-w-3xl bg-surface-container border border-surface-border rounded-2xl shadow-2xl p-6 sm:p-8 flex flex-col gap-6 text-start max-h-[90vh] overflow-y-auto"
           >
             {/* Panel Header */}
             <div className="flex items-center justify-between border-b border-surface-border/60 pb-4">
@@ -190,7 +190,7 @@ export function AccessibilityWidget() {
                     {prefs.contrast === 'high' ? t('a11y.contrastHigh') : prefs.contrast === 'invert' ? t('a11y.contrastInvert') : prefs.contrast === 'mono' ? t('a11y.contrastMono') : t('a11y.contrastNormal')}
                   </span>
                 </div>
-                <div className="grid grid-cols-4 gap-1.5 pt-1">
+                <div className="grid grid-cols-4 gap-2 pt-1">
                   <button
                     onClick={() => updatePrefs((p) => ({ ...p, contrast: 'off' }), t('a11y.appliedAnnouncement'))}
                     className={`py-1.5 px-2 text-xs rounded font-bold transition-all border ${prefs.contrast === 'off' ? 'bg-copper-accent text-white border-copper-accent' : 'bg-surface-container-high text-on-background border-surface-border'}`}
@@ -227,7 +227,7 @@ export function AccessibilityWidget() {
                   </span>
                   <span className="text-xs text-sage-muted font-normal">{prefs.textSize}%</span>
                 </div>
-                <div className="grid grid-cols-4 gap-1.5 pt-1">
+                <div className="grid grid-cols-4 gap-2 pt-1">
                   {[100, 115, 130, 150].map((size) => (
                     <button
                       key={size}

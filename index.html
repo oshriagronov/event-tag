@@ -12,6 +12,23 @@
     <script>
       (function(){
         try {
+          var savedTheme = localStorage.getItem('event-tag-theme');
+          if (!savedTheme) {
+            savedTheme = window.matchMedia && window.matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark';
+          }
+          document.documentElement.classList.add('theme-' + savedTheme);
+          if (savedTheme === 'dark') {
+            document.documentElement.classList.add('dark');
+          }
+          
+          var savedLang = localStorage.getItem('event-tag-lang');
+          if (!savedLang) {
+            var sysLang = navigator.language || '';
+            savedLang = sysLang.toLowerCase().startsWith('he') ? 'he' : 'en';
+          }
+          document.documentElement.lang = savedLang;
+          document.documentElement.dir = savedLang === 'he' ? 'rtl' : 'ltr';
+
           var raw = localStorage.getItem('site_a11y_prefs_v1');
           if (!raw) return;
           var p = JSON.parse(raw);
