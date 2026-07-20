@@ -16,7 +16,7 @@ import {
   ArrowLeft, LogOut, Cloud, Link2, QrCode,
   CheckCircle2, Loader2, Clock, Copy, Check, X,
   Plus, Play, Pause, FolderOpen, Search, Menu, BarChart2, Settings,
-  Sun, Moon, Type, AlertTriangle
+  Sun, Moon, AlertTriangle
 } from 'lucide-react';
 import { useScanner } from '../contexts/ScannerContext';
 import { useTranslation } from '../services/translations';
@@ -24,8 +24,16 @@ import { useTranslation } from '../services/translations';
 export function Dashboard() {
   const navigate = useNavigate();
   const { t, isRtl, language } = useTranslation();
-  const { user, dropboxAccessToken, signOut, connectDropbox, disconnectDropbox } = useAuth();
-  const { theme, fontSize, setTheme, setFontSize, setLanguage } = useSettings();
+  const {
+    user,
+    dropboxAccessToken,
+    signOut,
+    connectDropbox,
+    disconnectDropbox,
+    disconnectGoogle,
+    disconnectOneDrive,
+  } = useAuth();
+  const { theme, setTheme, setLanguage } = useSettings();
   const [showFolderPicker, setShowFolderPicker] = useState(false);
   const {
     isScanning,
@@ -173,6 +181,10 @@ export function Dashboard() {
 
       if (provider === 'dropbox') {
         disconnectDropbox();
+      } else if (provider === 'google') {
+        disconnectGoogle();
+      } else if (provider === 'onedrive') {
+        disconnectOneDrive();
       }
       alert(language === 'he' ? 'הספק נותק בהצלחה והאירועים המשויכים נמחקו.' : 'Provider disconnected and associated events deleted successfully.');
     } catch (err) {
@@ -199,8 +211,10 @@ export function Dashboard() {
         await deleteCloudEvent(ev.id!);
       }
 
-      // 2. Disconnect Dropbox
+      // 2. Disconnect Cloud Providers
       disconnectDropbox();
+      disconnectGoogle();
+      disconnectOneDrive();
 
       // 3. Delete Firebase user account
       await user.delete();
@@ -720,7 +734,7 @@ export function Dashboard() {
               {/* Accessibility Settings card */}
               <div className="bg-surface-container border border-surface-border rounded-xl p-6 flex flex-col gap-6">
                 <h3 className="font-title-md text-lg font-bold text-on-background m-0 flex items-center gap-2">
-                  <Type className="w-5 h-5 text-copper-accent" />
+                  <Settings className="w-5 h-5 text-copper-accent" />
                   {t('settings.accessibility')}
                 </h3>
                 
@@ -753,46 +767,6 @@ export function Dashboard() {
                       >
                         <Moon className="w-3.5 h-3.5" />
                         {t('settings.dark')}
-                      </button>
-                    </div>
-                  </div>
-
-                  {/* Font Size Toggle */}
-                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-surface-border/40 pb-4">
-                    <div className="text-start">
-                      <p className="font-title-sm text-sm font-bold text-on-background m-0">{t('settings.fontSize')}</p>
-                      <p className="text-xs text-sage-muted m-0">{language === 'he' ? 'התאם את גודל הגופן לשיפור הקריאות.' : 'Adjust typography scale for optimal readability.'}</p>
-                    </div>
-                    <div className="flex gap-2 bg-surface-container-low p-1.5 rounded border border-surface-border w-full sm:w-auto shrink-0">
-                      <button
-                        onClick={() => setFontSize('normal')}
-                        className={`flex-1 sm:flex-initial px-3 py-2 rounded text-xs font-bold transition-all cursor-pointer border-none ${
-                          fontSize === 'normal' 
-                            ? 'bg-surface-container-high text-copper-accent border border-surface-border/50 shadow' 
-                            : 'bg-transparent text-sage-muted hover:text-on-background'
-                        }`}
-                      >
-                        {t('settings.normal')}
-                      </button>
-                      <button
-                        onClick={() => setFontSize('large')}
-                        className={`flex-1 sm:flex-initial px-3 py-2 rounded text-xs font-bold transition-all cursor-pointer border-none ${
-                          fontSize === 'large' 
-                            ? 'bg-surface-container-high text-copper-accent border border-surface-border/50 shadow' 
-                            : 'bg-transparent text-sage-muted hover:text-on-background'
-                        }`}
-                      >
-                        {t('settings.large')}
-                      </button>
-                      <button
-                        onClick={() => setFontSize('xlarge')}
-                        className={`flex-1 sm:flex-initial px-3 py-2 rounded text-xs font-bold transition-all cursor-pointer border-none ${
-                          fontSize === 'xlarge' 
-                            ? 'bg-surface-container-high text-copper-accent border border-surface-border/50 shadow' 
-                            : 'bg-transparent text-sage-muted hover:text-on-background'
-                        }`}
-                      >
-                        {t('settings.xlarge')}
                       </button>
                     </div>
                   </div>

@@ -17,7 +17,7 @@ export const translations = {
       success: 'הצלחה',
     },
     settings: {
-      title: 'הגדרות ונגישות',
+      title: 'הגדרות',
       theme: 'מראה (Theme)',
       light: 'בהיר',
       dark: 'כהה',
@@ -42,7 +42,7 @@ export const translations = {
       deleteAccountConfirm: 'אזהרה חמורה!\nפעולה זו תמחוק לצמיתות את החשבון שלך ואת כל האירועים, התמונות והפנים שנסרקו. לא ניתן לשחזר פעולה זו!\n\nהאם אתה בטוח לחלוטין שברצונך להמשיך?',
       selectProviderTitle: 'בחר ספק ענן',
       selectProviderDesc: 'בחר את ספק הענן שבו מאוחסנות תמונות האירוע שלך:',
-      accessibility: 'נגישות והגדרות אפליקציה',
+      accessibility: 'הגדרות אפליקציה',
     },
     landing: {
       aiPowered: 'מופעל בינה מלאכותית',
@@ -360,8 +360,8 @@ export const translations = {
       success: 'Success',
     },
     settings: {
-      title: 'Settings & Accessibility',
-      theme: 'Appearance (Theme)',
+      title: 'Settings',
+      theme: 'Appearance',
       light: 'Light',
       dark: 'Dark',
       fontSize: 'Text Size',
@@ -385,7 +385,7 @@ export const translations = {
       deleteAccountConfirm: 'CRITICAL WARNING!\nThis will permanently delete your account and all associated events, photos, and scanned faces. This action CANNOT be undone!\n\nAre you absolutely sure you want to proceed?',
       selectProviderTitle: 'Select Cloud Provider',
       selectProviderDesc: 'Select the cloud provider where your event photos are stored:',
-      accessibility: 'App Settings & Accessibility',
+      accessibility: 'App Settings',
     },
     landing: {
       aiPowered: 'AI Powered',

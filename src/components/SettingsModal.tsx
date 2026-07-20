@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Settings, Accessibility, X, Moon, Sun, Type, Globe } from 'lucide-react';
+import { Accessibility, X, Moon, Sun, Type, Globe } from 'lucide-react';
 import { useSettings } from '../contexts/SettingsContext';
 import { useTranslation } from '../services/translations';
 

@@ -11,7 +11,8 @@ import {
   Heading,
   MousePointer,
   Baseline,
-  FileText
+  FileText,
+  Accessibility
 } from 'lucide-react';
 
 export interface A11yPrefs {
@@ -136,9 +137,9 @@ export function AccessibilityWidget() {
         aria-controls="a11y-widget-panel"
         aria-label={t('a11y.widgetTriggerLabel')}
         title={t('a11y.widgetTriggerLabel')}
-        className="fixed bottom-6 end-6 z-50 p-3.5 bg-deep-forest text-surface-container-lowest dark:bg-copper-accent dark:text-black rounded-full shadow-2xl hover:scale-105 active:scale-95 transition-all duration-200 focus-visible:ring-4 focus-visible:ring-copper-accent focus-visible:outline-none flex items-center justify-center cursor-pointer border border-surface-border/40"
+        className="fixed bottom-6 end-6 z-50 p-3 bg-deep-forest text-surface-container-lowest dark:bg-copper-accent dark:text-black rounded-full shadow-2xl hover:scale-105 active:scale-95 transition-all duration-200 focus-visible:ring-4 focus-visible:ring-copper-accent focus-visible:outline-none flex items-center justify-center cursor-pointer border border-surface-border/40"
       >
-        <Sparkles className="w-6 h-6 shrink-0" />
+        <Accessibility className="w-5 h-5 shrink-0" />
       </button>
 
       {/* Popover Widget Panel */}
