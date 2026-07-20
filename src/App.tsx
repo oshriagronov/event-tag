@@ -1,3 +1,4 @@
+import { useEffect } from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 import { SettingsProvider } from './contexts/SettingsContext';
@@ -58,10 +59,22 @@ function GuestViewWrapper() {
 import { PrivacyPage } from './components/PrivacyPage';
 import { SkipLink } from './components/SkipLink';
 import { AccessibilityWidget } from './components/AccessibilityWidget';
+import { useLocation } from 'react-router-dom';
+
+function ScrollToTop() {
+  const { pathname } = useLocation();
+
+  useEffect(() => {
+    window.scrollTo(0, 0);
+  }, [pathname]);
+
+  return null;
+}
 
 function AppRoutes() {
   return (
     <div className="min-h-screen bg-background text-on-background flex flex-col font-sans transition-colors duration-300">
+      <ScrollToTop />
       <SkipLink />
       <CookieBanner />
       <PreferencesModal />
@@ -69,9 +82,12 @@ function AppRoutes() {
       <Routes>
         {/* Public routes */}
         <Route path="/" element={<LandingPage />} />
+        <Route path="/how-it-works" element={<LandingPage />} />
+        <Route path="/faq" element={<LandingPage />} />
+        <Route path="/qna" element={<LandingPage />} />
+        <Route path="/privacy" element={<LandingPage />} />
         <Route path="/event/:shareCode" element={<GuestViewWrapper />} />
         <Route path="/legal" element={<LegalPage defaultTab="privacy" />} />
-        <Route path="/privacy" element={<PrivacyPage />} />
         <Route path="/privacy-policy" element={<LegalPage defaultTab="privacy" />} />
         <Route path="/terms" element={<LegalPage defaultTab="terms" />} />
         <Route path="/accessibility" element={<LegalPage defaultTab="accessibility" />} />

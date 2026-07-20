@@ -48,13 +48,13 @@ export const translations = {
       aiPowered: 'מופעל בינה מלאכותית',
       heroTitle: 'מערכת חכמה לניהול גלריות אירועים',
       heroSubTitle: 'כל אורח מוצא את עצמו בסלפי אחד',
-      heroDesc: 'סרקו תמונות מ-Dropbox (ובעתיד מספקי ענן נוספים), המודל מזהה פנים אוטומטית, והאורחים מוצאים את התמונות שלהם בסלפי מהיר — הכל בפרטיות מוחלטת.',
+      heroDesc: 'סרקו תמונות מאחסון הענן שלכם, המודל מזהה פנים אוטומטית, והאורחים מוצאים את התמונות שלהם בסלפי מהיר — הכל בפרטיות מוחלטת.',
       signInGoogle: 'התחברות עם Google',
       howItWorksBtn: 'איך זה עובד?',
       howItWorksTitle: 'איך זה עובד?',
       howItWorksSub: 'שלושה צעדים פשוטים — מסריקה ועד שיתוף',
       step1Title: 'סרקו תמונות',
-      step1Desc: 'בעל האירוע בוחר תיקייה מ-Dropbox (או מספקי ענן נתמכים אחרים בעתיד) עם כל תמונות האירוע.',
+      step1Desc: 'בעל האירוע בוחר תיקייה מספק הענן עם כל תמונות האירוע.',
       step2Title: 'סריקה חכמה',
       step2Desc: 'המודל מזהה פנים ומקבץ אותן אוטומטית ישירות בדפדפן.',
       step3Title: 'סלפי ומצאת',
@@ -68,14 +68,20 @@ export const translations = {
       readySub: 'צרו אירוע ראשון בחינם תוך דקה',
       copyright: 'EventTag — כל הזכויות שמורות',
       faqTitle: 'שאלות ותשובות',
+      faqNavBtn: 'שאלות ותשובות',
       faqSub: 'כל מה שחשוב לדעת על הפעילות, הפרטיות ואבטחת המידע שלכם',
       q1: 'איך המערכת עובדת?',
-      a1: 'בעל האירוע מחבר תיקיית תמונות מ-Dropbox (או ספקי ענן נתמכים אחרים בעתיד). המערכת מנתחת את הפנים מקומית בדפדפן ומקובצת אותן. האורחים מצלמים סלפי קצר כדי למצוא את כל התמונות שלהם ישירות מתוך התיקייה המקורית.',
+      a1: 'בעל האירוע מחבר תיקיית תמונות מספק הענן. המערכת מנתחת את הפנים מקומית בדפדפן ומקבצת אותן. האורחים מצלמים סלפי קצר כדי למצוא את כל התמונות שלהם ישירות מתוך התיקייה המקורית.',
       q2: 'האם התמונות והפנים שלי בטוחים ופרטיים?',
       a2: 'בהחלט. כל עיבוד התמונות, זיהוי וסריקת הפנים מתבצעים מקומית לחלוטין על גבי המכשיר שלכם (On-Device). התמונות שלכם אינן מועלות לשרתים של המערכת או לצד שלישי כלשהו.',
       q3: 'איזה מידע נשמר במערכת ואיזה לא?',
-      a3: 'אנו לא שומרים את התמונות שלכם או מידע ביומטרי מזהה. אנו שומרים רק מזהי קבצים (File IDs) של Dropbox (ובעתיד מספקי ענן נוספים) ואת וקטורי הפנים המתמטיים (Face Descriptors) הנדרשים לביצוע החיפוש. נתונים אלו מאוחסנים בענן Firebase מאובטח.',
+      a3: 'אנו לא שומרים את התמונות שלכם או מידע ביומטרי מזהה. אנו שומרים רק מזהי קבצים (File IDs) של ספק הענן ואת וקטורי הפנים המתמטיים (Face Descriptors) הנדרשים לביצוע החיפוש. נתונים אלו מאוחסנים בענן Firebase מאובטח.',
       faqMoreDetails: 'למידע נוסף ומפורט, אנא קראו את {privacy} ואת {terms}.',
+    },
+    footer: {
+      tagline: 'סריקת תמונות חכמה, פשוטה ופרטית לחלוטין. מודל AI מקומי המאפשר לאורחים למצוא את כל התמונות שלהם בסלפי מהיר.',
+      productCol: 'מוצר',
+      legalCol: 'משפטי ונגישות',
     },
     dashboard: {
       myDashboard: 'לוח הבקרה שלי',
@@ -156,7 +162,7 @@ export const translations = {
       downloadZipBtn: 'הורד את כל התמונות כקובץ ZIP ({count})',
       restoreRemoved: 'שחזר תמונות שהוסרו ({count})',
       blockedNoticeTitle: 'חלק מהתמונות אינן נטענות',
-      blockedNoticeDesc: 'נראה שהגישה לתמונות ב-Dropbox חסומה. על בעל האירוע לוודא שתיקיית ה-Dropbox משותפת או נגישה לקריאה כדי שהאורחים יוכלו לצפות בהן.',
+      blockedNoticeDesc: 'נראה שהגישה לתמונות בספק הענן חסומה. על בעל האירוע לוודא שתיקיית הענן משותפת או נגישה לקריאה כדי שהאורחים יוכלו לצפות בהן.',
       downloadBtn: 'הורד',
       removeBtn: 'הסר תמונה',
       changeSelfie: 'החלף סלפי',
@@ -225,7 +231,7 @@ export const translations = {
     legal: {
       privacyTitle: 'מדיניות פרטיות',
       termsTitle: 'תנאי שימוש בשירות',
-      lastUpdated: 'עודכן לאחרונה: 18 ביולי 2026',
+      lastUpdated: 'עודכן לאחרונה: 20 ביולי 2026',
       backToHome: 'חזרה לדף הבית',
       allRightsReserved: 'כל הזכויות שמורות',
       
@@ -239,16 +245,16 @@ export const translations = {
         'אף תמונה, תוכן ויזואלי או מאפיין ביומטרי אינם נשלחים, מועלים או נשמרים בשרת חיצוני כלשהו.',
         'כל עיבוד התמונות מתבצע על המחשב או המכשיר הנייד שלך ונשאר תחת שליטתך המלאה.'
       ],
-      privacySection2Title: 'חיבור ל-Dropbox וגישה לתיקיות ענן',
-      privacySection2Text: 'האפליקציה מאפשרת לבעל האירוע לחבר את חשבון ה-Dropbox שלו (ובעתיד ספקי ענן נוספים) ולבחור תיקייה המכילה את תמונות האירוע.',
+      privacySection2Title: 'חיבור וגישה לתיקיות ענן',
+      privacySection2Text: 'האפליקציה מאפשרת לבעל האירוע לחבר את חשבון ספק הענן שלו ולבחור תיקייה המכילה את תמונות האירוע.',
       privacySection2Bullets: [
-        'הגישה ל-Dropbox מוגבלת אך ורק לתיקייה ולקבצים שנבחרו על ידך, ומבוצעת ישירות מהדפדפן של המשתמש אל שרתי הענן באמצעות קוד גישה מאובטח (OAuth Token) המאוחסן זמנית בדפדפן המשתמש.',
-        'התמונות נקראות ישירות מ-Dropbox אל זיכרון הדפדפן המקומי לצורך עיבוד זיהוי הפנים המקומי, ולא מועברות לשום שרת של EventTag או שרת צד שלישי אחר.'
+        'הגישה לספק הענן מוגבלת אך ורק לתיקייה ולקבצים שנבחרו על ידך, ומבוצעת ישירות מהדפדפן של המשתמש אל שרתי הענן באמצעות קוד גישה מאובטח (OAuth Token) המאוחסן זמנית בדפדפן המשתמש.',
+        'התמונות נקראות ישירות מספק הענן אל זיכרון הדפדפן המקומי לצורך עיבוד זיהוי הפנים המקומי, ולא מועברות לשום שרת של EventTag או שרת צד שלישי אחר.'
       ],
       privacySection3Title: 'שמירת נתונים וסנכרון ענן מאובטח',
       privacySection3Text: 'כדי לאפשר לאורחים למצוא את התמונות שלהם בעזרת סלפי, אנו מסנכרנים רק נתוני מטא-דאטה טקסטואליים לבסיס הנתונים המאובטח של Firebase Firestore:',
       privacySection3Bullets: [
-        'אנו שומרים רק נתוני מטא-דאטה טקסטואליים: מזהי הקבצים מתוך ספק הענן (Dropbox או ספקים אחרים בעתיד) ווקטורי זיהוי פנים מספריים (Face Descriptors) בבסיס הנתונים המאובטח של Firebase Firestore. אף תמונה אינה מועלית לשרתים שלנו.'
+        'אנו שומרים רק נתוני מטא-דאטה טקסטואליים: מזהי הקבצים מתוך ספק הענן ווקטורי זיהוי פנים מספריים (Face Descriptors) בבסיס הנתונים המאובטח של Firebase Firestore. אף תמונה אינה מועלית לשרתים שלנו.'
       ],
       privacySection4Title: 'אבטחת מידע וזכויות המשתמש',
       privacySection4Text: 'מכיוון שאין לנו שרת מרכזי המאחסן את התמונות שלך, המידע שלך מוגן באופן טבעי מפני דליפות מידע מרכזיות. מפתח זיהוי הפנים מאוחסן כווקטור מתמטי בלבד ממנו לא ניתן לשחזר את תמונת הפנים המקורית. באפשרותך למחוק לחלוטין את כל המידע השמור בדפדפן המקומי שלך בכל עת על ידי מחיקת נתוני האתר בדפדפן או מתוך האפליקציה בהגדרות האירוע.',
@@ -264,7 +270,7 @@ export const translations = {
       privacySection6Title: 'מידע של קטינים (Minors\' Data Policy)',
       privacySection6Text: 'בהתאם לחוק הכשרות המשפטית והאפוטרופסות, התשכ"ב-1962, עיבוד מידע אישי של קטינים מתחת לגיל 18 טעון הסכמת הורה או אפוטרופוס חוקי. המערכת אינה מיועדת לשימוש עצמאי של קטינים ללא אישור והשגחת הוריהם. במקרה שהועלו תמונות של קטינים, על בעל האירוע לוודא קבלת הסכמת ההורים מראש לעיבוד פניהם של הקטינים.',
       privacyDisclosureTitle: 'הצהרת שימוש במידע ענן (Cloud APIs Disclosure)',
-      privacyDisclosureText: 'השימוש של EventTag במידע שהתקבל מחשבונות Dropbox וספקי ענן אחרים מוגבל אך ורק לצורך הצגת התמונות וסריקתן המקומית. האפליקציה אינה משתפת מידע זה עם גורמי צד שלישי כלשהם, ועשויה להוסיף תמיכה בספקי ענן נוספים בעתיד.',
+      privacyDisclosureText: 'השימוש של EventTag במידע שהתקבל מחשבונות ספקי הענן מוגבל אך ורק לצורך הצגת התמונות וסריקתן המקומית. האפליקציה אינה משתפת מידע זה עם גורמי צד שלישי כלשהם.',
       privacyDisclosureLink: 'תנאי השימוש ומדיניות הפרטיות של ספקי הענן',
 
       // Terms content
@@ -276,8 +282,8 @@ export const translations = {
       termsSection2Text: 'השירות מסופק "כמות שהוא" (As-Is) וללא כל התחייבות או אחריות מכל סוג שהוא, מפורשת או משתמעת. היות וכל העיבוד, סריקת הפנים וקיבוץ התמונות מתבצעים באופן מקומי בדפדפן המשתמש:',
       termsSection2Bullets: [
         'השירות אינו מתחייב לדיוק של 100% בזיהוי הפנים או בקלסטרינג (Clustering).',
-        'EventTag אינה נושאת באחריות לכל אובדן נתונים מקומיים, שגיאות עיבוד פנים או חוסר זמינות של קבצים מתוך חשבון הענן (Dropbox וכדומה) של המשתמש.',
-        'אנחנו לא מגבים את התמונות שלך. באחריותך לשמור את קבצי המקור בחשבון הענן שלך (Dropbox או גיבוי עצמאי אחר).'
+        'EventTag אינה נושאת באחריות לכל אובדן נתונים מקומיים, שגיאות עיבוד פנים או חוסר זמינות של קבצים מתוך חשבון הענן של המשתמש.',
+        'אנחנו לא מגבים את התמונות שלך. באחריותך לשמור את קבצי המקור בחשבון הענן שלך (או גיבוי עצמאי אחר).'
       ],
       termsSection3Title: 'אחריות המשתמשים והסכמת אורחים',
       termsSection3Text: 'המשתמש נושא באחריות המלאה לתכנים ולתמונות שהוא בוחר לסרוק באמצעות האפליקציה.',
@@ -311,8 +317,8 @@ export const translations = {
       accessibilityCoordinatorEmail: 'דוא"ל נגישות: accessibility@eventtag.ai',
       accessibilityCoordinatorPhone: 'טלפון: 03-555-0199',
       accessibilityCoordinatorHours: 'שעות מענה: ימים א\'-ה\' 09:00-17:00',
-      accessibilityAuditDate: 'תאריך בדיקת הנגישות האחרונה: 19 ביולי 2026',
-      accessibilityUpdateDate: 'תאריך עדכון ההצהרה: 19 ביולי 2026',
+      accessibilityAuditDate: 'תאריך בדיקת הנגישות האחרונה: 20 ביולי 2026',
+      accessibilityUpdateDate: 'תאריך עדכון ההצהרה: 20 ביולי 2026',
     },
     a11y: {
       skipToMain: 'דלג לתוכן הראשי',
@@ -391,13 +397,13 @@ export const translations = {
       aiPowered: 'AI Powered',
       heroTitle: 'Smart Event Gallery Management',
       heroSubTitle: 'Every guest finds themselves in a single selfie',
-      heroDesc: 'Scan photos from Dropbox (and other cloud providers in the future), faces are auto-detected, and guests find their photos with a quick selfie — all in absolute privacy.',
+      heroDesc: 'Scan photos from your cloud storage provider, faces are auto-detected, and guests find their photos with a quick selfie — all in absolute privacy.',
       signInGoogle: 'Sign in with Google',
       howItWorksBtn: 'How it works?',
       howItWorksTitle: 'How it works?',
       howItWorksSub: 'Three simple steps — from scan to share',
       step1Title: 'Scan Photos',
-      step1Desc: 'The event owner selects a folder from Dropbox (or other supported cloud providers in the future) containing event photos.',
+      step1Desc: 'The event owner selects a folder from their cloud storage provider containing event photos.',
       step2Title: 'Smart Scanning',
       step2Desc: 'The model detects faces and groups them automatically in the browser.',
       step3Title: 'Selfie & Find',
@@ -411,14 +417,20 @@ export const translations = {
       readySub: 'Create your first event for free in one minute',
       copyright: 'EventTag — All rights reserved',
       faqTitle: 'Frequently Asked Questions',
+      faqNavBtn: 'Q&A',
       faqSub: 'Everything you need to know about how EventTag works and protects your privacy',
       q1: 'How does EventTag work?',
-      a1: 'The event host connects a Dropbox folder (with options for other cloud providers in the future). EventTag analyzes and groups faces locally in the browser. Guests take a quick selfie to find all their photos directly from the source folder.',
+      a1: 'The event host connects a photos folder from their cloud storage provider. EventTag analyzes and groups faces locally in the browser. Guests take a quick selfie to find all their photos directly from the source folder.',
       q2: 'Is my data secure and private?',
       a2: 'Absolutely. All photo analysis and face recognition happen locally on your device (On-Device). Your actual photos are never uploaded to our servers or any third parties.',
       q3: "What data is saved and what isn't?",
-      a3: 'We never store your actual photos or identifiable biometric data. We only save cloud File IDs (Dropbox or other future providers) and numerical face descriptors (mathematical vectors) needed for search matching, stored securely in Firebase.',
+      a3: 'We never store your actual photos or identifiable biometric data. We only save cloud File IDs and numerical face descriptors (mathematical vectors) needed for search matching, stored securely in Firebase.',
       faqMoreDetails: 'For more detailed information, please review our {privacy} and {terms}.',
+    },
+    footer: {
+      tagline: 'Fast, simple, privacy-first photo discovery for events and guests.',
+      productCol: 'Product',
+      legalCol: 'Legal & Accessibility',
     },
     dashboard: {
       myDashboard: 'My Dashboard',
@@ -499,7 +511,7 @@ export const translations = {
       downloadZipBtn: 'Download all photos as ZIP ({count})',
       restoreRemoved: 'Restore removed photos ({count})',
       blockedNoticeTitle: 'Some photos are not loading',
-      blockedNoticeDesc: 'It seems access to the photos in Dropbox is blocked. The event owner needs to make sure the folder is readable so that guests can view them.',
+      blockedNoticeDesc: 'It seems access to the photos in the cloud storage provider is blocked. The event owner needs to make sure the cloud folder is readable so that guests can view them.',
       downloadBtn: 'Download',
       removeBtn: 'Remove photo',
       changeSelfie: 'Change Selfie',
@@ -543,10 +555,32 @@ export const translations = {
       errorMonitoringDesc: 'Helps us detect, diagnose, and resolve technical issues and bugs in real-time.',
       managePreferences: 'Manage Privacy Preferences',
     },
+    folderPicker: {
+      titleDropbox: 'Select Folder from Dropbox',
+      titleGoogle: 'Select Folder from Google Drive',
+      titleOneDrive: 'Select Folder from OneDrive',
+      subtitle: 'Select the folder containing event photos',
+      close: 'Close',
+      loadingFolders: 'Loading folders...',
+      noSubfolders: 'No subfolders in this location',
+      selectCurrentFolderDesc: 'You can select the current folder using the button below',
+      tryAgain: 'Try again',
+      countingPhotos: 'Counting photos...',
+      photosCount: '{count} photos',
+      selectedFolder: 'Selected: {name}',
+      clickToSelect: 'Click a folder to select, or double click to enter',
+      selectFromDropbox: 'Select folder from Dropbox',
+      selectFromGoogle: 'Select folder from Google Drive',
+      selectFromOneDrive: 'Select folder from OneDrive',
+      cancel: 'Cancel',
+      selectCurrentFolderBtn: 'Select Current Folder',
+      selectFolderBtn: 'Select This Folder',
+      errorLoading: 'Error loading folders from {provider}',
+    },
     legal: {
       privacyTitle: 'Privacy Policy',
       termsTitle: 'Terms of Service',
-      lastUpdated: 'Last updated: July 18, 2026',
+      lastUpdated: 'Last updated: July 20, 2026',
       backToHome: 'Back to Home',
       allRightsReserved: 'All rights reserved',
       
@@ -560,8 +594,8 @@ export const translations = {
         'No photo content, visual media, or biometric face descriptors are ever uploaded, stored, or processed on external servers.',
         'All processing executes on your local CPU/GPU/NPU and remains under your absolute control.'
       ],
-      privacySection2Title: 'Dropbox and Cloud Storage Integration',
-      privacySection2Text: 'The Application allows event hosts to connect their personal Dropbox account (with potential support for additional cloud providers in the future) to select event photos.',
+      privacySection2Title: 'Cloud Storage Integration',
+      privacySection2Text: 'The Application allows event hosts to connect their personal cloud storage provider account to select event photos.',
       privacySection2Bullets: [
         'This access is restricted only to files and folders selected by the user and is established directly from the user\'s browser to the cloud provider\'s servers using a secure OAuth Access Token stored temporarily in the browser session.',
         'Photos are fetched directly from the cloud provider into local browser memory for local face analysis, and are never sent to EventTag\'s servers or any third-party servers.'
@@ -585,7 +619,7 @@ export const translations = {
       privacySection6Title: 'Minors and Children\'s Data Policy',
       privacySection6Text: 'Under the Legal Capacity and Guardianship Law, 1962, legal acts of a minor (under 18) require parental or guardian consent. EventTag is not intended for independent use by minors. For photos containing minors, event owners must obtain explicit parental consent prior to processing and scanning faces.',
       privacyDisclosureTitle: 'Cloud APIs Disclosure',
-      privacyDisclosureText: 'EventTag\'s use and transfer of information received from Dropbox and other cloud APIs will adhere to their developer policies. We do not sell, rent, or share user content, and may add support for more cloud storage providers in the future.',
+      privacyDisclosureText: 'EventTag\'s use and transfer of information received from cloud storage APIs will adhere to their developer policies. We do not sell, rent, or share user content.',
       privacyDisclosureLink: 'Cloud Provider Terms & Policies',
 
       // Terms content
@@ -598,7 +632,7 @@ export const translations = {
       termsSection2Bullets: [
         'We do not guarantee 100% accuracy in facial detection, recognition, or photo clustering results.',
         'EventTag is not liable for any data loss, local browser database errors, or the unavailability of cloud storage files.',
-        'We do not back up your photos. You are responsible for preserving original backups in your Dropbox account or secondary storage.'
+        'We do not back up your photos. You are responsible for preserving original backups in your cloud storage account or secondary storage.'
       ],
       termsSection3Title: 'User Responsibility & Consent',
       termsSection3Text: 'Users bear sole responsibility for the photos they select to analyze and scan.',
@@ -607,6 +641,7 @@ export const translations = {
         'You agree not to scan or upload photos that infringe copyrights, third-party rights, or any local or international laws.',
         'You agree not to attempt to bypass or exploit authorization mechanisms of cloud APIs or Firebase Firestore.'
       ],
+      termsSection4Title: 'Changes to Service',
       termsSection4Text: 'We reserve the right to modify, suspend, or discontinue the Service at any time without notice. These terms may be updated occasionally, and your continued usage of the Service constitutes acceptance of the modified terms.',
       
       // Accessibility Statement content
@@ -631,8 +666,8 @@ export const translations = {
       accessibilityCoordinatorEmail: 'Email: accessibility@eventtag.ai',
       accessibilityCoordinatorPhone: 'Phone: +972-3-555-0199',
       accessibilityCoordinatorHours: 'Support Hours: Sun-Thu 09:00 - 17:00 IST',
-      accessibilityAuditDate: 'Last Accessibility Audit Date: July 19, 2026',
-      accessibilityUpdateDate: 'Statement Last Updated: July 19, 2026',
+      accessibilityAuditDate: 'Last Accessibility Audit Date: July 20, 2026',
+      accessibilityUpdateDate: 'Statement Last Updated: July 20, 2026',
     },
     a11y: {
       skipToMain: 'Skip to main content',

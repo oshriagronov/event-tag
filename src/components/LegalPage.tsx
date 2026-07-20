@@ -2,6 +2,7 @@ import { Link } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { useTranslation } from '../services/translations';
 import { useConsent } from '../contexts/ConsentContext';
+import { Footer } from './Footer';
 import { Lock, ExternalLink, CheckCircle2, ShieldCheck, Mail, Phone, Clock, FileCheck } from 'lucide-react';
 
 interface LegalPageProps {
@@ -31,6 +32,9 @@ export function LegalPage({ defaultTab = 'privacy' }: LegalPageProps) {
           <nav className="hidden md:flex gap-8 items-center list-none" aria-label={language === 'he' ? 'ניווט ראשי' : 'Main Navigation'}>
             <a href="/#how-it-works" className="font-label-sm text-xs uppercase tracking-wider text-sage-muted hover:text-copper-accent transition-colors duration-300 no-underline">
               {t('landing.howItWorksBtn')}
+            </a>
+            <a href="/#faq" className="font-label-sm text-xs uppercase tracking-wider text-sage-muted hover:text-copper-accent transition-colors duration-300 no-underline">
+              {t('landing.faqNavBtn')}
             </a>
             <Link to="/privacy" className="font-label-sm text-xs uppercase tracking-wider text-sage-muted hover:text-copper-accent transition-colors duration-300 no-underline">
               {language === 'he' ? 'פרטיות' : 'Privacy'}
@@ -342,28 +346,7 @@ export function LegalPage({ defaultTab = 'privacy' }: LegalPageProps) {
       )}
 
       {/* Footer */}
-      <footer className="py-12 px-6 border-t border-surface-border/30 mt-auto bg-surface-container-lowest relative z-10">
-        <div className="max-w-7xl mx-auto flex flex-col md:flex-row items-center justify-between gap-6 text-xs md:text-sm text-sage-muted w-full">
-          <div className="flex flex-col sm:flex-row items-center gap-3 sm:gap-6 text-center sm:text-start">
-            <span className="font-display-lg text-lg text-on-background tracking-tight">EventTag</span>
-            <p className="m-0 font-body-md">© {new Date().getFullYear()} EventTag — {language === 'he' ? 'כל הזכויות שמורות' : 'All rights reserved'}</p>
-          </div>
-          <div className="flex flex-wrap items-center justify-center gap-4 md:gap-6 font-label-sm uppercase tracking-wider text-[10px] md:text-xs">
-            <Link to="/privacy-policy" className={`hover:text-copper-accent transition-colors no-underline font-bold ${defaultTab === 'privacy' ? 'text-copper-accent' : 'text-sage-muted'}`}>{t('legal.privacyTitle')}</Link>
-            <span className="text-surface-border">•</span>
-            <Link to="/terms" className={`hover:text-copper-accent transition-colors no-underline font-bold ${defaultTab === 'terms' ? 'text-copper-accent' : 'text-sage-muted'}`}>{t('legal.termsTitle')}</Link>
-            <span className="text-surface-border">•</span>
-            <Link to="/accessibility" className={`hover:text-copper-accent transition-colors no-underline font-bold ${defaultTab === 'accessibility' ? 'text-copper-accent' : 'text-sage-muted'}`}>{t('legal.accessibilityTitle')}</Link>
-            <span className="text-surface-border">•</span>
-            <button
-              onClick={reopen}
-              className="hover:text-copper-accent transition-colors cursor-pointer bg-transparent border-none p-0 outline-none font-bold text-sage-muted font-label-sm uppercase tracking-wider text-[10px] md:text-xs"
-            >
-              {t('consent.managePreferences')}
-            </button>
-          </div>
-        </div>
-      </footer>
+      <Footer />
     </div>
   );
 }
