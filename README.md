@@ -3,11 +3,11 @@
 </p>
 
 <p align="center">
-  <strong>Smart Event Photo Organizer</strong>
+  <strong>Smart Event Photo Organizer & Guest Face Finder</strong>
 </p>
 
 <p align="center">
-  A privacy-first web application that lets event owners upload event photos and allows guests to upload a selfie to instantly find and download all their photos from the event pool.
+  A privacy-first web application that lets event owners organize photos from Google Drive or Dropbox and enables guests to upload a selfie to instantly find and download all their photos.
 </p>
 
 <p align="center">
@@ -15,44 +15,44 @@
   <img src="https://img.shields.io/badge/typescript-6-blue?logo=typescript" alt="TypeScript" />
   <img src="https://img.shields.io/badge/vite-8-purple?logo=vite" alt="Vite 8" />
   <img src="https://img.shields.io/badge/tailwind-4-blue?logo=tailwindcss" alt="Tailwind CSS 4" />
+  <img src="https://img.shields.io/badge/firebase-12-orange?logo=firebase" alt="Firebase 12" />
 </p>
 
 
 
-## What is EventTag?
+## What is EventTag / GuestID?
 
-EventTag is a smart event photo sharing and retrieval application designed to eliminate the tedious process of searching through thousands of event photos. It allows event owners/photographers to upload their photos, and enables guests to simply upload a single selfie to instantly find and retrieve all photos they appear in.
+EventTag (GuestID) is a smart event photo sharing and retrieval platform designed to eliminate manual sorting and searching through thousands of event photos. Event owners connect photo folders directly from **Google Drive** or **Dropbox**, and guests scan a share link / QR code with a single selfie to instantly locate and download all photos they appear in.
 
-###  The Goal
-- **For Guests:** Instant, self-service access to all their photos from the event without scrolling through endless folders.
-- **For Event Owners:** Save hours of manual effort searching, filtering, and sending individual photos to different guests.
+### 🎯 The Goal
+- **For Guests:** Instant, self-service access to all their photos from any event via a simple selfie scan.
+- **For Event Owners:** Save hours of manual filtering, sorting, and sending photos to individual guests.
 
-**The key differentiator:** All face detection, alignment, and recognition happens **entirely inside your browser** using on-device machine learning (face-api.js for detection + landmarks, and ONNX Runtime Web for SFace recognition). Photos are loaded directly from your Google Drive into browser memory, and only mathematical face descriptors are stored securely in Firestore. No actual photos are ever sent to or stored on EventTag's servers.
+**Privacy-First & On-Device AI:** All face detection, alignment, and 128-dimensional embedding extraction happen **100% locally in the user's browser** using WebAssembly (ONNX Runtime Web with SFace + face-api.js). Photos are ingested in-memory from cloud storage; **no photo files are ever uploaded to or saved on backend servers**. Only mathematical face vectors and metadata are stored in Firebase Firestore.
 
 
 
 ## Features
 
-###  Guest Experience
-- **Selfie Search** — Guests can upload a quick selfie to instantly query the event photo pool and find all images they are in.
-- **Instant Retrieval & Download** — Guests retrieve their photos directly without having to ask the host or scroll through the whole gallery.
-- **ZIP Export** — Export all photos of a specific person as a downloadable ZIP file
+### 📸 Guest Experience
+- **Selfie Search** — Guests capture or upload a selfie to instantly query event photos.
+- **Strict Face Matching** — Calibrated 0.85 vector distance threshold prevents false positives.
+- **Instant Photo Retrieval & Downloads** — View full-resolution photos directly from cloud storage.
+- **ZIP Export** — Download all matching photos in a single ZIP file (`jszip`).
+- **QR Code & Share Links** — Instant access via event QR code or custom share URL (`qrcode.react`).
 
-### Event Owner Experience
-- **Effortless Photo Management** — Connect event photos directly from Google Drive.
-- **Automatic Face Clustering** — On-device AI scans and groups faces automatically, creating distinct guest profiles.
-- **Time-Saving Automation** — No more manual sorting or sending photos to guests; let guest self-service handle the distribution.
-- **Smart Merging & Editing** — Merge suggested profiles, rename guests, and resolve unidentified faces easily.
-- **Full Gallery View** — Browse all imported photos with a lightbox viewer showing face annotations
-- **Pause/Resume Scanning** — Pause the scanning process at any time and resume where you left off
-- **ETA Display** — Real-time estimated time remaining during photo scanning
-- **Multi-Event Support** — Create and manage multiple isolated events, each with its own photos, faces, and clusters
+### 🛠️ Event Owner Experience
+- **Multi-Cloud Storage Connection** — Connect photo libraries directly from **Google Drive** (via native Google Picker API) or **Dropbox** (via Dropbox Chooser / API).
+- **Automatic Face Clustering** — On-device AI groups recognized faces automatically into distinct guest profiles.
+- **Live Scanning Queue** — Pause/resume scanning anytime with real-time ETA display.
+- **Profile Merging & Naming** — Assign names to face clusters, merge duplicate clusters, and hide unwanted faces.
+- **Full Gallery Lightbox** — Browse all event photos with face bounding boxes and cluster tags.
+- **Multi-Event Management** — Isolated dashboard for creating, sharing, and deleting multiple events.
 
-
-### User Experience
-- **Dark & Light Themes** — Elegant dark mode by default, with a toggleable light mode
-- **Adjustable Font Size** — Normal, large, and extra-large text sizes for accessibility
-- **Hebrew RTL Interface** — Fully localized Hebrew UI with proper right-to-left layout
+### 🔒 Israeli Legal, Privacy & Accessibility Compliance
+- **Israeli Privacy Protection Law (Amendment 13)** — Integrated `ConsentContext`, customizable `CookieBanner`, `PreferencesModal` for granular user privacy controls, and zero binary media retention.
+- **IS 5568 / WCAG 2.0 AA Accessibility** — Full right-to-left Hebrew layout (`dir="rtl"`), `AccessibilityWidget` (contrast controls, font scaling, animation pause, link underlines), `SkipLink` keyboard navigation, and screen reader compatible markup.
+- **Dark & Light Modes** — Responsive theme toggling with persistent user settings.
 
 
 
@@ -60,127 +60,115 @@ EventTag is a smart event photo sharing and retrieval application designed to el
 
 ```
 src/
-├── App.tsx                    # Root component with model loading & routing
-├── main.tsx                   # React entry point
-├── clustering.ts              # Incremental face clustering with drift protection
-├── db.ts                      # Local DB helper
+├── App.tsx                     # Root router, providers, and layout structure
+├── main.tsx                    # React entry point
+├── index.css                   # Global CSS & Tailwind CSS 4 setup
+├── firebase.ts                 # Firebase initialization (Auth & Firestore)
 ├── components/
-│   ├── Dashboard.tsx          # Event list with create/delete (Google Drive + Firestore sync)
-│   ├── EventView.tsx          # Main event workspace (tabs, gallery, merges)
-│   ├── PhotoImage.tsx         # Lazy image loader from Drive or Blob
-│   ├── PrivacyBanner.tsx      # Privacy assurance banner
-│   └── SettingsModal.tsx      # Theme & font size settings
+│   ├── AccessibilityWidget.tsx  # IS 5568 / WCAG 2.0 AA accessibility toolbar
+│   ├── CookieBanner.tsx        # Amendment 13 Privacy & Cookie Consent banner
+│   ├── Dashboard.tsx           # Multi-event management & cloud provider connection
+│   ├── EventView.tsx           # Event workspace, gallery, scanning progress & face clusters
+│   ├── FolderPicker.tsx        # Cloud folder selector modal
+│   ├── Footer.tsx              # Footer with legal links & compliance info
+│   ├── GuestView.tsx           # Guest selfie search, face matching & photo gallery
+│   ├── LandingPage.tsx         # Modern landing page with hero, features, FAQ & CTA
+│   ├── LegalPage.tsx           # Terms of Service, Privacy Policy & Accessibility Statement
+│   ├── PreferencesModal.tsx    # Granular privacy consent settings modal
+│   ├── PrivacyBanner.tsx       # Ingest privacy assurance indicator
+│   ├── PrivacyPage.tsx         # Detailed privacy compliance page
+│   ├── SelfieCapture.tsx       # Live camera / file selfie capture tool
+│   ├── SettingsModal.tsx       # Theme & font size preferences modal
+│   └── SkipLink.tsx            # Accessible skip-to-main-content link
 ├── contexts/
-│   ├── ScannerContext.tsx     # Global scanning state (progress, pause, ETA)
-│   └── SettingsContext.tsx    # Theme & font size persistence
-├── services/
-│   ├── faceAlignment.ts       # Facial landmark-based similarity transform (alignment)
-│   ├── onnxModel.ts           # ONNX SFace (MobileFaceNet) inference service
-│   ├── faceMatching.ts        # Selfie-to-event photo matching utility
-│   ├── googleDrive.ts         # Google Drive download and access helpers
-│   ├── googlePicker.ts        # Google Picker API launch and handler
-│   └── translations.ts        # Multilingual (English/Hebrew) translation strings
-└── assets/                    # Static assets
+│   ├── AuthContext.tsx         # Firebase Auth user session context
+│   ├── ConsentContext.tsx      # Privacy Protection Law consent state
+│   ├── ScannerContext.tsx      # Global scanning state (progress, pause, ETA)
+│   └── SettingsContext.tsx     # Visual preferences context
+└── services/
+    ├── cloudProviders.ts       # Unified cloud provider abstraction layer
+    ├── dropbox.ts              # Dropbox Chooser & file streaming integration
+    ├── faceAlignment.ts        # Facial landmark alignment (112x112 similarity transform)
+    ├── faceMatching.ts         # Face vector distance & similarity matching
+    ├── firestore.ts            # Firestore CRUD & batched descriptor writer
+    ├── onnxModel.ts            # ONNX Runtime Web (SFace WASM embedding extractor)
+    └── translations.ts         # Hebrew/English localization strings
 ```
 
 ### Data Flow
 
 ```
-Google Drive → Browser Memory Ingest Queue
-  → face-api.js (SSD MobileNet v1 + Landmarks)
-    → Face similarity alignment (112x112 canvas)
-      → ONNX Runtime Web (SFace/MobileFaceNet model on WASM)
-        → 128-dim L2-normalized embedding vector per face
-          → Incremental Clustering (Euclidean distance + drift guard)
-            → Firebase Firestore persistence (descriptors & metadata only)
-              → Reactive UI
+Cloud Storage (Google Drive / Dropbox)
+  → In-Memory Image Fetch & Downscale (Max 1600px offscreen canvas)
+    → @vladmandic/face-api (SSD MobileNet V1 Detection + 68 Landmarks)
+      → Landmark Alignment (112x112 matrix transform)
+        → ONNX Runtime Web (SFace WASM 128-dim vector extraction)
+          → Incremental Face Clustering (L2 Euclidean distance matching)
+            → Firebase Firestore Batched Write (Descriptors & metadata only)
+              → Real-time Dashboard & Guest Selfie Search UI
 ```
 
-### Database Schema (Firestore)
+### Firestore Database Schema
 
-| Collection | Key Fields                                          |
-|------------|-----------------------------------------------------|
-| `events`   | `id`, `name`, `createdAt`, `status`, `ownerId`      |
-| `photos`   | `id`, `driveFileId`, `fileName`, `processed`        |
-| `faces`    | `id`, `photoId`, `clusterId`, `descriptor`, `thumbnail` |
-| `clusters` | `id`, `name`                                        |
+| Collection | Description | Key Fields |
+|------------|-------------|------------|
+| `events`   | Event metadata & access codes | `id`, `name`, `createdAt`, `ownerId`, `shareCode`, `provider` |
+| `photos`   | References to cloud files | `id`, `eventId`, `driveFileId`/`dropboxPath`, `fileName`, `processed` |
+| `faces`    | Extracted face vectors & bounding boxes | `id`, `photoId`, `clusterId`, `descriptor` (128 floats), `boundingBox` |
+| `clusters` | Face group clusters assigned to guests | `id`, `eventId`, `name`, `faceCount` |
 
-### ⚡ Ingest & Scanning Optimizations
+---
 
-To support scanning large event libraries (hundreds or thousands of high-res photos) smoothly in the browser, the ingestion pipeline implements the following performance and accuracy optimizations:
+## ⚡ Performance & Scanning Optimizations
 
-- **In-Memory Image Downscaling:** Images with dimensions exceeding `1600px` are downscaled to a maximum boundary of `1600px` using an offscreen canvas prior to face detection. This reduces pixel computational area by over 90% on raw camera files, significantly accelerating inference and preventing WebGL out-of-memory crashes while retaining high-precision landmarks.
-- **Tuned Detection Confidence:** The SSD MobileNet V1 face detector runs with a customized `minConfidence = 0.45` (tuned down from the default `0.50`) to increase recall, successfully detecting faces at steep angles, in partial shadow, or under minor motion blur.
-- **Batched Firestore Face Descriptors:** Face metadata is buffered in memory and flushed to Firestore in chunks (every 15 photos or 50 faces) instead of saving them sequentially. This eliminates the \(O(N^2)\) read-then-write database overhead, decreasing database loading delays by over 90%.
-- **Calibrated Clustering Tolerances:** The incremental clustering engine matches faces with calibrated L2 Euclidean distance thresholds of `0.90` (same identity match) and `0.95` (average cluster similarity). Guest selfie searches in `GuestView.tsx` use a strict threshold of `0.85` to minimize false positive photo suggestions.
+1. **Offscreen Canvas Downscaling:** High-resolution photos are scaled to a maximum boundary of `1600px` before inference, reducing WebGL memory usage by over 90% and preventing browser out-of-memory crashes.
+2. **Tuned Detection Recall:** SSD MobileNet V1 runs with `minConfidence = 0.45` to reliably detect faces under challenging event lighting, angles, and movement.
+3. **Batched Database Writes:** Face vectors are buffered in memory and flushed to Firestore in chunks (15 photos or 50 faces), optimizing database performance.
+4. **On-Device ONNX WASM Execution:** Face embeddings are extracted locally using SFace on ONNX Runtime Web with WebAssembly support.
 
-
+---
 
 ## Getting Started
 
 ### Prerequisites
 - **Node.js** 18+ and **npm**
-- A modern browser with WebGL support (Chrome/Edge recommended)
+- Modern Web Browser with WebGL / WASM support (Chrome, Edge, Safari, Firefox)
 
-### Installation
+### Installation & Execution
 
 ```bash
-# Clone the repository
+# Clone repository
 git clone https://github.com/your-username/event-tag.git
-# Go to workspace directory
 cd event-tag
 
 # Install dependencies
 npm install
 
-# Start the development server
+# Start Vite development server
 npm run dev
+
+# Type-check and production build
+npm run build
 ```
 
-The app will be available at `http://localhost:5173`.
-
-### Face Detection & Recognition Models
-
-The pre-trained model weights are included in `public/models/`. These are loaded at startup and include:
-- **SSD MobileNet v1** — Face detection (~5.6 MB)
-- **68-Point Face Landmark** — Facial landmark localization (~357 KB)
-- **SFace (MobileFaceNet)** — 128-dimensional face embedding extraction (~37 MB ONNX model)
-
-No additional downloads are required.
-
-
-
-## Tech Stack
-
-| Layer           | Technology                                                                 |
-|-----------------|---------------------------------------------------------------------------|
-| **Framework**   | [React 19](https://react.dev) + [TypeScript 6](https://typescriptlang.org) |
-| **Build Tool**  | [Vite 8](https://vite.dev)                                                |
-| **Styling**     | Vanilla CSS + Tailwind CSS                                                |
-| **Icons**       | [Lucide React](https://lucide.dev)                                        |
-| **ML Engine**   | [@vladmandic/face-api](https://github.com/nicolo-ribaudo/face-api.js) (Landmarks & Detection) + [ONNX Runtime Web](https://onnxruntime.ai) (SFace Embedding) |
-| **Database/Sync**| [Firebase Firestore](https://firebase.google.com/)                        |
-| **File Access** | [Google Drive API](https://developers.google.com/drive)                   |
-| **ZIP Export**  | [JSZip](https://stuk.github.io/jszip/)                                    |
-
-
+---
 
 ## Available Scripts
 
-| Command          | Description                        |
-|------------------|------------------------------------|
-| `npm run dev`    | Start the Vite development server  |
-| `npm run build`  | Type-check and build for production|
-| `npm run preview`| Preview the production build       |
-| `npm run lint`   | Run ESLint                         |
+| Command | Description |
+|---|---|
+| `npm run dev` | Starts local dev server at `http://localhost:5173` |
+| `npm run build` | Runs TypeScript check (`tsc -b`) and Vite production bundle |
+| `npm run preview` | Previews production build locally |
+| `npm run lint` | Runs ESLint analysis across codebase |
 
+---
 
+## Privacy & Security
 
-## Privacy
+EventTag (GuestID) is built around strict data privacy and regulatory compliance:
 
-EventTag is designed with a strong focus on user privacy:
-
-- ✅ All face detection and recognition runs **locally in your browser** via WebGL.
-- ✅ Photos are processed in-memory directly from Google Drive — they are **never uploaded to or stored on EventTag's servers**.
-- ✅ Only mathematical face descriptors (embeddings) are saved in the cloud (Firebase Firestore) to sync event profiles.
-- ✅ No analytics, no tracking, and no third-party sharing of your media.
+- 🔒 **Zero Photo Uploads:** Photos are processed in client memory from Google Drive or Dropbox and are **never uploaded to backend servers**.
+- 🔒 **Local ML Processing:** All facial recognition runs on the client device via WASM and WebGL.
+- 🔒 **Mathematical Descriptors Only:** Only anonymous 128-dimensional floating point vectors are stored in Firestore.
+- 🔒 **Israeli Privacy Protection Law (Amendment 13) Compliant:** User consent controls, transparent data policies, and no third-party tracking.

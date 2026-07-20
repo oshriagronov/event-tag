@@ -2,7 +2,6 @@ import { useEffect, useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { useTranslation } from '../services/translations';
-import { useConsent } from '../contexts/ConsentContext';
 import { Footer } from './Footer';
 import {
   Camera,
@@ -14,9 +13,7 @@ import {
   FolderUp,
   Users,
   Lock,
-  Zap,
   ChevronDown,
-  HelpCircle,
   Monitor,
   EyeOff,
   KeyRound,
@@ -26,7 +23,6 @@ export function LandingPage() {
   const { user, loading, signIn } = useAuth();
   const navigate = useNavigate();
   const { t, isRtl, language } = useTranslation();
-  const { reopen } = useConsent();
   const [openFaq, setOpenFaq] = useState<number | null>(null);
 
   // Redirect to dashboard if already logged in

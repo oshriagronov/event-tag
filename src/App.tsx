@@ -56,7 +56,6 @@ function GuestViewWrapper() {
   return <GuestView shareCode={shareCode} />;
 }
 
-import { PrivacyPage } from './components/PrivacyPage';
 import { SkipLink } from './components/SkipLink';
 import { AccessibilityWidget } from './components/AccessibilityWidget';
 import { useLocation } from 'react-router-dom';

@@ -1,7 +1,6 @@
 import { Link } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { useTranslation } from '../services/translations';
-import { useConsent } from '../contexts/ConsentContext';
 import { Footer } from './Footer';
 import { Lock, ExternalLink, CheckCircle2, ShieldCheck, Mail, Phone, Clock, FileCheck } from 'lucide-react';
 
@@ -12,7 +11,6 @@ interface LegalPageProps {
 export function LegalPage({ defaultTab = 'privacy' }: LegalPageProps) {
   const { user, signIn } = useAuth();
   const { t, isRtl, language } = useTranslation();
-  const { reopen } = useConsent();
 
   return (
     <div className="min-h-screen bg-background text-on-background flex flex-col antialiased relative selection:bg-copper-accent/30 selection:text-white" dir={isRtl ? 'rtl' : 'ltr'}>

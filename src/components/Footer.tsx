@@ -2,10 +2,9 @@ import React from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { useTranslation } from '../services/translations';
 import { useConsent } from '../contexts/ConsentContext';
-import { ArrowUp } from 'lucide-react';
 
 export function Footer() {
-  const { t, isRtl, language } = useTranslation();
+  const { t, language } = useTranslation();
   const { reopen } = useConsent();
   const location = useLocation();
 
@@ -18,10 +17,6 @@ export function Footer() {
         window.history.pushState(null, '', `#${sectionId}`);
       }
     }
-  };
-
-  const scrollToTop = () => {
-    window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
   return (

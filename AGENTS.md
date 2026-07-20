@@ -1,41 +1,72 @@
-# Agent Context: GuestID (Cloud Event Face-Sorting Web App)
+# Agent Context: GuestID / EventTag (Cloud Event Face-Sorting Web App)
 
-You are an expert Frontend Engineer and Client-Side Machine Learning specialist. Your role is to help develop **GuestID**, a privacy-first web application designed to help users sort event photos by recognized faces using images loaded from Google Drive, with face descriptors synced securely in the cloud.
+You are an expert Frontend Engineer and Client-Side Machine Learning specialist. Your role is to help develop **GuestID** (EventTag), a privacy-first web application designed to help users sort event photos by recognized faces using images loaded from cloud storage (Google Drive & Dropbox), with face descriptors synced securely in the cloud.
 
 
 ## Project Core Concept & Goal
-- **What it is:** A web application where users select event photos from Google Drive using the native Google Picker (`drive.file` scope), and the browser automatically detects, encodes, and groups (clusters) faces.
-- **The Goal:** Allow users to organize photo galleries by guests, assign names, search for specific people, and manage multiple events.
-- **The Ultimate Constraint:** **Cloud Ingest with Local Processing.** Images are read directly from Google Drive into browser memory, all face detection and recognition happens locally in the user's browser, and only mathematical face descriptors are stored in Firebase Firestore. No actual photo files are uploaded to or stored on our servers.
+- **What it is:** A web application where event owners connect photos from Google Drive (via native Google Picker, `drive.file` scope) or Dropbox, and the browser automatically detects, encodes, and groups (clusters) faces. Guests can then scan a QR code / share link and upload a selfie to instantly find all photos they appear in.
+- **The Goal:** Allow event owners to organize photo galleries by guests, assign names, search for specific people, and manage multiple events. Allow guests to self-service retrieve and download their event photos in a ZIP bundle.
+- **The Ultimate Constraint:** **Cloud Ingest with Local Processing.** Images are read directly from cloud storage into browser memory, all face detection and recognition happens locally in the user's browser, and only mathematical face descriptors are stored in Firebase Firestore. No actual photo files are uploaded to or stored on our servers.
 
 
-- **Tech Stack & Constraints**
+## Tech Stack & Project Architecture
 - **Framework:** React 19 + TypeScript 6 + Vite 8.
-- **Project Structure:** Single root repository. All source files are located in `/src` directly under the root.
-- **Styling:** Vanilla CSS + Tailwind CSS (Clean, minimalist, modern dark-themed aesthetic).
+- **Styling & UI:** Vanilla CSS + Tailwind CSS 4 (`@tailwindcss/vite`), clean dark-themed responsive design.
 - **Icons:** Lucide React.
-- **Client-Side ML:** Face detection & landmark extraction via `@vladmandic/face-api` (SSD MobileNet V1 + 68-point landmarks) + Face recognition via **ONNX Runtime Web** executing an optimized **SFace** (MobileFaceNet backbone) model on WASM.
-- **Cloud Integration:** **Google Picker API** (ingestion via the non-restricted `drive.file` scope, avoiding restricted-scope CASA audits) + **Firebase Firestore** (storage of metadata, file IDs, and face descriptors in batched collections).
+- **Client-Side ML Engine:** 
+  - Face detection & landmark extraction via `@vladmandic/face-api` (SSD MobileNet V1 + 68-point landmarks).
+  - Face embedding extraction via **ONNX Runtime Web** executing an optimized **SFace** (MobileFaceNet backbone) model on WASM (128-dimensional L2-normalized vectors).
+- **Cloud & Database:**
+  - **Firebase Auth:** Google Sign-In & Email Authentication.
+  - **Firebase Firestore:** Reactive storage of metadata, cloud file references, face descriptors, and clusters.
+- **Cloud Storage Integrations:**
+  - **Google Picker API:** Non-restricted `drive.file` scope ingestion.
+  - **Dropbox API / Chooser:** Direct Dropbox folder connection & file stream ingestion.
+- **Local Utilities & Caching:** `jszip` (ZIP photo downloads), `qrcode.react` (share link QR codes), `dexie` (client-side IndexedDB caching).
+
+---
+
+## Agent Skill Directives (.agents/skills)
+
+Agents working on this repository **MUST** consult and apply the relevant skills in `.agents/skills/` when handling domain-specific features or refactoring:
+
+1. **Hebrew & RTL Best Practices (`.agents/skills/hebrew-rtl-best-practices/SKILL.md`)**
+   - **When to use:** Any UI component, layout adjustment, styling modification, or text formatting.
+   - **Key requirements:** Document root `<html lang="he" dir="rtl">`, CSS logical properties (`margin-inline-start`, `padding-inline-end`, Tailwind `ms-*`, `pe-*`, `inset-s-*`), `unicode-bidi: isolate` for mixed Hebrew/English strings (phone numbers, IDs, prices), `dir="auto"` on form inputs, and mirroring directional icons while leaving non-directional icons untouched.
+
+2. **Israeli Accessibility Compliance (`.agents/skills/israeli-accessibility-compliance/SKILL.md`)**
+   - **When to use:** Building UI components, modal overlays, interactive buttons, or auditing accessible flows.
+   - **Key requirements:** Israeli Standard IS 5568 / WCAG 2.0 AA compliance, maintaining `AccessibilityWidget.tsx`, `SkipLink.tsx`, full keyboard navigation (visible focus rings), ARIA roles and labels, contrast controls, and screen-reader compatibility.
+
+3. **Israeli Privacy Shield (`.agents/skills/israeli-privacy-shield/SKILL.md`)**
+   - **When to use:** Managing user data, privacy banners, cookie consent, terms of service, or authentication rules.
+   - **Key requirements:** Israeli Privacy Protection Law 1981 & Amendment 13 compliance, maintaining `ConsentContext.tsx`, `CookieBanner.tsx`, `PreferencesModal.tsx`, data minimization principles, and clear user privacy disclosures.
+
+4. **Israeli AppSec Scanner (`.agents/skills/israeli-appsec-scanner/SKILL.md`)**
+   - **When to use:** Reviewing API security, environment variables, cloud provider tokens, or user data sanitization.
+   - **Key requirements:** OWASP Top 10 web security, secure handling of Google/Dropbox OAuth tokens, Firestore security rules enforcement, secret leaks prevention, and safe DOM rendering.
 
 ---
 
 ## Core Development Rules & Guidelines
 
-### 1. Storage Architecture (Cloud-Only)
+### 1. Storage Architecture (Cloud-Only & Privacy-First)
 - GuestID supports **Cloud Events only**.
-- Local events (browser-local IndexedDB offline-only) are not supported/offered on the dashboard.
-- All metadata, image lists, and face clusters sync to Firebase Firestore.
+- All photos are ingested on-the-fly from cloud providers (Google Drive / Dropbox) directly into browser memory.
+- All metadata, image file references, face descriptors, and clusters sync to Firebase Firestore. No photo binaries are ever uploaded to backend servers.
 
 ### 2. Ingest Performance & Memory Safety
-- **Image Downscaling:** To prevent WebGL out-of-memory crashes and speed up inference, images must be conditionally downscaled to a maximum dimension of `1600px` using an offscreen canvas prior to passing to `face-api.js` (implemented in `processPhotoLocally`).
-- **Sequential Ingestion:** Never keep multiple full-res images in memory simultaneously. Clean up object URLs immediately after processing.
+- **Image Downscaling:** To prevent WebGL out-of-memory crashes and speed up inference, images must be conditionally downscaled to a maximum dimension of `1600px` using an offscreen canvas prior to passing to `face-api.js` (implemented in scanning workflow).
+- **Sequential Ingestion:** Never keep multiple full-res images in memory simultaneously. Revoke object URLs immediately after processing.
 - **Firestore Write Buffering:** Face descriptors must be buffered in memory and written to Firestore in chunks (every 15 photos or 50 faces) instead of awaiting sequential updates, preventing database write performance degradation.
 
 ### 3. Model Accuracy & Clustering Thresholds
 - **Detection recall:** Keep SSD MobileNet V1's `minConfidence` at `0.45` to ensure side profiles and shadows are successfully detected.
-- **Clustering precision:** The incremental clustering engine (`clustering.ts`) uses L2-normalized Euclidean distance matching with calibrated thresholds (`matchThreshold = 0.90` and `avgThreshold = 0.95`). Guest selfie matches in `GuestView.tsx` use a strict threshold of `0.85` to prevent false positives.
+- **Clustering precision:** Incremental face clustering uses L2-normalized Euclidean distance matching with calibrated thresholds (`matchThreshold = 0.90` and `avgThreshold = 0.95`). Guest selfie matches in `GuestView.tsx` use a strict threshold of `0.85` to prevent false positives.
 
-### 4. UI/UX Philosophy
-- Keep the interface clean, dark-themed, and modern.
-- Every face cluster must support inline naming and instant real-time search filtering.
-- **Hebrew & RTL Constraint:** The interface is fully in Hebrew. The layout must support RTL (`dir="rtl"`) correctly. All labels, buttons, headers, inputs, alerts, and instructions should be in Hebrew.
+### 4. UI/UX & Localization
+- Interface is dark-themed, sleek, and modern.
+- **Hebrew & RTL Constraint:** The interface is localized in Hebrew (`dir="rtl"`). All labels, buttons, headers, inputs, alerts, and instructions should be in Hebrew with proper bidi isolation.
+
+### 5. Documentation Maintenance & Self-Updating Context
+- **Rule:** Whenever the architecture of the project (e.g., adding/removing folders, components, contexts, services) or the core logical/data flows change, the agent **MUST** immediately update `AGENTS.md` and `README.md` to reflect the updated state. This ensures that agent instructions and project documentation are always accurate and aligned with the current codebase.
