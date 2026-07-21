@@ -14,6 +14,16 @@ import {
 import { useAuth } from './AuthContext';
 import { useModal } from './ModalContext';
 
+export interface EventScanState {
+  eventId: string;
+  isScanning: boolean;
+  isPaused: boolean;
+  scannedCount: number;
+  totalToScan: number;
+  etaSeconds: number | null;
+  scanError: 'auth_expired' | 'network_error' | null;
+}
+
 interface ScannerContextType {
   isScanning: boolean;
   isPaused: boolean;
@@ -21,14 +31,18 @@ interface ScannerContextType {
   totalToScan: number;
   etaSeconds: number | null;
   activeScanningEventId: string | null;
+  activeScanningEventIds: string[];
   scanError: 'auth_expired' | 'network_error' | null;
+  isEventScanning: (eventId: string) => boolean;
+  getEventScanState: (eventId: string) => EventScanState | undefined;
   startCloudScanning: (
     eventId: string,
     photos: CloudPhoto[],
     accessToken: string,
     provider: CloudProvider
   ) => Promise<void>;
-  togglePause: () => void;
+  togglePause: (eventId?: string) => void;
+  stopScanning: (eventId: string) => void;
 }
 
 const ScannerContext = createContext<ScannerContextType | undefined>(undefined);
@@ -144,42 +158,92 @@ async function processPhotoLocally(fileBlob: Blob): Promise<{
 }
 
 export function ScannerProvider({ children }: { children: ReactNode }) {
-  const [isScanning, setIsScanning] = useState(false);
-  const [isPaused, setIsPaused] = useState(false);
-  const [scannedCount, setScannedCount] = useState(0);
-  const [totalToScan, setTotalToScan] = useState(0);
-  const [etaSeconds, setEtaSeconds] = useState<number | null>(null);
-  const [activeScanningEventId, setActiveScanningEventId] = useState<string | null>(null);
-  const [scanError, setScanError] = useState<'auth_expired' | 'network_error' | null>(null);
+  const [scanStates, setScanStates] = useState<Record<string, EventScanState>>({});
+
+  const pausedEventsRef = useRef<Map<string, boolean>>(new Map());
+  const cancelledEventsRef = useRef<Map<string, boolean>>(new Map());
 
   const { googleAccessToken, onedriveAccessToken, dropboxAccessToken, markProviderExpired } = useAuth();
   const { alert } = useModal();
 
   useEffect(() => {
     const hasAnyToken = Boolean(googleAccessToken || onedriveAccessToken || dropboxAccessToken);
-    if (hasAnyToken && scanError === 'auth_expired') {
-      setScanError(null);
-      setIsPaused(false);
-      isPausedRef.current = false;
+    if (hasAnyToken) {
+      setScanStates((prev) => {
+        let changed = false;
+        const next = { ...prev };
+        for (const [id, state] of Object.entries(next)) {
+          if (state.scanError === 'auth_expired') {
+            next[id] = { ...state, scanError: null, isPaused: false };
+            pausedEventsRef.current.set(id, false);
+            changed = true;
+          }
+        }
+        return changed ? next : prev;
+      });
     }
-  }, [googleAccessToken, onedriveAccessToken, dropboxAccessToken, scanError]);
+  }, [googleAccessToken, onedriveAccessToken, dropboxAccessToken]);
 
-  const isPausedRef = useRef(isPaused);
-  isPausedRef.current = isPaused;
+  const activeScanningEventIds = Object.keys(scanStates).filter(
+    (id) => scanStates[id]?.isScanning
+  );
+  const isScanning = activeScanningEventIds.length > 0;
+  const activeScanningEventId =
+    activeScanningEventIds.length > 0
+      ? activeScanningEventIds[activeScanningEventIds.length - 1]
+      : null;
 
-  const togglePause = () => {
-    setIsPaused((prev) => {
-      const next = !prev;
-      isPausedRef.current = next;
-      if (!next) {
-        setScanError(null);
-      }
-      return next;
+  const primaryState = activeScanningEventId ? scanStates[activeScanningEventId] : undefined;
+  const isPaused = primaryState?.isPaused ?? false;
+  const scannedCount = primaryState?.scannedCount ?? 0;
+  const totalToScan = primaryState?.totalToScan ?? 0;
+  const etaSeconds = primaryState?.etaSeconds ?? null;
+  const scanError = primaryState?.scanError ?? null;
+
+  const isEventScanning = (eventId: string) => Boolean(scanStates[eventId]?.isScanning);
+  const getEventScanState = (eventId: string) => scanStates[eventId];
+
+  const togglePause = (eventId?: string) => {
+    const targetId = eventId || activeScanningEventId;
+    if (!targetId) return;
+
+    const currentPaused = pausedEventsRef.current.get(targetId) ?? false;
+    const nextPaused = !currentPaused;
+
+    pausedEventsRef.current.set(targetId, nextPaused);
+
+    setScanStates((prev) => {
+      const state = prev[targetId];
+      if (!state) return prev;
+      return {
+        ...prev,
+        [targetId]: {
+          ...state,
+          isPaused: nextPaused,
+          scanError: nextPaused ? state.scanError : null,
+        },
+      };
     });
   };
 
+  const stopScanning = (eventId: string) => {
+    if (!eventId) return;
+
+    cancelledEventsRef.current.set(eventId, true);
+    pausedEventsRef.current.set(eventId, false);
+
+    setScanStates((prev) => {
+      const { [eventId]: removed, ...rest } = prev;
+      return rest;
+    });
+
+    updateCloudEvent(eventId, { status: 'pending' }).catch((err) =>
+      console.error(`Failed to update status for stopped event ${eventId}:`, err)
+    );
+  };
+
   /**
-   * Cloud Google Drive scanning flow using client-side face-api.js and Firestore
+   * Cloud scanning flow using client-side face-api.js and Firestore
    */
   const startCloudScanning = async (
     eventId: string,
@@ -187,27 +251,35 @@ export function ScannerProvider({ children }: { children: ReactNode }) {
     accessToken: string,
     provider: CloudProvider
   ) => {
-    if (isScanning) {
+    if (isEventScanning(eventId)) {
       await alert({
         title: 'סריקה פעילה',
-        message: 'סריקה כבר מתבצעת. אנא המתן לסיומה.',
+        message: 'סריקה עבור אירוע זה כבר מתבצעת ברקע.',
         variant: 'info',
       });
       return;
     }
 
-    setIsScanning(true);
-    setTotalToScan(photos.length);
+    cancelledEventsRef.current.set(eventId, false);
+    pausedEventsRef.current.set(eventId, false);
 
     const alreadyProcessed = photos.filter((p) => p.processed && p.publicUrl).length;
-    setScannedCount(alreadyProcessed);
-
     const initialRemaining = photos.length - alreadyProcessed;
-    setEtaSeconds(initialRemaining > 0 ? Math.round(initialRemaining * 2.5) : 0);
 
-    setActiveScanningEventId(eventId);
-    setIsPaused(false);
-    setScanError(null);
+    const initialState: EventScanState = {
+      eventId,
+      isScanning: true,
+      isPaused: false,
+      scannedCount: alreadyProcessed,
+      totalToScan: photos.length,
+      etaSeconds: initialRemaining > 0 ? Math.round(initialRemaining * 2.5) : 0,
+      scanError: null,
+    };
+
+    setScanStates((prev) => ({
+      ...prev,
+      [eventId]: initialState,
+    }));
 
     let progress = 0;
     let activeProcessedCount = 0;
@@ -234,11 +306,30 @@ export function ScannerProvider({ children }: { children: ReactNode }) {
       return promise;
     }
 
+    const updateEventState = (updates: Partial<EventScanState>) => {
+      setScanStates((prev) => {
+        const current = prev[eventId];
+        if (!current) return prev;
+        return {
+          ...prev,
+          [eventId]: { ...current, ...updates },
+        };
+      });
+    };
+
     try {
       for (let idx = 0; idx < photos.length; idx++) {
-        while (isPausedRef.current) {
+        if (cancelledEventsRef.current.get(eventId)) {
+          console.log(`Scan cancelled for event ${eventId}`);
+          break;
+        }
+
+        while (pausedEventsRef.current.get(eventId)) {
+          if (cancelledEventsRef.current.get(eventId)) break;
           await new Promise((resolve) => setTimeout(resolve, 200));
         }
+
+        if (cancelledEventsRef.current.get(eventId)) break;
 
         const photoStart = Date.now();
         const photo = photos[idx];
@@ -248,8 +339,8 @@ export function ScannerProvider({ children }: { children: ReactNode }) {
           // If it already has a publicUrl, skip it entirely!
           if (photo.publicUrl) {
             progress++;
-            if (progress > scannedCount) {
-              setScannedCount(progress);
+            if (progress > alreadyProcessed) {
+              updateEventState({ scannedCount: progress });
             }
             continue;
           }
@@ -280,16 +371,15 @@ export function ScannerProvider({ children }: { children: ReactNode }) {
             const errStr = sharedLinkErr instanceof Error ? sharedLinkErr.message : String(sharedLinkErr);
             
             if (errStr.includes('401')) {
-              setScanError('auth_expired');
-              setIsPaused(true);
-              isPausedRef.current = true;
+              markProviderExpired(provider);
+              pausedEventsRef.current.set(eventId, true);
+              updateEventState({ scanError: 'auth_expired', isPaused: true });
               preloadCache.clear();
               idx--;
               continue;
             } else if (errStr.includes('timed out') || errStr.includes('Failed to fetch') || errStr.includes('NetworkError') || errStr.includes('timeout') || errStr.includes('aborted')) {
-              setScanError('network_error');
-              setIsPaused(true);
-              isPausedRef.current = true;
+              pausedEventsRef.current.set(eventId, true);
+              updateEventState({ scanError: 'network_error', isPaused: true });
               preloadCache.clear();
               idx--;
               continue;
@@ -297,7 +387,7 @@ export function ScannerProvider({ children }: { children: ReactNode }) {
           }
 
           progress++;
-          setScannedCount(progress);
+          updateEventState({ scannedCount: progress });
           continue;
         }
 
@@ -368,9 +458,8 @@ export function ScannerProvider({ children }: { children: ReactNode }) {
           
           if (errStr.includes('401')) {
             markProviderExpired(provider);
-            setScanError('auth_expired');
-            setIsPaused(true);
-            isPausedRef.current = true;
+            pausedEventsRef.current.set(eventId, true);
+            updateEventState({ scanError: 'auth_expired', isPaused: true });
             preloadCache.clear();
             idx--;
             continue;
@@ -380,17 +469,15 @@ export function ScannerProvider({ children }: { children: ReactNode }) {
             const isValid = await checkTokenValidity(provider, accessToken);
             if (!isValid) {
               markProviderExpired(provider);
-              setScanError('auth_expired');
-              setIsPaused(true);
-              isPausedRef.current = true;
+              pausedEventsRef.current.set(eventId, true);
+              updateEventState({ scanError: 'auth_expired', isPaused: true });
               preloadCache.clear();
               idx--;
               continue;
             } else {
               if (errStr.includes('timed out') || errStr.includes('Failed to fetch') || errStr.includes('NetworkError') || errStr.includes('timeout') || errStr.includes('aborted')) {
-                setScanError('network_error');
-                setIsPaused(true);
-                isPausedRef.current = true;
+                pausedEventsRef.current.set(eventId, true);
+                updateEventState({ scanError: 'network_error', isPaused: true });
                 preloadCache.clear();
                 idx--;
                 continue;
@@ -402,9 +489,8 @@ export function ScannerProvider({ children }: { children: ReactNode }) {
             }
           } catch (innerErr) {
             console.error('Fatal error in scanner loop recovery:', innerErr);
-            setScanError('network_error');
-            setIsPaused(true);
-            isPausedRef.current = true;
+            pausedEventsRef.current.set(eventId, true);
+            updateEventState({ scanError: 'network_error', isPaused: true });
             preloadCache.clear();
             idx--;
             continue;
@@ -416,11 +502,15 @@ export function ScannerProvider({ children }: { children: ReactNode }) {
         activeProcessedCount++;
 
         progress++;
-        setScannedCount(progress);
 
         const avgTime = activeActiveTime / activeProcessedCount;
         const remaining = photos.length - progress;
-        setEtaSeconds(Math.round(remaining * avgTime));
+        const calculatedEta = Math.round(remaining * avgTime);
+
+        updateEventState({
+          scannedCount: progress,
+          etaSeconds: calculatedEta,
+        });
 
         // Update event progress in Firestore periodically
         if (progress % 10 === 0 || progress === photos.length) {
@@ -431,40 +521,46 @@ export function ScannerProvider({ children }: { children: ReactNode }) {
         }
       }
 
-      // Flush remaining buffered faces
-      if (facesBuffer.length > 0) {
-        try {
-          await appendFaceDescriptors(eventId, facesBuffer);
-        } catch (err) {
-          console.error('Error flushing face descriptors buffer at end of scan:', err);
-        }
-      }
-
-      // Flush remaining buffered photos
-      if (photosBuffer.length > 0) {
-        try {
-          await updateCloudPhotosBatch(eventId, photosBuffer);
-          for (const p of photosBuffer) {
-            const localPhoto = photos.find((lp) => lp.id === p.id);
-            if (localPhoto) {
-              localPhoto.processed = true;
-              localPhoto.publicUrl = p.updates.publicUrl;
-            }
+      if (!cancelledEventsRef.current.get(eventId)) {
+        // Flush remaining buffered faces
+        if (facesBuffer.length > 0) {
+          try {
+            await appendFaceDescriptors(eventId, facesBuffer);
+          } catch (err) {
+            console.error('Error flushing face descriptors buffer at end of scan:', err);
           }
-        } catch (err) {
-          console.error('Error flushing photos buffer at end of scan:', err);
         }
-      }
 
-      // Set final event state to ready
-      await updateCloudEvent(eventId, {
-        status: 'ready',
-        photoCount: progress,
-        faceCount: totalFacesFound,
-      });
+        // Flush remaining buffered photos
+        if (photosBuffer.length > 0) {
+          try {
+            await updateCloudPhotosBatch(eventId, photosBuffer);
+            for (const p of photosBuffer) {
+              const localPhoto = photos.find((lp) => lp.id === p.id);
+              if (localPhoto) {
+                localPhoto.processed = true;
+                localPhoto.publicUrl = p.updates.publicUrl;
+              }
+            }
+          } catch (err) {
+            console.error('Error flushing photos buffer at end of scan:', err);
+          }
+        }
+
+        // Set final event state to ready
+        await updateCloudEvent(eventId, {
+          status: 'ready',
+          photoCount: progress,
+          faceCount: totalFacesFound,
+        });
+      }
     } finally {
-      setIsScanning(false);
-      setActiveScanningEventId(null);
+      setScanStates((prev) => {
+        const { [eventId]: removed, ...rest } = prev;
+        return rest;
+      });
+      pausedEventsRef.current.delete(eventId);
+      cancelledEventsRef.current.delete(eventId);
     }
   };
 
@@ -477,9 +573,13 @@ export function ScannerProvider({ children }: { children: ReactNode }) {
         totalToScan,
         etaSeconds,
         activeScanningEventId,
+        activeScanningEventIds,
         scanError,
+        isEventScanning,
+        getEventScanState,
         startCloudScanning,
         togglePause,
+        stopScanning,
       }}
     >
       {children}

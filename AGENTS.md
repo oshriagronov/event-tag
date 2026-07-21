@@ -61,6 +61,7 @@ Agents working on this repository **MUST** consult and apply the relevant skills
 - **Image Downscaling:** To prevent WebGL out-of-memory crashes and speed up inference, images must be conditionally downscaled to a maximum dimension of `1600px` using an offscreen canvas prior to passing to `face-api.js` (implemented in scanning workflow).
 - **Sequential Ingestion:** Never keep multiple full-res images in memory simultaneously. Revoke object URLs immediately after processing.
 - **Firestore Write Buffering:** Face descriptors must be buffered in memory and written to Firestore in chunks (every 15 photos or 50 faces) instead of awaiting sequential updates, preventing database write performance degradation.
+- **Parallel Multi-Event Ingestion:** `ScannerContext` tracks scan loops, pause flags, and cancellations independently per event ID (`scanStates` map, `pausedEventsRef`, `cancelledEventsRef`), allowing multiple events to scan in parallel. A warning modal notifies users on event creation during an active scan regarding potential performance impacts.
 
 ### 3. Model Accuracy & Clustering Thresholds
 - **Detection recall:** Keep SSD MobileNet V1's `minConfidence` at `0.45` to ensure side profiles and shadows are successfully detected.

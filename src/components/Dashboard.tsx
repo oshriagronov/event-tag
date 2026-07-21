@@ -45,12 +45,10 @@ export function Dashboard() {
   const [showFolderPicker, setShowFolderPicker] = useState(false);
   const {
     isScanning,
-    isPaused,
-    scannedCount,
-    totalToScan,
-    etaSeconds,
-    activeScanningEventId,
+    isEventScanning,
+    getEventScanState,
     togglePause,
+    stopScanning,
   } = useScanner();
 
   const [activeTab, setActiveTab] = useState<'events' | 'settings'>('events');
@@ -59,6 +57,7 @@ export function Dashboard() {
 
   const [cloudEvents, setCloudEvents] = useState<CloudEvent[]>([]);
   const [loadingEvents, setLoadingEvents] = useState(true);
+  const [deletingEventIds, setDeletingEventIds] = useState<Set<string>>(new Set());
   const [searchQuery, setSearchQuery] = useState('');
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [showMobileSearch, setShowMobileSearch] = useState(false);
@@ -123,8 +122,23 @@ export function Dashboard() {
     setNewEventName(folder.name);
   };
 
+  const checkParallelScanWarning = async () => {
+    if (isScanning) {
+      const confirmed = await confirm({
+        title: t('dashboard.parallelScanWarningTitle'),
+        message: t('dashboard.parallelScanWarningMessage'),
+        confirmText: t('dashboard.parallelScanProceed'),
+        cancelText: t('dashboard.parallelScanCancel'),
+        variant: 'warning',
+      });
+      return confirmed;
+    }
+    return true;
+  };
+
   const handleCreateEvent = async () => {
     if (!user || (!pendingFolder && pendingPhotos.length === 0) || !newEventName.trim()) return;
+
     setCreating(true);
     try {
       let eventId: string;
@@ -283,6 +297,8 @@ export function Dashboard() {
 
   const handleDeleteCloudEvent = async (event: CloudEvent, e: React.MouseEvent) => {
     e.stopPropagation();
+    if (!event.id || deletingEventIds.has(event.id)) return;
+
     const confirmed = await confirm({
       title: language === 'he' ? 'מחיקת אירוע' : 'Delete Event',
       message: language === 'he'
@@ -295,15 +311,27 @@ export function Dashboard() {
 
     if (!confirmed) return;
 
+    if (isEventScanning(event.id)) {
+      stopScanning(event.id);
+    }
+
+    setDeletingEventIds((prev) => new Set(prev).add(event.id!));
+
     try {
-      await deleteCloudEvent(event.id!);
+      await deleteCloudEvent(event.id);
       setCloudEvents((prev) => prev.filter((ev) => ev.id !== event.id));
     } catch (err) {
       console.error('Failed to delete event:', err);
       await alert({
         title: language === 'he' ? 'שגיאה במחיקה' : 'Error Deleting',
-        message: language === 'he' ? 'שגיאה במחיקת האירוע.' : 'Error deleting event.',
+        message: language === 'he' ? 'שגיאה במחיקת האירוע. אנא נסה שוב.' : 'Error deleting event. Please try again.',
         variant: 'danger',
+      });
+    } finally {
+      setDeletingEventIds((prev) => {
+        const next = new Set(prev);
+        next.delete(event.id!);
+        return next;
       });
     }
   };
@@ -617,7 +645,9 @@ export function Dashboard() {
                 {/* Choose photos backup button */}
                 <div className="flex items-center gap-3">
                   <button
-                    onClick={() => {
+                    onClick={async () => {
+                      const canProceed = await checkParallelScanWarning();
+                      if (!canProceed) return;
                       setNewEventName('');
                       setPendingPhotos([]);
                       setPendingFolder(null);
@@ -676,37 +706,46 @@ export function Dashboard() {
               ) : (
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                   {filteredEvents.map((event) => {
-                    const isThisEventScanning = isScanning && activeScanningEventId === event.id;
+                    const isThisEventScanning = isEventScanning(event.id!);
+                    const eventScanState = getEventScanState(event.id!);
+                    const isEventPaused = eventScanState?.isPaused ?? false;
+                    const eventScannedCount = eventScanState?.scannedCount ?? 0;
+                    const eventTotalToScan = eventScanState?.totalToScan || event.photoCount || 0;
+                    const eventEta = eventScanState?.etaSeconds ?? null;
+                    const isDeleting = event.id ? deletingEventIds.has(event.id) : false;
+
                     return (
                       <div
                         key={event.id}
-                        onClick={() => navigate(`/dashboard/event/${event.id}`)}
-                        className="group relative border border-surface-border/60 hover:border-copper-accent/35 bg-surface-container rounded-xl p-6 cursor-pointer transition-all duration-300 flex flex-col gap-6 shadow hover:shadow-2xl hover:-translate-y-0.5 text-start"
+                        onClick={isDeleting ? undefined : () => navigate(`/dashboard/event/${event.id}`)}
+                        className={`group relative border border-surface-border/60 ${isDeleting ? 'opacity-75 overflow-hidden' : 'hover:border-copper-accent/35 cursor-pointer hover:shadow-2xl hover:-translate-y-0.5'} bg-surface-container rounded-xl p-6 transition-all duration-300 flex flex-col gap-6 shadow text-start`}
                       >
                         {/* Action buttons (always visible on mobile/touch, hover on desktop) */}
-                        <div className={`absolute top-4 ${isRtl ? 'left-4' : 'right-4'} flex items-center gap-1.5 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-all z-10`}>
-                          <button
-                            onClick={(e) => handleCopyShareLink(event, e)}
-                            title={language === 'he' ? 'העתק קישור שיתוף' : 'Copy share link'}
-                            className="p-2.5 sm:p-2 rounded-lg bg-surface-container-high/90 sm:bg-surface-container-high border border-surface-border text-sage-muted hover:text-copper-accent active:scale-95 transition-all cursor-pointer shadow-sm"
-                          >
-                            {copiedId === event.id ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Link2 className="w-3.5 h-3.5" />}
-                          </button>
-                          <button
-                            onClick={(e) => { e.stopPropagation(); setQrEvent(event); }}
-                            title={language === 'he' ? 'הצג QR קוד' : 'Show QR code'}
-                            className="p-2.5 sm:p-2 rounded-lg bg-surface-container-high/90 sm:bg-surface-container-high border border-surface-border text-sage-muted hover:text-copper-accent active:scale-95 transition-all cursor-pointer shadow-sm"
-                          >
-                            <QrCode className="w-3.5 h-3.5" />
-                          </button>
-                          <button
-                            onClick={(e) => handleDeleteCloudEvent(event, e)}
-                            title={language === 'he' ? 'מחק אירוע' : 'Delete event'}
-                            className="p-2.5 sm:p-2 rounded-lg bg-surface-container-high/90 sm:bg-surface-container-high border border-surface-border text-sage-muted hover:text-red-400 active:scale-95 transition-all cursor-pointer shadow-sm"
-                          >
-                            <Trash2 className="w-3.5 h-3.5" />
-                          </button>
-                        </div>
+                        {!isDeleting && (
+                          <div className={`absolute top-4 ${isRtl ? 'left-4' : 'right-4'} flex items-center gap-1.5 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-all z-10`}>
+                            <button
+                              onClick={(e) => handleCopyShareLink(event, e)}
+                              title={language === 'he' ? 'העתק קישור שיתוף' : 'Copy share link'}
+                              className="p-2.5 sm:p-2 rounded-lg bg-surface-container-high/90 sm:bg-surface-container-high border border-surface-border text-sage-muted hover:text-copper-accent active:scale-95 transition-all cursor-pointer shadow-sm"
+                            >
+                              {copiedId === event.id ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Link2 className="w-3.5 h-3.5" />}
+                            </button>
+                            <button
+                              onClick={(e) => { e.stopPropagation(); setQrEvent(event); }}
+                              title={language === 'he' ? 'הצג QR קוד' : 'Show QR code'}
+                              className="p-2.5 sm:p-2 rounded-lg bg-surface-container-high/90 sm:bg-surface-container-high border border-surface-border text-sage-muted hover:text-copper-accent active:scale-95 transition-all cursor-pointer shadow-sm"
+                            >
+                              <QrCode className="w-3.5 h-3.5" />
+                            </button>
+                            <button
+                              onClick={(e) => handleDeleteCloudEvent(event, e)}
+                              title={language === 'he' ? 'מחק אירוע' : 'Delete event'}
+                              className="p-2.5 sm:p-2 rounded-lg bg-surface-container-high/90 sm:bg-surface-container-high border border-surface-border text-sage-muted hover:text-red-400 active:scale-95 transition-all cursor-pointer shadow-sm"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </button>
+                          </div>
+                        )}
 
                         <div className="flex flex-col gap-2 text-start">
                           <div className="flex items-center">
@@ -731,25 +770,39 @@ export function Dashboard() {
                           <div className="flex flex-col gap-2 w-full text-start" onClick={(e) => e.stopPropagation()}>
                             <div className="flex items-center justify-between text-xs">
                               <span className="text-sage-muted font-medium truncate">
-                                {isPaused ? t('dashboard.statusPaused') : formatETA(etaSeconds)}
+                                {isEventPaused ? t('dashboard.statusPaused') : formatETA(eventEta)}
                               </span>
                               <div className="flex items-center gap-1.5 shrink-0">
                                 <button
-                                  onClick={(e) => {
+                                  onClick={async (e) => {
                                       e.stopPropagation();
-                                      togglePause();
+                                      if (isEventPaused) {
+                                        const canProceed = await checkParallelScanWarning();
+                                        if (!canProceed) return;
+                                      }
+                                      togglePause(event.id!);
                                     }}
                                   className={`p-1.5 rounded transition-all cursor-pointer border bg-transparent ${
-                                      isPaused
+                                      isEventPaused
                                         ? 'border-copper-accent/30 text-copper-accent bg-copper-accent/10'
                                         : 'border-surface-border text-sage-muted hover:bg-surface-container-high'
                                     }`}
-                                  title={isPaused ? t('eventView.isResumed') : t('eventView.isPaused')}
+                                  title={isEventPaused ? t('eventView.isResumed') : t('eventView.isPaused')}
                                 >
-                                  {isPaused ? <Play className="w-3.5 h-3.5" /> : <Pause className="w-3.5 h-3.5" />}
+                                  {isEventPaused ? <Play className="w-3.5 h-3.5" /> : <Pause className="w-3.5 h-3.5" />}
+                                </button>
+                                <button
+                                  onClick={(e) => {
+                                      e.stopPropagation();
+                                      stopScanning(event.id!);
+                                    }}
+                                  className="p-1.5 rounded transition-all cursor-pointer border border-surface-border text-sage-muted hover:text-red-400 hover:bg-surface-container-high bg-transparent"
+                                  title={t('dashboard.stopScanBtn')}
+                                >
+                                  <X className="w-3.5 h-3.5" />
                                 </button>
                                 <span className="font-mono font-bold text-on-background">
-                                  {scannedCount} / {totalToScan || event.photoCount || 0}
+                                  {eventScannedCount} / {eventTotalToScan}
                                 </span>
                               </div>
                             </div>
@@ -757,7 +810,7 @@ export function Dashboard() {
                               <div
                                 className="bg-copper-accent h-1.5 rounded-full transition-all duration-300 ease-out"
                                 style={{
-                                  width: `${(totalToScan || event.photoCount) > 0 ? (scannedCount / (totalToScan || event.photoCount)) * 100 : 0}%`,
+                                  width: `${eventTotalToScan > 0 ? (eventScannedCount / eventTotalToScan) * 100 : 0}%`,
                                 }}
                               />
                             </div>
@@ -772,7 +825,7 @@ export function Dashboard() {
                             <div className="flex flex-col text-start">
                               <span className="text-[10px] text-sage-muted uppercase tracking-wider">{language === 'he' ? 'תמונות' : 'Photos'}</span>
                               <span className="text-sm font-bold text-on-background">
-                                {isThisEventScanning ? scannedCount : event.photoCount}
+                                {isThisEventScanning ? eventScannedCount : event.photoCount}
                               </span>
                             </div>
                           </div>
@@ -814,6 +867,22 @@ export function Dashboard() {
                           <span>{language === 'he' ? 'פתח אירוע' : 'Open Event'}</span>
                           <ArrowLeft className={`w-3.5 h-3.5 transform group-hover:-translate-x-1 transition-transform ${isRtl ? '' : 'rotate-180'}`} />
                         </div>
+
+                        {isDeleting && (
+                          <div className="absolute inset-0 bg-surface-container/90 backdrop-blur-sm rounded-xl z-20 flex flex-col items-center justify-center gap-3 p-4 text-center">
+                            <div className="p-3 rounded-full bg-red-500/10 border border-red-500/20 text-red-400">
+                              <Loader2 className="w-6 h-6 animate-spin" />
+                            </div>
+                            <div className="flex flex-col gap-1">
+                              <span className="text-sm font-bold text-on-background">
+                                {language === 'he' ? 'מוחק אירוע...' : 'Deleting event...'}
+                              </span>
+                              <span className="text-xs text-sage-muted">
+                                {language === 'he' ? 'מוחק נתונים ממסד הנתונים' : 'Removing data from database'}
+                              </span>
+                            </div>
+                          </div>
+                        )}
                       </div>
                     );
                   })}

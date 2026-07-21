@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { useScanner } from '../contexts/ScannerContext';
 import { 
   ArrowRight, ArrowLeft, FolderOpen, Loader2, Check, AlertCircle,
-  Pause, Play, Copy, QrCode, ExternalLink, RefreshCw
+  Pause, Play, Copy, QrCode, ExternalLink, RefreshCw, X
 } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import {
@@ -141,17 +141,20 @@ export function EventView({ eventId, onBack }: EventViewProps) {
 
   const {
     isScanning,
-    isPaused,
-    scannedCount,
-    totalToScan,
-    etaSeconds,
-    activeScanningEventId,
-    scanError,
+    isEventScanning,
+    getEventScanState,
     startCloudScanning,
     togglePause,
+    stopScanning,
   } = useScanner();
 
-  const isThisEventScanning = activeScanningEventId === eventId;
+  const isThisEventScanning = isEventScanning(eventId);
+  const thisEventScanState = getEventScanState(eventId);
+  const isThisEventPaused = thisEventScanState?.isPaused ?? false;
+  const thisEventScannedCount = thisEventScanState?.scannedCount ?? 0;
+  const thisEventTotalToScan = thisEventScanState?.totalToScan || photos.length || event?.photoCount || 0;
+  const thisEventEta = thisEventScanState?.etaSeconds ?? null;
+  const thisEventScanError = thisEventScanState?.scanError ?? null;
   const currentProvider = event?.provider || 'dropbox';
   const currentProviderToken = currentProvider === 'google' ? googleAccessToken : currentProvider === 'onedrive' ? onedriveAccessToken : dropboxAccessToken;
   const isCurrentProviderExpired = expiredProviders.includes(currentProvider);
@@ -190,11 +193,29 @@ export function EventView({ eventId, onBack }: EventViewProps) {
     }
   }, [isScanning, event?.status]);
 
+  const checkParallelScanWarning = async () => {
+    if (isScanning) {
+      const confirmed = await confirm({
+        title: t('dashboard.parallelScanWarningTitle'),
+        message: t('dashboard.parallelScanWarningMessage'),
+        confirmText: t('dashboard.parallelScanProceed'),
+        cancelText: t('dashboard.parallelScanCancel'),
+        variant: 'warning',
+      });
+      return confirmed;
+    }
+    return true;
+  };
+
   const handleStartScan = async () => {
     if (!event) return;
     const provider = event.provider || 'dropbox';
     const token = currentProviderToken;
     if (!token) return;
+
+    const canProceed = await checkParallelScanWarning();
+    if (!canProceed) return;
+
     try {
       await updateCloudEvent(eventId, { status: 'scanning' });
       setEvent(prev => prev ? { ...prev, status: 'scanning' } : null);
@@ -263,6 +284,9 @@ export function EventView({ eventId, onBack }: EventViewProps) {
     });
 
     if (!confirmed) return;
+
+    const canProceed = await checkParallelScanWarning();
+    if (!canProceed) return;
 
     try {
       setLoading(true);
@@ -415,7 +439,7 @@ export function EventView({ eventId, onBack }: EventViewProps) {
         <div className="bg-surface-container border border-surface-border rounded-xl p-8 flex flex-col gap-6 shadow-2xl max-w-xl mx-auto w-full my-6">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 text-sm border-b border-surface-border pb-5">
             <div className="flex items-center gap-3">
-              <Loader2 className={`w-4 h-4 text-copper-accent ${isThisEventScanning && !isPaused ? 'animate-spin' : ''}`} />
+              <Loader2 className={`w-4 h-4 text-copper-accent ${isThisEventScanning && !isThisEventPaused ? 'animate-spin' : ''}`} />
               <span className="font-bold text-on-background text-base">
                 {!isThisEventScanning
                   ? (language === 'he' ? 'הסריקה הופסקה' : 'Scanning Interrupted')
@@ -424,33 +448,57 @@ export function EventView({ eventId, onBack }: EventViewProps) {
             </div>
             <div className="flex items-center gap-3 shrink-0">
               <button
-                onClick={() => {
+                onClick={async () => {
                   if (!isThisEventScanning) {
                     handleStartScan();
+                  } else if (isThisEventPaused) {
+                    const canProceed = await checkParallelScanWarning();
+                    if (!canProceed) return;
+                    togglePause(eventId);
                   } else {
-                    togglePause();
+                    togglePause(eventId);
                   }
                 }}
                 disabled={!currentProviderToken}
                 className={`w-9 h-9 rounded flex items-center justify-center transition-all cursor-pointer border ${
-                  isPaused || !isThisEventScanning
+                  isThisEventPaused || !isThisEventScanning
                     ? 'border-copper-accent text-copper-accent bg-copper-accent/10 hover:bg-copper-accent/20'
                     : 'border-surface-border text-sage-muted hover:bg-surface-container-high hover:text-on-background bg-surface-container-low'
                 }`}
-                title={!isThisEventScanning ? (language === 'he' ? 'המשך סריקה' : 'Resume Scan') : isPaused ? t('eventView.isResumed') : t('eventView.isPaused')}
+                title={!isThisEventScanning ? (language === 'he' ? 'המשך סריקה' : 'Resume Scan') : isThisEventPaused ? t('eventView.isResumed') : t('eventView.isPaused')}
               >
-                {isPaused || !isThisEventScanning ? <Play className="w-4 h-4" /> : <Pause className="w-4 h-4" />}
+                {isThisEventPaused || !isThisEventScanning ? <Play className="w-4 h-4" /> : <Pause className="w-4 h-4" />}
               </button>
+              {isThisEventScanning && (
+                <button
+                  onClick={async () => {
+                    const confirmed = await confirm({
+                      title: t('dashboard.stopScanConfirmTitle'),
+                      message: t('dashboard.stopScanConfirmMessage'),
+                      confirmText: t('dashboard.stopScanBtn'),
+                      cancelText: t('dashboard.parallelScanCancel'),
+                      variant: 'warning',
+                    });
+                    if (confirmed) {
+                      stopScanning(eventId);
+                    }
+                  }}
+                  className="w-9 h-9 rounded flex items-center justify-center transition-all cursor-pointer border border-surface-border text-sage-muted hover:text-red-400 hover:bg-surface-container-high bg-surface-container-low"
+                  title={t('dashboard.stopScanBtn')}
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              )}
               <div className="text-xs bg-surface-container-low px-3 py-1.5 rounded border border-surface-border text-sage-muted">
                 {!isThisEventScanning
                   ? (language === 'he' ? 'לחץ להמשך סריקה' : 'Click Play to Resume')
-                  : isPaused
+                  : isThisEventPaused
                     ? t('dashboard.statusPaused')
-                    : formatETA(etaSeconds)}
+                    : formatETA(thisEventEta)}
               </div>
               <div className="font-mono bg-surface-container-low px-2.5 py-1 rounded border border-surface-border text-xs text-on-background font-bold">
                 {isThisEventScanning
-                  ? `${scannedCount} / ${totalToScan || photos.length}`
+                  ? `${thisEventScannedCount} / ${thisEventTotalToScan}`
                   : `${photos.filter(p => p.processed).length} / ${photos.length || event.photoCount || 0}`}
               </div>
             </div>
@@ -461,8 +509,8 @@ export function EventView({ eventId, onBack }: EventViewProps) {
               className="bg-copper-accent h-2 rounded-full transition-all duration-300 ease-out relative"
               style={{
                 width: `${
-                  (isThisEventScanning ? (totalToScan || photos.length) : (photos.length || event.photoCount)) > 0
-                    ? ((isThisEventScanning ? scannedCount : photos.filter(p => p.processed).length) / (isThisEventScanning ? (totalToScan || photos.length) : (photos.length || event.photoCount || 1))) * 100
+                  (isThisEventScanning ? thisEventTotalToScan : (photos.length || event.photoCount)) > 0
+                    ? ((isThisEventScanning ? thisEventScannedCount : photos.filter(p => p.processed).length) / (isThisEventScanning ? thisEventTotalToScan : (photos.length || event.photoCount || 1))) * 100
                     : 0
                 }%`,
               }}
@@ -477,7 +525,7 @@ export function EventView({ eventId, onBack }: EventViewProps) {
               : 'Please keep the browser open. Processing is entirely local on your device; images are not sent to any servers.'}
           </p>
 
-          {(scanError === 'auth_expired' || isCurrentProviderExpired) && (
+          {(thisEventScanError === 'auth_expired' || isCurrentProviderExpired) && (
             <div className="flex flex-col items-center gap-4 bg-red-500/10 border border-red-500/20 rounded-xl p-5 text-center mt-2">
               <AlertCircle className="w-7 h-7 text-red-400" />
               <div className="flex flex-col gap-1 text-center">
@@ -496,7 +544,7 @@ export function EventView({ eventId, onBack }: EventViewProps) {
               </button>
             </div>
           )}
-          {scanError === 'network_error' && (
+          {thisEventScanError === 'network_error' && (
             <div className="flex flex-col items-center gap-3 bg-red-500/10 border border-red-500/20 rounded-xl p-5 text-center mt-2">
               <AlertCircle className="w-7 h-7 text-red-400" />
               <div className="flex flex-col gap-1">

@@ -44,7 +44,7 @@ EventTag (GuestID) is a smart event photo sharing and retrieval platform designe
 ### 🛠️ Event Owner Experience
 - **Multi-Cloud Storage Connection** — Connect photo libraries directly from **Google Drive** (via native Google Picker API) or **Dropbox** (via Dropbox Chooser / API).
 - **Automatic Face Clustering** — On-device AI groups recognized faces automatically into distinct guest profiles.
-- **Live Scanning Queue** — Pause/resume scanning anytime with real-time ETA display.
+- **Live Scanning Queue & Parallel Ingestion** — Scan multiple events concurrently with independent pause/stop controls per event, real-time ETA display, and performance warning alerts.
 - **Profile Merging & Naming** — Assign names to face clusters, merge duplicate clusters, and hide unwanted faces.
 - **Full Gallery Lightbox** — Browse all event photos with face bounding boxes and cluster tags.
 - **Multi-Event Management** — Isolated dashboard for creating, sharing, and deleting multiple events.
