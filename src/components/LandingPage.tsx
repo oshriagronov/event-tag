@@ -73,7 +73,7 @@ export function LandingPage() {
     >
       {/* TopNavBar */}
       <nav className="fixed top-0 w-full z-50 bg-background/85 backdrop-blur-md border-b border-surface-border/40">
-        <div className="flex justify-between items-center px-6 md:px-12 h-20 max-w-7xl mx-auto w-full">
+        <div className="flex justify-between items-center px-6 md:px-12 min-h-[5rem] py-3 max-w-7xl mx-auto w-full flex-wrap gap-y-2">
           {/* Mobile Menu Button & Brand */}
           <div className="flex items-center gap-3">
             <button

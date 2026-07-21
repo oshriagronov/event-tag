@@ -226,18 +226,24 @@ html.a11y-contrast-mono {
   filter: grayscale(100%) !important;
 }
 
-/* Text Scaling (Scaled relative to new 115% base) */
+/* Text Scaling (WCAG 2.0 AA / IS 5568 compliant reflow scaling) */
 html.a11y-text-100 {
-  font-size: 115% !important;
+  font-size: 100% !important;
 }
 html.a11y-text-115 {
-  font-size: 132.25% !important;
+  font-size: 115% !important;
 }
 html.a11y-text-130 {
-  font-size: 149.5% !important;
+  font-size: 130% !important;
 }
 html.a11y-text-150 {
-  font-size: 172.5% !important;
+  font-size: 150% !important;
+}
+
+@media (max-width: 640px) {
+  html.a11y-text-150 {
+    font-size: 135% !important;
+  }
 }
 
 /* Line Spacing */

@@ -192,28 +192,28 @@ export function AccessibilityWidget() {
                     {prefs.contrast === 'high' ? t('a11y.contrastHigh') : prefs.contrast === 'invert' ? t('a11y.contrastInvert') : prefs.contrast === 'mono' ? t('a11y.contrastMono') : t('a11y.contrastNormal')}
                   </span>
                 </div>
-                <div className="grid grid-cols-4 gap-2 pt-1">
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 pt-1">
                   <button
                     onClick={() => updatePrefs((p) => ({ ...p, contrast: 'off' }), t('a11y.appliedAnnouncement'))}
-                    className={`py-1.5 px-2 text-xs rounded font-bold transition-all border ${prefs.contrast === 'off' ? 'bg-copper-accent text-white border-copper-accent' : 'bg-surface-container-high text-on-background border-surface-border'}`}
+                    className={`py-2 px-2 text-xs rounded-lg font-bold transition-all border break-words text-center min-h-[36px] flex items-center justify-center cursor-pointer ${prefs.contrast === 'off' ? 'bg-copper-accent text-white border-copper-accent' : 'bg-surface-container-high text-on-background border-surface-border'}`}
                   >
                     {t('a11y.contrastNormal')}
                   </button>
                   <button
                     onClick={() => updatePrefs((p) => ({ ...p, contrast: 'high' }), t('a11y.appliedAnnouncement'))}
-                    className={`py-1.5 px-2 text-xs rounded font-bold transition-all border ${prefs.contrast === 'high' ? 'bg-copper-accent text-white border-copper-accent' : 'bg-surface-container-high text-on-background border-surface-border'}`}
+                    className={`py-2 px-2 text-xs rounded-lg font-bold transition-all border break-words text-center min-h-[36px] flex items-center justify-center cursor-pointer ${prefs.contrast === 'high' ? 'bg-copper-accent text-white border-copper-accent' : 'bg-surface-container-high text-on-background border-surface-border'}`}
                   >
                     {t('a11y.contrastHigh')}
                   </button>
                   <button
                     onClick={() => updatePrefs((p) => ({ ...p, contrast: 'invert' }), t('a11y.appliedAnnouncement'))}
-                    className={`py-1.5 px-2 text-xs rounded font-bold transition-all border ${prefs.contrast === 'invert' ? 'bg-copper-accent text-white border-copper-accent' : 'bg-surface-container-high text-on-background border-surface-border'}`}
+                    className={`py-2 px-2 text-xs rounded-lg font-bold transition-all border break-words text-center min-h-[36px] flex items-center justify-center cursor-pointer ${prefs.contrast === 'invert' ? 'bg-copper-accent text-white border-copper-accent' : 'bg-surface-container-high text-on-background border-surface-border'}`}
                   >
                     {t('a11y.contrastInvert')}
                   </button>
                   <button
                     onClick={() => updatePrefs((p) => ({ ...p, contrast: 'mono' }), t('a11y.appliedAnnouncement'))}
-                    className={`py-1.5 px-2 text-xs rounded font-bold transition-all border ${prefs.contrast === 'mono' ? 'bg-copper-accent text-white border-copper-accent' : 'bg-surface-container-high text-on-background border-surface-border'}`}
+                    className={`py-2 px-2 text-xs rounded-lg font-bold transition-all border break-words text-center min-h-[36px] flex items-center justify-center cursor-pointer ${prefs.contrast === 'mono' ? 'bg-copper-accent text-white border-copper-accent' : 'bg-surface-container-high text-on-background border-surface-border'}`}
                   >
                     {t('a11y.contrastMono')}
                   </button>
@@ -229,12 +229,12 @@ export function AccessibilityWidget() {
                   </span>
                   <span className="text-xs text-sage-muted font-normal">{prefs.textSize}%</span>
                 </div>
-                <div className="grid grid-cols-4 gap-2 pt-1">
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 pt-1">
                   {[100, 115, 130, 150].map((size) => (
                     <button
                       key={size}
                       onClick={() => updatePrefs((p) => ({ ...p, textSize: size as any }), t('a11y.appliedAnnouncement'))}
-                      className={`py-1.5 px-2 text-xs rounded font-bold transition-all border ${prefs.textSize === size ? 'bg-copper-accent text-white border-copper-accent' : 'bg-surface-container-high text-on-background border-surface-border'}`}
+                      className={`py-2 px-2 text-xs rounded-lg font-bold transition-all border break-words text-center min-h-[36px] flex items-center justify-center cursor-pointer ${prefs.textSize === size ? 'bg-copper-accent text-white border-copper-accent' : 'bg-surface-container-high text-on-background border-surface-border'}`}
                     >
                       {size}%
                     </button>
@@ -250,22 +250,22 @@ export function AccessibilityWidget() {
                     {t('a11y.lineSpacing')}
                   </span>
                 </div>
-                <div className="grid grid-cols-3 gap-1.5 pt-1">
+                <div className="grid grid-cols-3 gap-2 pt-1">
                   <button
                     onClick={() => updatePrefs((p) => ({ ...p, lineSpacing: 'normal' }), t('a11y.appliedAnnouncement'))}
-                    className={`py-1.5 px-2 text-xs rounded font-bold transition-all border ${prefs.lineSpacing === 'normal' ? 'bg-copper-accent text-white border-copper-accent' : 'bg-surface-container-high text-on-background border-surface-border'}`}
+                    className={`py-2 px-2 text-xs rounded-lg font-bold transition-all border break-words text-center min-h-[36px] flex items-center justify-center cursor-pointer ${prefs.lineSpacing === 'normal' ? 'bg-copper-accent text-white border-copper-accent' : 'bg-surface-container-high text-on-background border-surface-border'}`}
                   >
                     {t('a11y.lineSpacingNormal')}
                   </button>
                   <button
                     onClick={() => updatePrefs((p) => ({ ...p, lineSpacing: '1.6' }), t('a11y.appliedAnnouncement'))}
-                    className={`py-1.5 px-2 text-xs rounded font-bold transition-all border ${prefs.lineSpacing === '1.6' ? 'bg-copper-accent text-white border-copper-accent' : 'bg-surface-container-high text-on-background border-surface-border'}`}
+                    className={`py-2 px-2 text-xs rounded-lg font-bold transition-all border break-words text-center min-h-[36px] flex items-center justify-center cursor-pointer ${prefs.lineSpacing === '1.6' ? 'bg-copper-accent text-white border-copper-accent' : 'bg-surface-container-high text-on-background border-surface-border'}`}
                   >
                     1.6
                   </button>
                   <button
                     onClick={() => updatePrefs((p) => ({ ...p, lineSpacing: '2.0' }), t('a11y.appliedAnnouncement'))}
-                    className={`py-1.5 px-2 text-xs rounded font-bold transition-all border ${prefs.lineSpacing === '2.0' ? 'bg-copper-accent text-white border-copper-accent' : 'bg-surface-container-high text-on-background border-surface-border'}`}
+                    className={`py-2 px-2 text-xs rounded-lg font-bold transition-all border break-words text-center min-h-[36px] flex items-center justify-center cursor-pointer ${prefs.lineSpacing === '2.0' ? 'bg-copper-accent text-white border-copper-accent' : 'bg-surface-container-high text-on-background border-surface-border'}`}
                   >
                     2.0
                   </button>
