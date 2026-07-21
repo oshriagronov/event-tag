@@ -24,10 +24,10 @@ async function fetchWithTimeout(
     });
     clearTimeout(id);
     return res;
-  } catch (err: any) {
+  } catch (err: unknown) {
     clearTimeout(id);
-    if (err.name === 'AbortError') {
-      throw new Error(`Request timed out after ${timeoutMs}ms`);
+    if (err instanceof Error && err.name === 'AbortError') {
+      throw new Error(`Request timed out after ${timeoutMs}ms`, { cause: err });
     }
     throw err;
   }
@@ -82,11 +82,11 @@ export async function listFolders(
   const entries = data.entries || [];
   
   return entries
-    .filter((entry: any) => entry['.tag'] === 'folder')
-    .map((entry: any) => ({
-      id: entry.id,
-      name: entry.name,
-      path: entry.path_display || entry.path_lower,
+    .filter((entry: Record<string, unknown>) => entry['.tag'] === 'folder')
+    .map((entry: Record<string, unknown>) => ({
+      id: String(entry.id || ''),
+      name: String(entry.name || ''),
+      path: String(entry.path_display || entry.path_lower || ''),
     }));
 }
 
@@ -98,7 +98,6 @@ export async function listPhotosInFolder(
   folderId: string
 ): Promise<DropboxFile[]> {
   const allFiles: DropboxFile[] = [];
-  let hasMore = false;
   let cursor: string | undefined;
 
   // First page fetch
@@ -121,22 +120,22 @@ export async function listPhotosInFolder(
 
   let data = await res.json();
   
-  const processEntries = (entries: any[]) => {
+  const processEntries = (entries: Array<Record<string, unknown>>) => {
     for (const entry of entries) {
-      if (entry['.tag'] === 'file' && isImageFile(entry.name)) {
+      if (entry['.tag'] === 'file' && isImageFile(String(entry.name || ''))) {
         allFiles.push({
-          id: entry.id,
-          name: entry.name,
-          path: entry.path_display || entry.path_lower,
-          size: entry.size || 0,
-          modifiedTime: entry.client_modified || new Date().toISOString(),
+          id: String(entry.id || ''),
+          name: String(entry.name || ''),
+          path: String(entry.path_display || entry.path_lower || ''),
+          size: Number(entry.size || 0),
+          modifiedTime: String(entry.client_modified || new Date().toISOString()),
         });
       }
     }
   };
 
   processEntries(data.entries || []);
-  hasMore = data.has_more;
+  let hasMore = data.has_more;
   cursor = data.cursor;
 
   // Subsequent pages fetch
@@ -201,7 +200,7 @@ export async function checkTokenValidity(accessToken: string): Promise<boolean> 
       body: 'null',
     }, 5000);
     return res.ok;
-  } catch (err) {
+  } catch {
     return false;
   }
 }
@@ -340,7 +339,7 @@ export function convertToRawDropboxUrl(url: string): string {
     urlObj.searchParams.set('raw', '1');
     urlObj.searchParams.delete('dl');
     return urlObj.toString();
-  } catch (err) {
+  } catch {
     return url
       .replace('www.dropbox.com', 'dl.dropboxusercontent.com')
       .replace('?dl=0', '?raw=1')

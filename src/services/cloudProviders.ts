@@ -59,7 +59,7 @@ export async function getPhotoThumbnailBlob(
   provider: CloudProvider,
   accessToken: string,
   fileId: string,
-  size?: any
+  size?: Parameters<typeof dbxGetThumbnail>[2]
 ): Promise<Blob> {
   if (provider === 'dropbox') {
     return dbxGetThumbnail(accessToken, fileId, size);

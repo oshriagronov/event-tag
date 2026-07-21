@@ -729,8 +729,10 @@ export const translations = {
 export function useTranslation() {
   const { language } = useSettings();
 
-  const t = useCallback((key: string, replacements?: Record<string, string | number>) => {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const t = useCallback((key: string, replacements?: Record<string, string | number>): any => {
     const keys = key.split('.');
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     let value: any = translations[language];
 
     for (const k of keys) {
@@ -749,7 +751,7 @@ export function useTranslation() {
       return str;
     }
 
-    return value;
+    return value ?? key;
   }, [language]);
 
   return { t, language, isRtl: language === 'he' };

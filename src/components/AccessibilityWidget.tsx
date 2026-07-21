@@ -68,7 +68,7 @@ export function loadStoredPrefs(): A11yPrefs {
     if (parsed && parsed.version === 1) {
       return { ...DEFAULT_A11Y_PREFS, ...parsed };
     }
-  } catch (e) {
+  } catch {
     // Ignore storage errors
   }
   return DEFAULT_A11Y_PREFS;
@@ -77,7 +77,7 @@ export function loadStoredPrefs(): A11yPrefs {
 export function savePrefs(prefs: A11yPrefs) {
   try {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(prefs));
-  } catch (e) {
+  } catch {
     // Ignore storage errors
   }
 }
@@ -233,7 +233,7 @@ export function AccessibilityWidget() {
                   {[100, 115, 130, 150].map((size) => (
                     <button
                       key={size}
-                      onClick={() => updatePrefs((p) => ({ ...p, textSize: size as any }), t('a11y.appliedAnnouncement'))}
+                      onClick={() => updatePrefs((p) => ({ ...p, textSize: size as A11yPrefs['textSize'] }), t('a11y.appliedAnnouncement'))}
                       className={`py-2 px-2 text-xs rounded-lg font-bold transition-all border break-words text-center min-h-[36px] flex items-center justify-center cursor-pointer ${prefs.textSize === size ? 'bg-copper-accent text-white border-copper-accent' : 'bg-surface-container-high text-on-background border-surface-border'}`}
                     >
                       {size}%

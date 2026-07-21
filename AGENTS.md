@@ -24,6 +24,7 @@ You are an expert Frontend Engineer and Client-Side Machine Learning specialist.
 - **Cloud Storage Integrations:**
   - **Google Picker API:** Non-restricted `drive.file` scope ingestion.
   - **Dropbox API / Chooser:** Direct Dropbox folder connection & file stream ingestion.
+- **Deployment & Hosting:** Optimized for Vercel deployment with `vercel.json` SPA route rewrites (`/(.*)` -> `/index.html`) and static WASM model cache headers.
 - **Local Utilities & Caching:** `jszip` (ZIP photo downloads), `qrcode.react` (share link QR codes), `dexie` (client-side IndexedDB caching).
 
 ---
@@ -56,6 +57,7 @@ Agents working on this repository **MUST** consult and apply the relevant skills
 - GuestID supports **Cloud Events only**.
 - All photos are ingested on-the-fly from cloud providers (Google Drive / Dropbox) directly into browser memory.
 - All metadata, image file references, face descriptors, and clusters sync to Firebase Firestore. No photo binaries are ever uploaded to backend servers.
+- **Account Deletion & Data Purge:** When a user deletes their account, all associated Firestore events and subcollections (`photos`, `faceBatches`) are deleted, cloud provider OAuth tokens are disconnected, active scanning loops are cancelled, client-side storage & IndexedDB are wiped, Firebase Auth user account is deleted, and privacy consent is completely reset (`resetConsent()`) so the consent banner is re-triggered on next visit/login.
 
 ### 2. Ingest Performance & Memory Safety
 - **Image Downscaling:** To prevent WebGL out-of-memory crashes and speed up inference, images must be conditionally downscaled to a maximum dimension of `1600px` using an offscreen canvas prior to passing to `face-api.js` (implemented in scanning workflow).

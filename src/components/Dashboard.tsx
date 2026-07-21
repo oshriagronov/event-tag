@@ -21,6 +21,7 @@ import {
 import { useScanner } from '../contexts/ScannerContext';
 import { useTranslation } from '../services/translations';
 import { useModal } from '../contexts/ModalContext';
+import { useConsent } from '../contexts/ConsentContext';
 
 export function Dashboard() {
   const navigate = useNavigate();
@@ -42,6 +43,7 @@ export function Dashboard() {
     dismissExpiredProviderNotice,
   } = useAuth();
   const { theme, setTheme, setLanguage } = useSettings();
+  const { resetConsent } = useConsent();
   const [showFolderPicker, setShowFolderPicker] = useState(false);
   const {
     isScanning,
@@ -81,7 +83,7 @@ export function Dashboard() {
   const [newEventName, setNewEventName] = useState('');
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [creating, setCreating] = useState(false);
-  const [pendingPhotos, setPendingPhotos] = useState<any[]>([]);
+  const [pendingPhotos, setPendingPhotos] = useState<Array<{ id: string; name: string }>>([]);
   const [pendingFolder, setPendingFolder] = useState<{ id: string; name: string } | null>(null);
 
   // QR code modal
@@ -251,19 +253,53 @@ export function Dashboard() {
 
     try {
       setLoadingEvents(true);
-      // 1. Delete all user events
       const userEvents = [...cloudEvents];
+
+      // 1. Stop all active scanning tasks for user events
       for (const ev of userEvents) {
-        await deleteCloudEvent(ev.id!);
+        if (ev.id) {
+          try {
+            stopScanning(ev.id);
+          } catch {
+            // ignore scanner errors
+          }
+        }
       }
 
-      // 2. Disconnect Cloud Providers
+      // 2. Delete all user events and subcollections from Firestore
+      for (const ev of userEvents) {
+        if (ev.id) {
+          await deleteCloudEvent(ev.id);
+        }
+      }
+
+      // 3. Disconnect Cloud Providers
       disconnectDropbox();
       disconnectGoogle();
       disconnectOneDrive();
 
-      // 3. Delete Firebase user account
+      // 4. Delete Firebase user account
       await user.delete();
+
+      // 5. Reset Privacy Consent state & cookies
+      resetConsent();
+
+      // 6. Clear local storage, session storage, and IndexedDB databases
+      try {
+        localStorage.clear();
+        sessionStorage.clear();
+        if (typeof window !== 'undefined' && window.indexedDB && window.indexedDB.databases) {
+          const dbs = await window.indexedDB.databases();
+          for (const dbInfo of dbs) {
+            if (dbInfo.name) {
+              window.indexedDB.deleteDatabase(dbInfo.name);
+            }
+          }
+        }
+      } catch (e) {
+        console.warn('Error clearing local storage/databases:', e);
+      }
+
       await alert({
         title: language === 'he' ? 'החשבון נמחק' : 'Account Deleted',
         message: language === 'he' ? 'החשבון והנתונים נמחקו בהצלחה.' : 'Account and data successfully deleted.',
@@ -271,9 +307,10 @@ export function Dashboard() {
       });
       signOut();
       navigate('/');
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error('Failed to delete account:', err);
-      if (err.code === 'auth/requires-recent-login') {
+      const errCode = (err as { code?: string })?.code;
+      if (errCode === 'auth/requires-recent-login') {
         await alert({
           title: language === 'he' ? 'אימות מחדש נדרש' : 'Re-authentication Required',
           message: language === 'he'
@@ -338,7 +375,7 @@ export function Dashboard() {
 
   const handleCopyShareLink = async (event: CloudEvent, e: React.MouseEvent) => {
     e.stopPropagation();
-    const link = `${window.location.origin}/event/${event.shareCode}`;
+    const link = `${window.location.origin}/event/${event.id}`;
     try {
       await navigator.clipboard.writeText(link);
       setCopiedId(event.id!);
@@ -377,7 +414,7 @@ export function Dashboard() {
     
     const nameMatches = event.name?.toLowerCase().includes(query);
     const folderMatches = event.driveFolderName?.toLowerCase().includes(query);
-    const codeMatches = event.shareCode?.toLowerCase().includes(query);
+    const codeMatches = event.id?.toLowerCase().includes(query);
     const providerMatches = event.provider?.toLowerCase().includes(query);
     
     return nameMatches || folderMatches || codeMatches || providerMatches;
@@ -1210,7 +1247,7 @@ export function Dashboard() {
             <h3 className="font-display-lg text-lg text-on-background m-0">{qrEvent.name}</h3>
             <div className="bg-white p-4 rounded-xl shadow-inner border border-surface-border">
               <QRCodeSVG
-                value={`${window.location.origin}/event/${qrEvent.shareCode}`}
+                value={`${window.location.origin}/event/${qrEvent.id}`}
                 size={220}
                 level="M"
                 bgColor="#ffffff"

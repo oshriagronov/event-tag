@@ -54,8 +54,8 @@ export function ModalProvider({ children }: { children: React.ReactNode }) {
   const confirm = useCallback(
     (options: string | ConfirmOptions): Promise<boolean> => {
       return new Promise<boolean>((resolve) => {
-        let title = '';
-        let message = '';
+        let title: string;
+        let message: string;
         let confirmText = '';
         let cancelText = '';
         let variant: ModalVariant = 'info';
@@ -110,8 +110,8 @@ export function ModalProvider({ children }: { children: React.ReactNode }) {
   const alert = useCallback(
     (options: string | AlertOptions): Promise<void> => {
       return new Promise<void>((resolve) => {
-        let title = '';
-        let message = '';
+        let title: string;
+        let message: string;
         let confirmText = '';
         let variant: ModalVariant = 'info';
 
@@ -162,15 +162,14 @@ export function ModalProvider({ children }: { children: React.ReactNode }) {
     [language]
   );
 
-  const handleClose = useCallback(
-    (result: boolean) => {
-      if (modalState.resolvePromise) {
-        modalState.resolvePromise(result);
+  const handleClose = useCallback((result: boolean) => {
+    setModalState((prev) => {
+      if (prev.resolvePromise) {
+        prev.resolvePromise(result);
       }
-      setModalState((prev) => ({ ...prev, isOpen: false, resolvePromise: null }));
-    },
-    [modalState.resolvePromise]
-  );
+      return { ...prev, isOpen: false, resolvePromise: null };
+    });
+  }, []);
 
   // Keyboard accessibility (Esc to cancel, Enter to confirm)
   useEffect(() => {

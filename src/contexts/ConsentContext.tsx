@@ -38,6 +38,7 @@ interface ConsentContextType {
   reopen: () => void;
   openPreferences: () => void;
   closePreferences: () => void;
+  resetConsent: () => void;
 }
 
 const ConsentContext = createContext<ConsentContextType | undefined>(undefined);
@@ -67,25 +68,24 @@ function writeCookie(state: ConsentState | null) {
   document.cookie = `${CONSENT_COOKIE_NAME}=${value}; Path=/; Max-Age=${maxAge}; SameSite=Lax${secure}`;
 }
 
+declare global {
+  interface Window {
+    __consent?: ConsentCategories;
+  }
+}
+
 export function ConsentProvider({ children }: { children: React.ReactNode }) {
-  const [consent, setConsent] = useState<ConsentState | null>(null);
-  const [isHydrated, setIsHydrated] = useState(false);
+  const [consent, setConsent] = useState<ConsentState | null>(() => readStorage());
+  const [isHydrated] = useState(true);
   const [manualOpen, setManualOpen] = useState(false);
   const [prefsOpen, setPrefsOpen] = useState(false);
-
-  // Initialize and load from storage on mount
-  useEffect(() => {
-    const stored = readStorage();
-    setConsent(stored);
-    setIsHydrated(true);
-  }, []);
 
   // Sync state to cookies/global window variable
   useEffect(() => {
     if (isHydrated) {
       writeCookie(consent);
       if (typeof window !== 'undefined') {
-        (window as any).__consent = consent?.categories ?? ALL_CATEGORIES_OFF;
+        window.__consent = consent?.categories ?? ALL_CATEGORIES_OFF;
       }
     }
   }, [consent, isHydrated]);
@@ -125,6 +125,21 @@ export function ConsentProvider({ children }: { children: React.ReactNode }) {
   const openPreferences = useCallback(() => setPrefsOpen(true), []);
   const closePreferences = useCallback(() => setPrefsOpen(false), []);
 
+  const resetConsent = useCallback(() => {
+    try {
+      localStorage.removeItem(CONSENT_STORAGE_KEY);
+    } catch {
+      // ignore
+    }
+    writeCookie(null);
+    if (typeof window !== 'undefined') {
+      window.__consent = ALL_CATEGORIES_OFF;
+    }
+    setConsent(null);
+    setManualOpen(false);
+    setPrefsOpen(false);
+  }, []);
+
   const reopen = useCallback(() => {
     if (consent === null) {
       setManualOpen(true);
@@ -154,6 +169,7 @@ export function ConsentProvider({ children }: { children: React.ReactNode }) {
         reopen,
         openPreferences,
         closePreferences,
+        resetConsent,
       }}
     >
       {children}

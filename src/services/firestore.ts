@@ -32,7 +32,6 @@ export interface CloudEvent {
   status: 'pending' | 'scanning' | 'ready';
   photoCount: number;
   faceCount: number;
-  shareCode: string;
   provider?: 'dropbox' | 'google' | 'onedrive';
 }
 
@@ -59,16 +58,7 @@ export interface CloudFaceEntry {
   box: { x: number; y: number; width: number; height: number };
 }
 
-// ---- Helper: Generate short share code ----
 
-function generateShareCode(): string {
-  const chars = 'abcdefghijklmnopqrstuvwxyz0123456789';
-  let code = '';
-  for (let i = 0; i < 8; i++) {
-    code += chars[Math.floor(Math.random() * chars.length)];
-  }
-  return code;
-}
 
 // ---- Event CRUD ----
 
@@ -79,7 +69,6 @@ export async function createCloudEvent(
   driveFolderName: string,
   provider?: 'dropbox' | 'google' | 'onedrive'
 ): Promise<string> {
-  const shareCode = generateShareCode();
   const eventData: Omit<CloudEvent, 'id'> = {
     ownerId,
     name,
@@ -89,7 +78,6 @@ export async function createCloudEvent(
     status: 'pending',
     photoCount: 0,
     faceCount: 0,
-    shareCode,
     provider: provider || 'dropbox',
   };
 
@@ -103,16 +91,7 @@ export async function getCloudEvent(eventId: string): Promise<CloudEvent | null>
   return { id: docSnap.id, ...docSnap.data() } as CloudEvent;
 }
 
-export async function getEventByShareCode(shareCode: string): Promise<CloudEvent | null> {
-  const q = query(
-    collection(firestore, 'events'),
-    where('shareCode', '==', shareCode)
-  );
-  const snapshot = await getDocs(q);
-  if (snapshot.empty) return null;
-  const docSnap = snapshot.docs[0];
-  return { id: docSnap.id, ...docSnap.data() } as CloudEvent;
-}
+
 
 export async function getOwnerEvents(ownerId: string): Promise<CloudEvent[]> {
   const q = query(

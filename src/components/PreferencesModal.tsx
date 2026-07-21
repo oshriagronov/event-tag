@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { Shield, X, Lock } from 'lucide-react';
 import { useConsent, ALL_CATEGORIES_OFF, type ConsentCategories } from '../contexts/ConsentContext';
 import { useTranslation } from '../services/translations';
@@ -16,13 +16,14 @@ export function PreferencesModal() {
   const [draft, setDraft] = useState<ConsentCategories>(() => {
     return consent?.categories ?? ALL_CATEGORIES_OFF;
   });
+  const [prevPrefsOpen, setPrevPrefsOpen] = useState(prefsOpen);
 
-  // Sync draft with consent state when it opens
-  useEffect(() => {
+  if (prefsOpen !== prevPrefsOpen) {
+    setPrevPrefsOpen(prefsOpen);
     if (prefsOpen && consent) {
       setDraft(consent.categories);
     }
-  }, [prefsOpen, consent]);
+  }
 
   if (!prefsOpen) return null;
 

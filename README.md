@@ -164,6 +164,35 @@ npm run build
 
 ---
 
+## 🚀 Deployment (Vercel)
+
+GuestID (EventTag) is optimized for zero-config deployment on **Vercel**:
+
+### 1. Connect Repository
+1. Import the project repository into your [Vercel Dashboard](https://vercel.com).
+2. Set Framework Preset: **Vite**.
+3. Output Directory: `dist`.
+
+### 2. Configure Environment Variables
+In Vercel Project Settings → **Environment Variables**, add:
+- `VITE_FIREBASE_API_KEY`
+- `VITE_FIREBASE_AUTH_DOMAIN`
+- `VITE_FIREBASE_PROJECT_ID`
+- `VITE_FIREBASE_STORAGE_BUCKET`
+- `VITE_FIREBASE_MESSAGING_SENDER_ID`
+- `VITE_FIREBASE_APP_ID`
+- `VITE_DROPBOX_CLIENT_ID`
+- `VITE_GOOGLE_CLIENT_ID`
+- `VITE_ONEDRIVE_CLIENT_ID`
+
+### 3. Update OAuth Authorized Redirect URIs
+In Firebase Console, Google Cloud Console, and Dropbox App Console:
+- Add your Vercel deployment URL (e.g. `https://your-app.vercel.app`) to **Authorized JavaScript origins** and **Authorized redirect URIs**.
+
+`vercel.json` is included in the project root to automatically handle SPA single-page routing rewrites and static WASM model cache headers.
+
+---
+
 ## Privacy & Security
 
 EventTag (GuestID) is built around strict data privacy and regulatory compliance:
@@ -171,4 +200,5 @@ EventTag (GuestID) is built around strict data privacy and regulatory compliance
 - 🔒 **Zero Photo Uploads:** Photos are processed in client memory from Google Drive or Dropbox and are **never uploaded to backend servers**.
 - 🔒 **Local ML Processing:** All facial recognition runs on the client device via WASM and WebGL.
 - 🔒 **Mathematical Descriptors Only:** Only anonymous 128-dimensional floating point vectors are stored in Firestore.
+- 🔒 **Complete Account Deletion:** Deleting an account purges all associated Firestore events, photo references, and face descriptors, cancels active scans, disconnects cloud storage OAuth tokens, wipes local caches, deletes the Firebase Auth account, and resets privacy consent (`resetConsent()`) so the consent screen is presented on the next visit/login.
 - 🔒 **Israeli Privacy Protection Law (Amendment 13) Compliant:** User consent controls, transparent data policies, and no third-party tracking.

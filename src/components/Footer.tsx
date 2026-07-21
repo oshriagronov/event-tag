@@ -1,5 +1,5 @@
 import React from 'react';
-import { Link, useLocation } from 'react-router-dom';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useTranslation } from '../services/translations';
 import { useConsent } from '../contexts/ConsentContext';
 
@@ -7,15 +7,18 @@ export function Footer() {
   const { t, language } = useTranslation();
   const { reopen } = useConsent();
   const location = useLocation();
+  const navigate = useNavigate();
 
   const handleNavClick = (e: React.MouseEvent<HTMLAnchorElement>, sectionId: string) => {
+    e.preventDefault();
     if (location.pathname === '/' || location.pathname === '') {
-      e.preventDefault();
       const element = document.getElementById(sectionId);
       if (element) {
         element.scrollIntoView({ behavior: 'smooth', block: 'start' });
         window.history.pushState(null, '', `#${sectionId}`);
       }
+    } else {
+      navigate(`/#${sectionId}`);
     }
   };
 
@@ -63,13 +66,12 @@ export function Footer() {
                 </a>
               </li>
               <li>
-                <a
-                  href="/#privacy"
-                  onClick={(e) => handleNavClick(e, 'privacy')}
+                <Link
+                  to="/privacy"
                   className="hover:text-copper-accent transition-colors no-underline cursor-pointer font-body-md text-sage-muted block"
                 >
                   {t('landing.privacyTitle')}
-                </a>
+                </Link>
               </li>
             </ul>
           </div>

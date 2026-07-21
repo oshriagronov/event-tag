@@ -25,7 +25,7 @@ import {
   X,
 } from 'lucide-react';
 import JSZip from 'jszip';
-import { getEventByShareCode, type CloudEvent } from '../services/firestore';
+import { getCloudEvent, type CloudEvent } from '../services/firestore';
 import { convertToRawDropboxUrl } from '../services/dropbox';
 import { convertToRawUrl } from '../services/cloudProviders';
 import { matchSelfieToEvent, type MatchResult } from '../services/faceMatching';
@@ -33,7 +33,7 @@ import { SelfieCapture } from './SelfieCapture';
 import { useConsent } from '../contexts/ConsentContext';
 
 interface GuestViewProps {
-  shareCode: string;
+  eventId: string;
 }
 
 type ViewState =
@@ -44,7 +44,7 @@ type ViewState =
   | 'no-matches'
   | 'error';
 
-export function GuestView({ shareCode }: GuestViewProps) {
+export function GuestView({ eventId }: GuestViewProps) {
   const { t, isRtl, language } = useTranslation();
   const { alert } = useModal();
   const { reopen } = useConsent();
@@ -72,7 +72,7 @@ export function GuestView({ shareCode }: GuestViewProps) {
 
     async function loadEvent() {
       try {
-        const eventData = await getEventByShareCode(shareCode);
+        const eventData = await getCloudEvent(eventId);
 
         if (cancelled) return;
 
@@ -102,11 +102,11 @@ export function GuestView({ shareCode }: GuestViewProps) {
     return () => {
       cancelled = true;
     };
-  }, [shareCode, t, language]);
+  }, [eventId, t, language]);
 
   // ---- Selfie captured → match ----
   const handleSelfieCapture = useCallback(
-    async (descriptor: number[], _thumbnail: string) => {
+    async (descriptor: number[]) => {
       if (!event?.id) return;
 
       setViewState('matching');
@@ -154,7 +154,7 @@ export function GuestView({ shareCode }: GuestViewProps) {
   }, []);
 
   // ---- Download all as ZIP ----
-  const handleDownloadAll = useCallback(async () => {
+  const handleDownloadAll = async () => {
     if (downloadableMatches.length === 0) return;
 
     setDownloadingAll(true);
@@ -262,21 +262,22 @@ export function GuestView({ shareCode }: GuestViewProps) {
       a.click();
       document.body.removeChild(a);
       setTimeout(() => URL.revokeObjectURL(url), 1000);
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error('ZIP download error:', err);
+      const errMsg = err instanceof Error ? err.message : String(err);
       await alert({
         title: language === 'he' ? 'שגיאה בהורדה' : 'Download Error',
-        message: err?.message || t('guestView.errorDownloading'),
+        message: errMsg || t('guestView.errorDownloading'),
         variant: 'danger',
       });
     } finally {
       setDownloadingAll(false);
       setDownloadProgress(0);
     }
-  }, [downloadableMatches, event?.name, alert, language, t]);
+  };
 
   // ---- Download single photo ----
-  const handleDownloadSingle = useCallback((driveFileId: string) => {
+  const handleDownloadSingle = (driveFileId: string) => {
     const match = downloadableMatches.find((m) => m.driveFileId === driveFileId);
     if (match?.publicUrl) {
       const rawUrl = convertToRawUrl(event?.provider || 'dropbox', match.publicUrl);
@@ -289,7 +290,7 @@ export function GuestView({ shareCode }: GuestViewProps) {
         'noopener,noreferrer'
       );
     }
-  }, [downloadableMatches, event?.provider]);
+  };
 
   // ---- Render helpers ----
 

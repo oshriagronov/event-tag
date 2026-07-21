@@ -1,40 +1,60 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
+    
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+    
+    function isOwner(ownerId) {
+      return isAuthenticated() && ownerId == request.auth.uid;
+    }
+
+    function isValidString(str, min, max) {
+      return str is string && str.size() >= min && str.size() <= max;
+    }
 
     // Events collection
     match /events/{eventId} {
-      // Anyone can read event data (needed for guest matching via share code)
-      allow read: if true;
+      // Guests can fetch specific event metadata for face matching
+      allow get: if true;
+      // Prevent global listing, only owners can list their own events
+      allow list: if isOwner(resource.data.ownerId);
 
-      // Only authenticated owner can create/update/delete their events
-      allow create: if request.auth != null
-        && request.resource.data.ownerId == request.auth.uid;
+      // Validate event creation
+      allow create: if isOwner(request.resource.data.ownerId)
+        && isValidString(request.resource.data.name, 1, 100)
+        && isValidString(request.resource.data.driveFolderId, 1, 200)
+        && request.resource.data.photoCount is number
+        && request.resource.data.faceCount is number;
 
-      allow update: if request.auth != null
-        && resource.data.ownerId == request.auth.uid;
+      // Validate event updates
+      allow update: if isOwner(resource.data.ownerId)
+        // Prevent re-assigning ownership
+        && request.resource.data.ownerId == resource.data.ownerId
+        // Validate optional updates if present
+        && (!request.resource.data.diff(resource.data).affectedKeys().hasAny(['name']) || isValidString(request.resource.data.name, 1, 100))
+        && request.resource.data.photoCount is number
+        && request.resource.data.faceCount is number;
 
-      allow delete: if request.auth != null
-        && resource.data.ownerId == request.auth.uid;
+      allow delete: if isOwner(resource.data.ownerId);
 
       // Photos subcollection
       match /photos/{photoId} {
-        // Anyone can read photos (guests need this for matching)
+        // Guests can get/list photos for a specific event
         allow read: if true;
 
         // Only event owner can write
-        allow write: if request.auth != null
-          && get(/databases/$(database)/documents/events/$(eventId)).data.ownerId == request.auth.uid;
+        allow write: if isOwner(get(/databases/$(database)/documents/events/$(eventId)).data.ownerId);
       }
 
       // Face batches subcollection
       match /faceBatches/{batchId} {
-        // Anyone can read face descriptors (guests need this for matching)
+        // Guests can get/list face descriptors for a specific event
         allow read: if true;
 
         // Only event owner can write
-        allow write: if request.auth != null
-          && get(/databases/$(database)/documents/events/$(eventId)).data.ownerId == request.auth.uid;
+        allow write: if isOwner(get(/databases/$(database)/documents/events/$(eventId)).data.ownerId);
       }
     }
   }

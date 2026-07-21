@@ -1,4 +1,4 @@
-import { createContext, useContext, useState, useEffect, type ReactNode } from 'react';
+import { createContext, useContext, useState, useEffect, useCallback, type ReactNode } from 'react';
 import {
   signInWithPopup,
   signOut as firebaseSignOut,
@@ -34,12 +34,35 @@ interface AuthContextType {
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
+function getInitialToken(provider: CloudProvider): string | null {
+  if (typeof window === 'undefined') return null;
+  const hash = window.location.hash;
+  const search = window.location.search;
+  if ((hash && hash.includes('access_token=')) || (search && search.includes('access_token='))) {
+    const hashParams = hash ? new URLSearchParams(hash.substring(1)) : new URLSearchParams();
+    const queryParams = new URLSearchParams(search);
+    const token = hashParams.get('access_token') || queryParams.get('access_token');
+    const state = hashParams.get('state') || queryParams.get('state') || '';
+    let p = hashParams.get('provider') || queryParams.get('provider');
+    if (!p && state.includes('provider=google')) p = 'google';
+    if (!p && state.includes('provider=onedrive')) p = 'onedrive';
+    if (!p) p = 'dropbox';
+
+    if (token && p === provider) {
+      localStorage.setItem(`${provider}_access_token`, token);
+      window.history.replaceState(null, '', window.location.pathname);
+      return token;
+    }
+  }
+  return localStorage.getItem(`${provider}_access_token`);
+}
+
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
-  const [dropboxAccessToken, setDropboxAccessToken] = useState<string | null>(null);
-  const [googleAccessToken, setGoogleAccessToken] = useState<string | null>(null);
-  const [onedriveAccessToken, setOneDriveAccessToken] = useState<string | null>(null);
+  const [dropboxAccessToken, setDropboxAccessToken] = useState<string | null>(() => getInitialToken('dropbox'));
+  const [googleAccessToken, setGoogleAccessToken] = useState<string | null>(() => getInitialToken('google'));
+  const [onedriveAccessToken, setOneDriveAccessToken] = useState<string | null>(() => getInitialToken('onedrive'));
   const [expiredProviders, setExpiredProviders] = useState<CloudProvider[]>([]);
 
   const markProviderExpired = (provider: CloudProvider) => {
@@ -53,14 +76,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setOneDriveAccessToken(null);
       localStorage.removeItem('onedrive_access_token');
     }
-    setExpiredProviders((prev) => (prev.includes(provider) ? prev : [...prev, provider]));
+    setExpiredProviders((prev) => Array.from(new Set([...prev, provider])));
   };
 
   const dismissExpiredProviderNotice = (provider: CloudProvider) => {
     setExpiredProviders((prev) => prev.filter((p) => p !== provider));
   };
 
-  const checkCloudConnections = async (): Promise<CloudProvider[]> => {
+  const checkCloudConnections = useCallback(async (): Promise<CloudProvider[]> => {
     const expired: CloudProvider[] = [];
 
     const dbx = localStorage.getItem('dropbox_access_token') || dropboxAccessToken;
@@ -97,53 +120,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setExpiredProviders((prev) => Array.from(new Set([...prev, ...expired])));
     }
     return expired;
-  };
+  }, [dropboxAccessToken, googleAccessToken, onedriveAccessToken]);
 
   useEffect(() => {
-    // Restore tokens from localStorage so provider links persist across sessions and logouts until explicitly unlinked
-    const savedDbxToken = localStorage.getItem('dropbox_access_token');
-    if (savedDbxToken) setDropboxAccessToken(savedDbxToken);
-
-    const savedGoogleToken = localStorage.getItem('google_access_token');
-    if (savedGoogleToken) setGoogleAccessToken(savedGoogleToken);
-
-    const savedOneDriveToken = localStorage.getItem('onedrive_access_token');
-    if (savedOneDriveToken) setOneDriveAccessToken(savedOneDriveToken);
-
-    // Check if there is an access token in the URL hash or query params from OAuth redirects
-    const hash = window.location.hash;
-    const search = window.location.search;
-    if ((hash && hash.includes('access_token=')) || (search && search.includes('access_token='))) {
-      const hashParams = hash ? new URLSearchParams(hash.substring(1)) : new URLSearchParams();
-      const queryParams = new URLSearchParams(search);
-      
-      const token = hashParams.get('access_token') || queryParams.get('access_token');
-      const state = hashParams.get('state') || queryParams.get('state') || '';
-      
-      let provider = hashParams.get('provider') || queryParams.get('provider');
-      if (!provider && state.includes('provider=google')) provider = 'google';
-      if (!provider && state.includes('provider=onedrive')) provider = 'onedrive';
-
-      if (token) {
-        if (provider === 'google') {
-          setGoogleAccessToken(token);
-          localStorage.setItem('google_access_token', token);
-          setExpiredProviders((prev) => prev.filter((p) => p !== 'google'));
-        } else if (provider === 'onedrive') {
-          setOneDriveAccessToken(token);
-          localStorage.setItem('onedrive_access_token', token);
-          setExpiredProviders((prev) => prev.filter((p) => p !== 'onedrive'));
-        } else {
-          setDropboxAccessToken(token);
-          localStorage.setItem('dropbox_access_token', token);
-          setExpiredProviders((prev) => prev.filter((p) => p !== 'dropbox'));
-        }
-        
-        // Clean up hash and search from URL
-        window.history.replaceState(null, '', window.location.pathname);
-      }
-    }
-
     const unsubscribe = onAuthStateChanged(auth, (firebaseUser) => {
       setUser(firebaseUser);
       setLoading(false);
@@ -153,14 +132,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     });
 
     return () => unsubscribe();
-  }, []);
+  }, [checkCloudConnections]);
 
   const signIn = async () => {
     try {
       await signInWithPopup(auth, googleProvider);
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('שגיאה בהתחברות:', error);
-      if (error.code !== 'auth/popup-closed-by-user') {
+      if (error && typeof error === 'object' && 'code' in error && (error as { code: string }).code !== 'auth/popup-closed-by-user') {
         throw error;
       }
     }

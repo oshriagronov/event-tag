@@ -12,6 +12,11 @@ export function LegalPage({ defaultTab = 'privacy' }: LegalPageProps) {
   const { user, signIn } = useAuth();
   const { t, isRtl, language } = useTranslation();
 
+  const getBullets = (key: string): string[] => {
+    const res = t(key);
+    return Array.isArray(res) ? (res as string[]) : [];
+  };
+
   return (
     <div className="min-h-screen bg-background text-on-background flex flex-col antialiased relative selection:bg-copper-accent/30 selection:text-white" dir={isRtl ? 'rtl' : 'ltr'}>
       {/* Background patterns */}
@@ -95,7 +100,7 @@ export function LegalPage({ defaultTab = 'privacy' }: LegalPageProps) {
                 1. {t('legal.accessibilitySection1Title')}
               </h2>
               <ul className={`list-disc ${isRtl ? 'pr-6' : 'pl-6'} space-y-3 text-xs md:text-sm font-body-md leading-relaxed`}>
-                {(t('legal.accessibilitySection1Bullets') as string[]).map((bullet, idx) => (
+                {getBullets('legal.accessibilitySection1Bullets').map((bullet, idx) => (
                   <li key={idx}>{bullet}</li>
                 ))}
               </ul>
@@ -181,7 +186,7 @@ export function LegalPage({ defaultTab = 'privacy' }: LegalPageProps) {
                   {t('legal.privacySection1Text')}
                 </p>
                 <ul className={`list-disc ${isRtl ? 'pr-6' : 'pl-6'} space-y-2 text-xs md:text-sm font-body-md`}>
-                  {(t('legal.privacySection1Bullets') as string[]).map((bullet, idx) => (
+                  {getBullets('legal.privacySection1Bullets').map((bullet, idx) => (
                     <li key={idx} className={idx === 1 ? 'font-semibold text-deep-forest' : ''}>
                       {bullet}
                     </li>
@@ -199,7 +204,7 @@ export function LegalPage({ defaultTab = 'privacy' }: LegalPageProps) {
                   {t('legal.privacySection2Text')}
                 </p>
                 <ul className={`list-disc ${isRtl ? 'pr-6' : 'pl-6'} space-y-2 text-xs md:text-sm font-body-md`}>
-                  {(t('legal.privacySection2Bullets') as string[]).map((bullet, idx) => (
+                  {getBullets('legal.privacySection2Bullets').map((bullet, idx) => (
                     <li key={idx}>{bullet}</li>
                   ))}
                 </ul>
@@ -215,7 +220,7 @@ export function LegalPage({ defaultTab = 'privacy' }: LegalPageProps) {
                   {t('legal.privacySection3Text')}
                 </p>
                 <ul className={`list-disc ${isRtl ? 'pr-6' : 'pl-6'} space-y-2 text-xs md:text-sm font-body-md`}>
-                  {(t('legal.privacySection3Bullets') as string[]).map((bullet, idx) => (
+                  {getBullets('legal.privacySection3Bullets').map((bullet, idx) => (
                     <li key={idx}>{bullet}</li>
                   ))}
                 </ul>
@@ -309,7 +314,7 @@ export function LegalPage({ defaultTab = 'privacy' }: LegalPageProps) {
                 {t('legal.termsSection2Text')}
               </p>
               <ul className={`list-disc ${isRtl ? 'pr-6' : 'pl-6'} space-y-2 text-xs md:text-sm font-body-md`}>
-                {(t('legal.termsSection2Bullets') as string[]).map((bullet, idx) => (
+                {getBullets('legal.termsSection2Bullets').map((bullet, idx) => (
                   <li key={idx}>{bullet}</li>
                 ))}
               </ul>
@@ -324,7 +329,7 @@ export function LegalPage({ defaultTab = 'privacy' }: LegalPageProps) {
                 {t('legal.termsSection3Text')}
               </p>
               <ul className={`list-disc ${isRtl ? 'pr-6' : 'pl-6'} space-y-2 text-xs md:text-sm font-body-md`}>
-                {(t('legal.termsSection3Bullets') as string[]).map((bullet, idx) => (
+                {getBullets('legal.termsSection3Bullets').map((bullet, idx) => (
                   <li key={idx}>{bullet}</li>
                 ))}
               </ul>

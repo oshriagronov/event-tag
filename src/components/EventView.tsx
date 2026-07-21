@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useScanner } from '../contexts/ScannerContext';
 import { 
   ArrowRight, ArrowLeft, FolderOpen, Loader2, Check, AlertCircle,
@@ -64,7 +64,7 @@ function CloudPhotoImage({ provider = 'dropbox', driveFileId, accessToken, class
           setLoading(false);
           setError(false);
         }
-      } catch (err: any) {
+      } catch (err: unknown) {
         console.error("Failed to load cloud photo blob:", err);
         const errStr = err instanceof Error ? err.message : String(err);
         if (errStr.includes('401') || errStr.includes('404')) {
@@ -91,7 +91,7 @@ function CloudPhotoImage({ provider = 'dropbox', driveFileId, accessToken, class
         URL.revokeObjectURL(url);
       }
     };
-  }, [driveFileId, accessToken, provider]);
+  }, [driveFileId, accessToken, provider, publicUrl, clearDropboxToken]);
 
   if (error) {
     return (
@@ -165,7 +165,7 @@ export function EventView({ eventId, onBack }: EventViewProps) {
     else connectDropbox();
   };
 
-  const loadEventDetails = async () => {
+  const loadEventDetails = useCallback(async () => {
     setLoading(true);
     try {
       const evData = await getCloudEvent(eventId);
@@ -181,17 +181,17 @@ export function EventView({ eventId, onBack }: EventViewProps) {
     } finally {
       setLoading(false);
     }
-  };
+  }, [eventId]);
 
   useEffect(() => {
     loadEventDetails();
-  }, [eventId]);
+  }, [loadEventDetails]);
 
   useEffect(() => {
     if (!isScanning && event?.status === 'scanning') {
       loadEventDetails();
     }
-  }, [isScanning, event?.status]);
+  }, [isScanning, event?.status, loadEventDetails]);
 
   const checkParallelScanWarning = async () => {
     if (isScanning) {
@@ -323,7 +323,7 @@ export function EventView({ eventId, onBack }: EventViewProps) {
 
   const handleCopyLink = async () => {
     if (!event) return;
-    const link = `${window.location.origin}/event/${event.shareCode}`;
+    const link = `${window.location.origin}/event/${event.id}`;
     try {
       await navigator.clipboard.writeText(link);
       setCopied(true);
@@ -368,7 +368,7 @@ export function EventView({ eventId, onBack }: EventViewProps) {
     );
   }
 
-  const shareLink = `${window.location.origin}/event/${event.shareCode}`;
+  const shareLink = `${window.location.origin}/event/${event.id}`;
 
   return (
     <main id="main-content" tabIndex={-1} className="max-w-6xl w-full mx-auto px-6 py-10 flex-grow flex flex-col gap-8 text-start focus:outline-none" dir={isRtl ? 'rtl' : 'ltr'}>

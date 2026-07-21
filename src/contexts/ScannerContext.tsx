@@ -233,8 +233,9 @@ export function ScannerProvider({ children }: { children: ReactNode }) {
     pausedEventsRef.current.set(eventId, false);
 
     setScanStates((prev) => {
-      const { [eventId]: removed, ...rest } = prev;
-      return rest;
+      const next = { ...prev };
+      delete next[eventId];
+      return next;
     });
 
     updateCloudEvent(eventId, { status: 'pending' }).catch((err) =>
@@ -366,7 +367,7 @@ export function ScannerProvider({ children }: { children: ReactNode }) {
               }
               photosBuffer = [];
             }
-          } catch (sharedLinkErr: any) {
+          } catch (sharedLinkErr: unknown) {
             console.error(`Failed to generate publicUrl for processed photo ${photo.fileName}:`, sharedLinkErr);
             const errStr = sharedLinkErr instanceof Error ? sharedLinkErr.message : String(sharedLinkErr);
             
@@ -452,7 +453,7 @@ export function ScannerProvider({ children }: { children: ReactNode }) {
               photosBuffer = [];
             }
           }
-        } catch (err: any) {
+        } catch (err: unknown) {
           console.error(`Error scanning photo ${photo.fileName}:`, err);
           const errStr = err instanceof Error ? err.message : String(err);
           
@@ -556,8 +557,9 @@ export function ScannerProvider({ children }: { children: ReactNode }) {
       }
     } finally {
       setScanStates((prev) => {
-        const { [eventId]: removed, ...rest } = prev;
-        return rest;
+        const next = { ...prev };
+        delete next[eventId];
+        return next;
       });
       pausedEventsRef.current.delete(eventId);
       cancelledEventsRef.current.delete(eventId);

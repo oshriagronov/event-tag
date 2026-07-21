@@ -12,6 +12,7 @@ import { EventView } from './components/EventView';
 import { GuestView } from './components/GuestView';
 import { LandingPage } from './components/LandingPage';
 import { LegalPage } from './components/LegalPage';
+import { PrivacyPage } from './components/PrivacyPage';
 import { useParams, useNavigate } from 'react-router-dom';
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
@@ -50,11 +51,11 @@ function EventViewWrapper() {
 }
 
 function GuestViewWrapper() {
-  const { shareCode } = useParams<{ shareCode: string }>();
+  const { eventId } = useParams<{ eventId: string }>();
 
-  if (!shareCode) return <Navigate to="/" replace />;
+  if (!eventId) return <Navigate to="/" replace />;
 
-  return <GuestView shareCode={shareCode} />;
+  return <GuestView eventId={eventId} />;
 }
 
 import { SkipLink } from './components/SkipLink';
@@ -85,8 +86,8 @@ function AppRoutes() {
         <Route path="/how-it-works" element={<LandingPage />} />
         <Route path="/faq" element={<LandingPage />} />
         <Route path="/qna" element={<LandingPage />} />
-        <Route path="/privacy" element={<LandingPage />} />
-        <Route path="/event/:shareCode" element={<GuestViewWrapper />} />
+        <Route path="/privacy" element={<PrivacyPage />} />
+        <Route path="/event/:eventId" element={<GuestViewWrapper />} />
         <Route path="/legal" element={<LegalPage defaultTab="privacy" />} />
         <Route path="/privacy-policy" element={<LegalPage defaultTab="privacy" />} />
         <Route path="/terms" element={<LegalPage defaultTab="terms" />} />
