@@ -17,6 +17,7 @@ import {
 import { listPhotosInFolder, getPhotoThumbnailBlob, checkTokenValidity, convertToRawUrl, type CloudProvider } from '../services/cloudProviders';
 import { QRCodeSVG } from 'qrcode.react';
 import { useTranslation } from '../services/translations';
+import { useModal } from '../contexts/ModalContext';
 
 interface CloudPhotoImageProps {
   provider?: CloudProvider;
@@ -130,6 +131,7 @@ export function EventView({ eventId, onBack }: EventViewProps) {
     connectOneDrive,
   } = useAuth();
   const { t, isRtl, language } = useTranslation();
+  const { confirm, alert } = useModal();
   const [event, setEvent] = useState<CloudEvent | null>(null);
   const [photos, setPhotos] = useState<CloudPhoto[]>([]);
   const [loading, setLoading] = useState(true);
@@ -166,7 +168,7 @@ export function EventView({ eventId, onBack }: EventViewProps) {
       const evData = await getCloudEvent(eventId);
       if (evData) {
         setEvent(evData);
-        if (evData.status === 'ready') {
+        if (evData.status === 'ready' || evData.status === 'scanning') {
           const phData = await getCloudPhotos(eventId);
           setPhotos(phData);
         }
@@ -191,7 +193,7 @@ export function EventView({ eventId, onBack }: EventViewProps) {
   const handleStartScan = async () => {
     if (!event) return;
     const provider = event.provider || 'dropbox';
-    const token = dropboxAccessToken;
+    const token = currentProviderToken;
     if (!token) return;
     try {
       await updateCloudEvent(eventId, { status: 'scanning' });
@@ -221,7 +223,11 @@ export function EventView({ eventId, onBack }: EventViewProps) {
       }
 
       if (photosToScan.length === 0) {
-        alert(language === 'he' ? 'לא נמצאו תמונות לסריקה.' : 'No photos found to scan.');
+        await alert({
+          title: language === 'he' ? 'אין תמונות' : 'No Photos',
+          message: language === 'he' ? 'לא נמצאו תמונות לסריקה.' : 'No photos found to scan.',
+          variant: 'warning',
+        });
         await updateCloudEvent(eventId, { status: 'pending' });
         setEvent(prev => prev ? { ...prev, status: 'pending' } : null);
         return;
@@ -230,7 +236,11 @@ export function EventView({ eventId, onBack }: EventViewProps) {
       startCloudScanning(eventId, photosToScan, token, provider);
     } catch (err) {
       console.error('Failed to start scanning:', err);
-      alert((language === 'he' ? 'שגיאה בהתחלת הסריקה: ' : 'Error starting scan: ') + (err as Error).message);
+      await alert({
+        title: language === 'he' ? 'שגיאה בסריקה' : 'Scanning Error',
+        message: (language === 'he' ? 'שגיאה בהתחלת הסריקה: ' : 'Error starting scan: ') + (err as Error).message,
+        variant: 'danger',
+      });
       await updateCloudEvent(eventId, { status: 'pending' });
       setEvent(prev => prev ? { ...prev, status: 'pending' } : null);
     }
@@ -239,12 +249,20 @@ export function EventView({ eventId, onBack }: EventViewProps) {
   const handleRescanAll = async () => {
     if (!event) return;
     const provider = event.provider || 'dropbox';
-    const token = dropboxAccessToken;
+    const token = currentProviderToken;
     if (!token) return;
-    const confirmMessage = language === 'he'
-      ? 'האם אתה בטוח שברצונך למחוק את תוצאות הזיהוי הקודמות ולסרוק מחדש את כל התמונות?'
-      : 'Are you sure you want to clear previous face recognition results and rescan all photos?';
-    if (!confirm(confirmMessage)) return;
+
+    const confirmed = await confirm({
+      title: language === 'he' ? 'סריקה מחדש' : 'Rescan All Photos',
+      message: language === 'he'
+        ? 'האם אתה בטוח שברצונך למחוק את תוצאות הזיהוי הקודמות ולסרוק מחדש את כל התמונות?'
+        : 'Are you sure you want to clear previous face recognition results and rescan all photos?',
+      confirmText: language === 'he' ? 'סרוק מחדש' : 'Rescan',
+      cancelText: language === 'he' ? 'ביטול' : 'Cancel',
+      variant: 'warning',
+    });
+
+    if (!confirmed) return;
 
     try {
       setLoading(true);
@@ -270,7 +288,11 @@ export function EventView({ eventId, onBack }: EventViewProps) {
       startCloudScanning(eventId, resetPhotos, token, provider);
     } catch (err) {
       console.error('Failed to reset and rescan:', err);
-      alert((language === 'he' ? 'שגיאה באתחול הסריקה מחדש: ' : 'Error resetting and rescanning: ') + (err as Error).message);
+      await alert({
+        title: language === 'he' ? 'שגיאה באתחול' : 'Reset Error',
+        message: (language === 'he' ? 'שגיאה באתחול הסריקה מחדש: ' : 'Error resetting and rescanning: ') + (err as Error).message,
+        variant: 'danger',
+      });
       setLoading(false);
     }
   };
@@ -349,8 +371,6 @@ export function EventView({ eventId, onBack }: EventViewProps) {
             </p>
           </div>
         </div>
-
-
       </div>
 
       {/* Pending Scan View */}
@@ -390,30 +410,48 @@ export function EventView({ eventId, onBack }: EventViewProps) {
         </div>
       )}
 
-      {/* Active Scanning Progress Panel */}
+      {/* Active / Interrupted Scanning Progress Panel */}
       {(event.status === 'scanning' || isThisEventScanning) && (
         <div className="bg-surface-container border border-surface-border rounded-xl p-8 flex flex-col gap-6 shadow-2xl max-w-xl mx-auto w-full my-6">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 text-sm border-b border-surface-border pb-5">
             <div className="flex items-center gap-3">
-              <Loader2 className="w-4 h-4 text-copper-accent animate-spin" />
-              <span className="font-bold text-on-background text-base">{t('eventView.scanningPhotos')}</span>
+              <Loader2 className={`w-4 h-4 text-copper-accent ${isThisEventScanning && !isPaused ? 'animate-spin' : ''}`} />
+              <span className="font-bold text-on-background text-base">
+                {!isThisEventScanning
+                  ? (language === 'he' ? 'הסריקה הופסקה' : 'Scanning Interrupted')
+                  : t('eventView.scanningPhotos')}
+              </span>
             </div>
             <div className="flex items-center gap-3 shrink-0">
               <button
-                onClick={togglePause}
+                onClick={() => {
+                  if (!isThisEventScanning) {
+                    handleStartScan();
+                  } else {
+                    togglePause();
+                  }
+                }}
+                disabled={!currentProviderToken}
                 className={`w-9 h-9 rounded flex items-center justify-center transition-all cursor-pointer border ${
-                  isPaused
-                    ? 'border-copper-accent text-copper-accent bg-copper-accent/10'
+                  isPaused || !isThisEventScanning
+                    ? 'border-copper-accent text-copper-accent bg-copper-accent/10 hover:bg-copper-accent/20'
                     : 'border-surface-border text-sage-muted hover:bg-surface-container-high hover:text-on-background bg-surface-container-low'
                 }`}
+                title={!isThisEventScanning ? (language === 'he' ? 'המשך סריקה' : 'Resume Scan') : isPaused ? t('eventView.isResumed') : t('eventView.isPaused')}
               >
-                {isPaused ? <Play className="w-4 h-4" /> : <Pause className="w-4 h-4" />}
+                {isPaused || !isThisEventScanning ? <Play className="w-4 h-4" /> : <Pause className="w-4 h-4" />}
               </button>
               <div className="text-xs bg-surface-container-low px-3 py-1.5 rounded border border-surface-border text-sage-muted">
-                {isPaused ? t('dashboard.statusPaused') : formatETA(etaSeconds)}
+                {!isThisEventScanning
+                  ? (language === 'he' ? 'לחץ להמשך סריקה' : 'Click Play to Resume')
+                  : isPaused
+                    ? t('dashboard.statusPaused')
+                    : formatETA(etaSeconds)}
               </div>
               <div className="font-mono bg-surface-container-low px-2.5 py-1 rounded border border-surface-border text-xs text-on-background font-bold">
-                {scannedCount} / {totalToScan || event.photoCount}
+                {isThisEventScanning
+                  ? `${scannedCount} / ${totalToScan || photos.length}`
+                  : `${photos.filter(p => p.processed).length} / ${photos.length || event.photoCount || 0}`}
               </div>
             </div>
           </div>
@@ -423,8 +461,8 @@ export function EventView({ eventId, onBack }: EventViewProps) {
               className="bg-copper-accent h-2 rounded-full transition-all duration-300 ease-out relative"
               style={{
                 width: `${
-                  (totalToScan || event.photoCount) > 0
-                    ? (scannedCount / (totalToScan || event.photoCount)) * 100
+                  (isThisEventScanning ? (totalToScan || photos.length) : (photos.length || event.photoCount)) > 0
+                    ? ((isThisEventScanning ? scannedCount : photos.filter(p => p.processed).length) / (isThisEventScanning ? (totalToScan || photos.length) : (photos.length || event.photoCount || 1))) * 100
                     : 0
                 }%`,
               }}
@@ -438,6 +476,7 @@ export function EventView({ eventId, onBack }: EventViewProps) {
               ? 'אנא השאר את הדפדפן פתוח במהלך הסריקה. המערכת מעבדת את התמונות מקומית במכשיר שלך ואינה מעלה אותן לשרת.' 
               : 'Please keep the browser open. Processing is entirely local on your device; images are not sent to any servers.'}
           </p>
+
           {(scanError === 'auth_expired' || isCurrentProviderExpired) && (
             <div className="flex flex-col items-center gap-4 bg-red-500/10 border border-red-500/20 rounded-xl p-5 text-center mt-2">
               <AlertCircle className="w-7 h-7 text-red-400" />
@@ -518,7 +557,7 @@ export function EventView({ eventId, onBack }: EventViewProps) {
                   </p>
                   <button
                     onClick={handleStartScan}
-                    disabled={!dropboxAccessToken}
+                    disabled={!currentProviderToken}
                     className="w-full py-2 rounded bg-copper-accent hover:bg-copper-accent/90 text-background font-bold text-xs shadow flex items-center justify-center gap-1.5 cursor-pointer border-none"
                   >
                     <RefreshCw className="w-3 h-3 shrink-0" />
@@ -530,7 +569,7 @@ export function EventView({ eventId, onBack }: EventViewProps) {
                 <span className="truncate max-w-[140px]">{language === 'he' ? `תיקייה: ${event.driveFolderName}` : `Folder: ${event.driveFolderName}`}</span>
                 <button
                   onClick={handleRescanAll}
-                  disabled={!dropboxAccessToken}
+                  disabled={!currentProviderToken}
                   className="flex items-center gap-1 text-sage-muted hover:text-copper-accent transition-colors font-bold cursor-pointer bg-transparent border-none outline-none text-[11px]"
                   title={language === 'he' ? 'איפוס וסריקה מחדש של כל התמונות' : 'Reset and rescan all photos'}
                 >
@@ -548,27 +587,29 @@ export function EventView({ eventId, onBack }: EventViewProps) {
                   {t('eventView.sharingDesc')}
                 </p>
 
-                <div className="flex gap-2 mt-4">
+                <div className="flex flex-col sm:flex-row gap-2 mt-4">
                   <input
                     type="text"
                     readOnly
                     value={shareLink}
-                    className="flex-grow px-4 py-3 rounded bg-surface-container-low border border-surface-border text-sage-muted text-sm font-mono focus:outline-none"
+                    className="flex-grow px-4 py-3 rounded bg-surface-container-low border border-surface-border text-sage-muted text-sm font-mono focus:outline-none min-w-0"
                   />
-                  <button
-                    onClick={handleCopyLink}
-                    className="px-5 py-3 rounded bg-deep-forest hover:bg-primary text-background font-bold text-sm shadow flex items-center gap-2 transition-colors cursor-pointer border-none"
-                  >
-                    {copied ? <Check className="w-4 h-4 text-emerald-600" /> : <Copy className="w-4 h-4" />}
-                    <span>{copied ? t('common.copied') : t('common.copy')}</span>
-                  </button>
-                  <button
-                    onClick={() => setShowQr(true)}
-                    className="p-3 rounded bg-surface-container-low border border-surface-border text-sage-muted hover:text-on-background transition-colors cursor-pointer"
-                    title={language === 'he' ? 'הצג QR' : 'Show QR'}
-                  >
-                    <QrCode className="w-4 h-4" />
-                  </button>
+                  <div className="flex items-center gap-2 shrink-0">
+                    <button
+                      onClick={handleCopyLink}
+                      className="flex-1 sm:flex-initial px-5 py-3 rounded bg-deep-forest hover:bg-primary text-background font-bold text-sm shadow flex items-center justify-center gap-2 transition-colors cursor-pointer border-none"
+                    >
+                      {copied ? <Check className="w-4 h-4 text-emerald-600" /> : <Copy className="w-4 h-4" />}
+                      <span>{copied ? t('common.copied') : t('common.copy')}</span>
+                    </button>
+                    <button
+                      onClick={() => setShowQr(true)}
+                      className="p-3 rounded bg-surface-container-low border border-surface-border text-sage-muted hover:text-on-background transition-colors cursor-pointer flex items-center justify-center"
+                      title={language === 'he' ? 'הצג QR' : 'Show QR'}
+                    >
+                      <QrCode className="w-4 h-4" />
+                    </button>
+                  </div>
                 </div>
               </div>
               <div className="border-t border-surface-border pt-4 mt-6 flex items-center gap-2">
@@ -616,7 +657,7 @@ export function EventView({ eventId, onBack }: EventViewProps) {
                     <CloudPhotoImage
                       provider={event?.provider || 'dropbox'}
                       driveFileId={photo.driveFileId}
-                      accessToken={dropboxAccessToken || ''}
+                      accessToken={currentProviderToken || ''}
                       publicUrl={photo.publicUrl}
                       alt={photo.fileName}
                       className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"

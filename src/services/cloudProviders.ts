@@ -134,6 +134,18 @@ export function convertToRawUrl(provider: CloudProvider, url: string): string {
   if (provider === 'dropbox') {
     return convertToRawDropboxUrl(url);
   }
+  if (provider === 'onedrive') {
+    return url.replace('embed?', 'download?');
+  }
+  if (provider === 'google') {
+    // If given a view URL, convert to download/raw parameter format
+    if (url.includes('drive.google.com/file/d/')) {
+      const match = url.match(/\/d\/([^/]+)/);
+      if (match?.[1]) {
+        return `https://drive.google.com/uc?export=download&id=${match[1]}`;
+      }
+    }
+  }
   return url;
 }
 

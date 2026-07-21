@@ -19,6 +19,8 @@ You are an expert Frontend Engineer and Client-Side Machine Learning specialist.
 - **Cloud & Database:**
   - **Firebase Auth:** Google Sign-In & Email Authentication.
   - **Firebase Firestore:** Reactive storage of metadata, cloud file references, face descriptors, and clusters.
+- **Contexts & Modal System:**
+  - **ModalContext:** Unified asynchronous modal system for confirm/alert dialogs styled like the application theme (dark backdrop blur, accessibility IS 5568 / WCAG compliant, bidi-isolated).
 - **Cloud Storage Integrations:**
   - **Google Picker API:** Non-restricted `drive.file` scope ingestion.
   - **Dropbox API / Chooser:** Direct Dropbox folder connection & file stream ingestion.

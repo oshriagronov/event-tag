@@ -4,6 +4,7 @@ import { AuthProvider, useAuth } from './contexts/AuthContext';
 import { SettingsProvider } from './contexts/SettingsContext';
 import { ConsentProvider } from './contexts/ConsentContext';
 import { ScannerProvider } from './contexts/ScannerContext';
+import { ModalProvider } from './contexts/ModalContext';
 import { CookieBanner } from './components/CookieBanner';
 import { PreferencesModal } from './components/PreferencesModal';
 import { Dashboard } from './components/Dashboard';
@@ -123,9 +124,11 @@ function App() {
       <AuthProvider>
         <SettingsProvider>
           <ConsentProvider>
-            <ScannerProvider>
-              <AppRoutes />
-            </ScannerProvider>
+            <ModalProvider>
+              <ScannerProvider>
+                <AppRoutes />
+              </ScannerProvider>
+            </ModalProvider>
           </ConsentProvider>
         </SettingsProvider>
       </AuthProvider>

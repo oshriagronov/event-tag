@@ -258,6 +258,27 @@ export async function getOrCreateSharedLink(
   fileId: string
 ): Promise<string> {
   try {
+    // 1. Check if a shared link already exists first to avoid 409 Conflict errors in browser console
+    const listRes = await fetchWithTimeout(`${API_BASE}/sharing/list_shared_links`, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        path: fileId,
+        direct_only: true,
+      }),
+    }, 15000);
+
+    if (listRes.ok) {
+      const listData = await listRes.json();
+      if (listData.links && listData.links.length > 0) {
+        return listData.links[0].url;
+      }
+    }
+
+    // 2. If no link exists yet, create a new shared link
     const res = await fetchWithTimeout(`${API_BASE}/sharing/create_shared_link_with_settings`, {
       method: 'POST',
       headers: {
@@ -277,9 +298,9 @@ export async function getOrCreateSharedLink(
       return data.url;
     }
 
-    // Check if the link already exists (conflict status 409)
+    // Fallback: Check if conflict status 409 occurred due to a race condition
     if (res.status === 409) {
-      const listRes = await fetchWithTimeout(`${API_BASE}/sharing/list_shared_links`, {
+      const retryList = await fetchWithTimeout(`${API_BASE}/sharing/list_shared_links`, {
         method: 'POST',
         headers: {
           Authorization: `Bearer ${accessToken}`,
@@ -291,10 +312,10 @@ export async function getOrCreateSharedLink(
         }),
       }, 15000);
 
-      if (listRes.ok) {
-        const listData = await listRes.json();
-        if (listData.links && listData.links.length > 0) {
-          return listData.links[0].url;
+      if (retryList.ok) {
+        const retryData = await retryList.json();
+        if (retryData.links && retryData.links.length > 0) {
+          return retryData.links[0].url;
         }
       }
     }

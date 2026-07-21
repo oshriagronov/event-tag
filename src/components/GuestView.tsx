@@ -8,6 +8,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { Link } from 'react-router-dom';
 import { useTranslation } from '../services/translations';
+import { useModal } from '../contexts/ModalContext';
 import {
   Camera,
   Download,
@@ -26,6 +27,7 @@ import {
 import JSZip from 'jszip';
 import { getEventByShareCode, type CloudEvent } from '../services/firestore';
 import { convertToRawDropboxUrl } from '../services/dropbox';
+import { convertToRawUrl } from '../services/cloudProviders';
 import { matchSelfieToEvent, type MatchResult } from '../services/faceMatching';
 import { SelfieCapture } from './SelfieCapture';
 import { useConsent } from '../contexts/ConsentContext';
@@ -44,6 +46,7 @@ type ViewState =
 
 export function GuestView({ shareCode }: GuestViewProps) {
   const { t, isRtl, language } = useTranslation();
+  const { alert } = useModal();
   const { reopen } = useConsent();
   
   const [viewState, setViewState] = useState<ViewState>('loading-event');
@@ -161,20 +164,93 @@ export function GuestView({ shareCode }: GuestViewProps) {
       const zip = new JSZip();
       const total = downloadableMatches.length;
 
+      let addedCount = 0;
       for (let i = 0; i < downloadableMatches.length; i++) {
         const match = downloadableMatches[i];
-        try {
-          const imageUrl = match.publicUrl ? convertToRawDropboxUrl(match.publicUrl) : `https://lh3.googleusercontent.com/d/${match.driveFileId}=s1600`;
-          const response = await fetch(imageUrl, { mode: 'cors' });
-          if (response.ok) {
-            const blob = await response.blob();
-            const extension = blob.type.includes('png') ? 'png' : 'jpg';
-            zip.file(`photo_${i + 1}.${extension}`, blob);
-          }
-        } catch {
-          console.warn(`Failed to download photo ${match.driveFileId}`);
+        let blob: Blob | null = null;
+        // Build array of URLs to attempt for any provider (Dropbox, Google Drive, OneDrive, etc.)
+        const urlsToTry: string[] = [];
+
+        if (match.publicUrl) {
+          const rawUrl = convertToRawUrl(event?.provider || 'dropbox', match.publicUrl);
+          urlsToTry.push(rawUrl);
+          urlsToTry.push(rawUrl.replace('raw=1', 'dl=1'));
+          urlsToTry.push(`https://corsproxy.io/?${encodeURIComponent(rawUrl)}`);
+          urlsToTry.push(`https://api.allorigins.win/raw?url=${encodeURIComponent(rawUrl)}`);
         }
+        
+        if (match.driveFileId) {
+          const previewUrl = `https://lh3.googleusercontent.com/d/${match.driveFileId}=s1600`;
+          const exportUrl = `https://drive.google.com/uc?export=download&id=${match.driveFileId}`;
+          urlsToTry.push(previewUrl);
+          urlsToTry.push(exportUrl);
+          urlsToTry.push(`https://corsproxy.io/?${encodeURIComponent(previewUrl)}`);
+          urlsToTry.push(`https://corsproxy.io/?${encodeURIComponent(exportUrl)}`);
+          urlsToTry.push(`https://api.allorigins.win/raw?url=${encodeURIComponent(previewUrl)}`);
+        }
+
+        // Try fetching blob from candidate URLs sequentially
+        for (const url of urlsToTry) {
+          try {
+            const response = await fetch(url);
+            if (response.ok) {
+              const fetchedBlob = await response.blob();
+              if (fetchedBlob && fetchedBlob.size > 100) {
+                blob = fetchedBlob;
+                break;
+              }
+            }
+          } catch {
+            // Continue to next candidate URL
+          }
+        }
+
+        // Canvas fallback if direct & proxy fetches failed
+        if (!blob) {
+          try {
+            blob = await new Promise<Blob | null>((resolve) => {
+              const img = new Image();
+              img.crossOrigin = 'anonymous';
+              img.onload = () => {
+                try {
+                  const canvas = document.createElement('canvas');
+                  canvas.width = img.naturalWidth || img.width;
+                  canvas.height = img.naturalHeight || img.height;
+                  const ctx = canvas.getContext('2d');
+                  if (ctx) {
+                    ctx.drawImage(img, 0, 0);
+                    canvas.toBlob((b) => resolve(b), 'image/jpeg', 0.95);
+                  } else {
+                    resolve(null);
+                  }
+                } catch {
+                  resolve(null);
+                }
+              };
+              img.onerror = () => resolve(null);
+              const fallbackUrl = match.publicUrl
+                ? convertToRawUrl(event?.provider || 'dropbox', match.publicUrl)
+                : `https://lh3.googleusercontent.com/d/${match.driveFileId}=s1600`;
+              img.src = fallbackUrl;
+            });
+          } catch {
+            blob = null;
+          }
+        }
+
+        if (blob && blob.size > 0) {
+          const extension = blob.type.includes('png') ? 'png' : 'jpg';
+          zip.file(`photo_${i + 1}.${extension}`, blob);
+          addedCount++;
+        } else {
+          console.warn(`Failed to retrieve blob for photo ${match.driveFileId}`);
+        }
+
         setDownloadProgress(Math.round(((i + 1) / total) * 100));
+      }
+
+      if (addedCount === 0) {
+        throw new Error(language === 'he' ? 'לא ניתן היה להוריד את התמונות כקובץ ZIP. נסה שוב מאוחר יותר.' : 'Could not fetch photos into ZIP package.');
       }
 
       const content = await zip.generateAsync({ type: 'blob' });
@@ -185,22 +261,26 @@ export function GuestView({ shareCode }: GuestViewProps) {
       document.body.appendChild(a);
       a.click();
       document.body.removeChild(a);
-      URL.revokeObjectURL(url);
-    } catch (err) {
+      setTimeout(() => URL.revokeObjectURL(url), 1000);
+    } catch (err: any) {
       console.error('ZIP download error:', err);
-      alert(t('guestView.errorDownloading'));
+      await alert({
+        title: language === 'he' ? 'שגיאה בהורדה' : 'Download Error',
+        message: err?.message || t('guestView.errorDownloading'),
+        variant: 'danger',
+      });
     } finally {
       setDownloadingAll(false);
       setDownloadProgress(0);
     }
-  }, [downloadableMatches, event?.name, t]);
+  }, [downloadableMatches, event?.name, alert, language, t]);
 
   // ---- Download single photo ----
   const handleDownloadSingle = useCallback((driveFileId: string) => {
     const match = downloadableMatches.find((m) => m.driveFileId === driveFileId);
     if (match?.publicUrl) {
-      const rawUrl = convertToRawDropboxUrl(match.publicUrl);
-      const downloadUrl = rawUrl.replace('raw=1', 'dl=1');
+      const rawUrl = convertToRawUrl(event?.provider || 'dropbox', match.publicUrl);
+      const downloadUrl = rawUrl.includes('dropbox') ? rawUrl.replace('raw=1', 'dl=1') : rawUrl;
       window.open(downloadUrl, '_blank', 'noopener,noreferrer');
     } else {
       window.open(
@@ -209,7 +289,7 @@ export function GuestView({ shareCode }: GuestViewProps) {
         'noopener,noreferrer'
       );
     }
-  }, [downloadableMatches]);
+  }, [downloadableMatches, event?.provider]);
 
   // ---- Render helpers ----
 
@@ -455,14 +535,14 @@ export function GuestView({ shareCode }: GuestViewProps) {
                 }}
               />
 
-              <div className="absolute inset-0 bg-background/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-3">
+              <div className="absolute inset-0 bg-black/40 sm:bg-background/50 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity flex items-center justify-center gap-3">
                 <button
                   type="button"
                   onClick={(e) => {
                     e.stopPropagation();
                     handleDownloadSingle(match.driveFileId);
                   }}
-                  className="p-2 rounded bg-surface-container text-on-background border border-surface-border hover:text-copper-accent hover:border-copper-accent transition-all shadow cursor-pointer"
+                  className="p-2.5 sm:p-2 rounded-lg bg-surface-container/90 text-on-background border border-surface-border hover:text-copper-accent hover:border-copper-accent active:scale-95 transition-all shadow cursor-pointer"
                   title={t('guestView.downloadBtn')}
                 >
                   <Download className="w-4 h-4 shrink-0" />
@@ -473,7 +553,7 @@ export function GuestView({ shareCode }: GuestViewProps) {
                     e.stopPropagation();
                     handleHidePhoto(match.driveFileId);
                   }}
-                  className="p-2 rounded bg-surface-container text-on-background border border-surface-border hover:text-red-400 hover:border-red-500/30 transition-all shadow cursor-pointer"
+                  className="p-2.5 sm:p-2 rounded-lg bg-surface-container/90 text-on-background border border-surface-border hover:text-red-400 hover:border-red-500/30 active:scale-95 transition-all shadow cursor-pointer"
                   title={t('guestView.removeBtn')}
                 >
                   <X className="w-4 h-4 shrink-0" />

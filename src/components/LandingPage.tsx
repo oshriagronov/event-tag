@@ -17,6 +17,8 @@ import {
   Monitor,
   EyeOff,
   KeyRound,
+  Menu,
+  X,
 } from 'lucide-react';
 
 export function LandingPage() {
@@ -24,6 +26,7 @@ export function LandingPage() {
   const navigate = useNavigate();
   const { t, isRtl, language } = useTranslation();
   const [openFaq, setOpenFaq] = useState<number | null>(null);
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
   // Redirect to dashboard if already logged in
   useEffect(() => {
@@ -71,20 +74,29 @@ export function LandingPage() {
       {/* TopNavBar */}
       <nav className="fixed top-0 w-full z-50 bg-background/85 backdrop-blur-md border-b border-surface-border/40">
         <div className="flex justify-between items-center px-6 md:px-12 h-20 max-w-7xl mx-auto w-full">
-          {/* Brand */}
-          <Link
-            to="/"
-            onClick={(e) => {
-              e.preventDefault();
-              window.scrollTo({ top: 0, behavior: 'smooth' });
-              window.history.pushState(null, '', '/');
-            }}
-            className="flex items-center gap-3 no-underline"
-          >
-            <span className="font-display-lg text-3xl md:text-4xl font-bold text-on-background tracking-tight">
-              EventTag
-            </span>
-          </Link>
+          {/* Mobile Menu Button & Brand */}
+          <div className="flex items-center gap-3">
+            <button
+              onClick={() => setMobileMenuOpen(true)}
+              className="md:hidden text-on-background p-2 rounded-lg hover:bg-surface-container transition-colors cursor-pointer border-none bg-transparent"
+              title={language === 'he' ? 'פתח תפריט' : 'Open menu'}
+            >
+              <Menu className="w-6 h-6" />
+            </button>
+            <Link
+              to="/"
+              onClick={(e) => {
+                e.preventDefault();
+                window.scrollTo({ top: 0, behavior: 'smooth' });
+                window.history.pushState(null, '', '/');
+              }}
+              className="flex items-center gap-3 no-underline"
+            >
+              <span className="font-display-lg text-3xl md:text-4xl font-bold text-on-background tracking-tight">
+                EventTag
+              </span>
+            </Link>
+          </div>
 
           {/* Navigation Links (Desktop) */}
           <ul className="hidden md:flex items-center gap-8 list-none m-0 p-0">
@@ -132,14 +144,14 @@ export function LandingPage() {
             {user ? (
               <Link
                 to="/dashboard"
-                className="bg-deep-forest text-surface-container-lowest font-label-sm text-xs font-bold uppercase tracking-wider px-6 py-2.5 rounded hover:bg-primary transition-all shadow-sm no-underline cursor-pointer"
+                className="bg-deep-forest text-surface-container-lowest font-label-sm text-xs font-bold uppercase tracking-wider px-5 sm:px-6 py-2.5 rounded hover:bg-primary transition-all shadow-sm no-underline cursor-pointer"
               >
                 {t('dashboard.myDashboard')}
               </Link>
             ) : (
               <button
                 onClick={signIn}
-                className="bg-deep-forest text-surface-container-lowest font-label-sm text-xs font-bold uppercase tracking-wider px-6 py-2.5 rounded hover:bg-primary transition-all shadow-sm cursor-pointer border-none"
+                className="bg-deep-forest text-surface-container-lowest font-label-sm text-xs font-bold uppercase tracking-wider px-5 sm:px-6 py-2.5 rounded hover:bg-primary transition-all shadow-sm cursor-pointer border-none"
               >
                 {language === 'he' ? 'התחברות' : 'Sign In'}
               </button>
@@ -147,6 +159,113 @@ export function LandingPage() {
           </div>
         </div>
       </nav>
+
+      {/* Mobile Navigation Drawer (Rendered outside <nav> matching Dashboard drawer) */}
+      <div
+        className={`fixed inset-0 z-[60] md:hidden transition-all duration-300 ${
+          mobileMenuOpen ? 'visible pointer-events-auto' : 'invisible pointer-events-none'
+        }`}
+      >
+        {/* Backdrop */}
+        <div
+          className={`fixed inset-0 bg-black/60 backdrop-blur-sm transition-opacity duration-300 ease-in-out ${
+            mobileMenuOpen ? 'opacity-100' : 'opacity-0'
+          }`}
+          onClick={() => setMobileMenuOpen(false)}
+        />
+        {/* Drawer Panel - Solid Background Matching Dashboard */}
+        <div
+          className={`absolute top-0 bottom-0 w-64 bg-surface-container-low h-full shadow-2xl flex flex-col z-10 transition-transform duration-300 ease-out text-start ${
+            isRtl
+              ? `right-0 border-l border-surface-border/30 ${mobileMenuOpen ? 'translate-x-0' : 'translate-x-full'}`
+              : `left-0 border-r border-surface-border/30 ${mobileMenuOpen ? 'translate-x-0' : '-translate-x-full'}`
+          }`}
+        >
+          <button
+            onClick={() => setMobileMenuOpen(false)}
+            className={`absolute top-4 ${isRtl ? 'left-4' : 'right-4'} p-2 text-sage-muted hover:text-on-background cursor-pointer rounded-lg hover:bg-surface-container-high transition-colors`}
+            title={language === 'he' ? 'סגור תפריט' : 'Close menu'}
+          >
+            <X className="w-5 h-5" />
+          </button>
+
+          <div className="flex flex-col h-full py-8 gap-y-6 text-start" dir={isRtl ? 'rtl' : 'ltr'}>
+            {/* Brand */}
+            <div className="px-6 mb-4 flex flex-col justify-center items-start mt-4">
+              <h1 className="font-display-lg text-3xl font-bold text-on-background tracking-tight m-0">EventTag</h1>
+            </div>
+
+            {/* Navigation */}
+            <nav className="flex-1 flex flex-col gap-1 px-3">
+              <a
+                href="#how-it-works"
+                onClick={(e) => {
+                  setMobileMenuOpen(false);
+                  handleScrollTo(e, 'how-it-works');
+                }}
+                className="flex items-center gap-3 font-bold py-3 px-4 rounded-lg text-sage-muted hover:text-on-background hover:bg-surface-container transition-all text-start cursor-pointer no-underline w-full"
+              >
+                <Sparkles className="w-4 h-4 text-copper-accent" />
+                <span className="font-label-sm text-xs uppercase tracking-wider">{t('landing.howItWorksBtn')}</span>
+              </a>
+              <a
+                href="#faq"
+                onClick={(e) => {
+                  setMobileMenuOpen(false);
+                  handleScrollTo(e, 'faq');
+                }}
+                className="flex items-center gap-3 font-bold py-3 px-4 rounded-lg text-sage-muted hover:text-on-background hover:bg-surface-container transition-all text-start cursor-pointer no-underline w-full"
+              >
+                <Users className="w-4 h-4 text-copper-accent" />
+                <span className="font-label-sm text-xs uppercase tracking-wider">{t('landing.faqNavBtn')}</span>
+              </a>
+              <a
+                href="#privacy"
+                onClick={(e) => {
+                  setMobileMenuOpen(false);
+                  handleScrollTo(e, 'privacy');
+                }}
+                className="flex items-center gap-3 font-bold py-3 px-4 rounded-lg text-sage-muted hover:text-on-background hover:bg-surface-container transition-all text-start cursor-pointer no-underline w-full"
+              >
+                <Shield className="w-4 h-4 text-copper-accent" />
+                <span className="font-label-sm text-xs uppercase tracking-wider">{language === 'he' ? 'פרטיות' : 'Privacy'}</span>
+              </a>
+              {user && (
+                <Link
+                  to="/dashboard"
+                  onClick={() => setMobileMenuOpen(false)}
+                  className="flex items-center gap-3 font-bold py-3 px-4 rounded-lg text-copper-accent hover:bg-surface-container transition-all text-start cursor-pointer no-underline w-full"
+                >
+                  <Monitor className="w-4 h-4 text-copper-accent" />
+                  <span className="font-label-sm text-xs uppercase tracking-wider">{t('dashboard.myDashboard')}</span>
+                </Link>
+              )}
+            </nav>
+
+            <div className="px-4 pt-4 border-t border-surface-border/30">
+              {user ? (
+                <Link
+                  to="/dashboard"
+                  onClick={() => setMobileMenuOpen(false)}
+                  className="w-full bg-deep-forest text-surface-container-lowest font-label-sm text-xs font-bold uppercase tracking-wider py-3 rounded text-center block no-underline shadow-sm"
+                >
+                  {t('dashboard.myDashboard')}
+                </Link>
+              ) : (
+                <button
+                  onClick={() => {
+                    setMobileMenuOpen(false);
+                    signIn();
+                  }}
+                  className="w-full bg-deep-forest text-surface-container-lowest font-label-sm text-xs font-bold uppercase tracking-wider py-3 rounded cursor-pointer border-none shadow-sm"
+                >
+                  {language === 'he' ? 'התחברות' : 'Sign In'}
+                </button>
+              )}
+            </div>
+          </div>
+        </div>
+      </div>
 
       <main id="main-content" tabIndex={-1} className="flex-grow flex flex-col focus:outline-none">
         {/* Hero Section */}

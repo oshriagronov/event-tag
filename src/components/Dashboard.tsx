@@ -20,10 +20,12 @@ import {
 } from 'lucide-react';
 import { useScanner } from '../contexts/ScannerContext';
 import { useTranslation } from '../services/translations';
+import { useModal } from '../contexts/ModalContext';
 
 export function Dashboard() {
   const navigate = useNavigate();
   const { t, isRtl, language } = useTranslation();
+  const { confirm, alert } = useModal();
   const {
     user,
     dropboxAccessToken,
@@ -164,7 +166,11 @@ export function Dashboard() {
       navigate(`/dashboard/event/${eventId}`);
     } catch (err) {
       console.error('Failed to create event:', err);
-      alert(language === 'he' ? 'שגיאה ביצירת האירוע. נסה שוב.' : 'Error creating event. Please try again.');
+      await alert({
+        title: language === 'he' ? 'שגיאה ביצירת אירוע' : 'Error Creating Event',
+        message: language === 'he' ? 'שגיאה ביצירת האירוע. נסה שוב.' : 'Error creating event. Please try again.',
+        variant: 'danger',
+      });
     } finally {
       setCreating(false);
     }
@@ -172,11 +178,17 @@ export function Dashboard() {
 
   const handleDisconnectProvider = async (provider: 'dropbox' | 'google' | 'onedrive') => {
     const providerName = provider === 'dropbox' ? 'Dropbox' : provider === 'google' ? 'Google Drive' : 'Microsoft OneDrive';
-    const warningMsg = language === 'he'
-      ? `אזהרה: ניתוק ספק הענן ${providerName} ימחק לצמיתות את כל האירועים המשתמשים בספק זה ואת כל נתוני הפנים שנסרקו בהם.\nהאם ברצונך להמשיך?`
-      : `Warning: Disconnecting ${providerName} will permanently delete all events that use this provider and their face descriptors.\nDo you want to proceed?`;
+    const confirmed = await confirm({
+      title: language === 'he' ? `ניתוק ספק ${providerName}` : `Disconnect ${providerName}`,
+      message: language === 'he'
+        ? `אזהרה: ניתוק ספק הענן ${providerName} ימחק לצמיתות את כל האירועים המשתמשים בספק זה ואת כל נתוני הפנים שנסרקו בהם.\nהאם ברצונך להמשיך?`
+        : `Warning: Disconnecting ${providerName} will permanently delete all events that use this provider and their face descriptors.\nDo you want to proceed?`,
+      confirmText: language === 'he' ? 'נתק ספק' : 'Disconnect Provider',
+      cancelText: language === 'he' ? 'ביטול' : 'Cancel',
+      variant: 'danger',
+    });
 
-    if (!confirm(warningMsg)) return;
+    if (!confirmed) return;
 
     try {
       setLoadingEvents(true);
@@ -192,10 +204,18 @@ export function Dashboard() {
       } else if (provider === 'onedrive') {
         disconnectOneDrive();
       }
-      alert(language === 'he' ? 'הספק נותק בהצלחה והאירועים המשויכים נמחקו.' : 'Provider disconnected and associated events deleted successfully.');
+      await alert({
+        title: language === 'he' ? 'הספק נותק' : 'Provider Disconnected',
+        message: language === 'he' ? 'הספק נותק בהצלחה והאירועים המשויכים נמחקו.' : 'Provider disconnected and associated events deleted successfully.',
+        variant: 'success',
+      });
     } catch (err) {
       console.error('Failed to disconnect provider:', err);
-      alert(language === 'he' ? 'שגיאה בניתוק ספק הענן.' : 'Error disconnecting cloud provider.');
+      await alert({
+        title: language === 'he' ? 'שגיאה' : 'Error',
+        message: language === 'he' ? 'שגיאה בניתוק ספק הענן.' : 'Error disconnecting cloud provider.',
+        variant: 'danger',
+      });
     } finally {
       setLoadingEvents(false);
     }
@@ -203,11 +223,17 @@ export function Dashboard() {
 
   const handleDeleteAccount = async () => {
     if (!user) return;
-    const warningMsg = language === 'he'
-      ? 'אזהרה חמורה!\nפעולה זו תמחוק לצמיתות את החשבון שלך ואת כל האירועים, התמונות והפנים שנסרקו. לא ניתן לשחזר פעולה זו!\n\nהאם אתה בטוח לחלוטין שברצונך להמשיך?'
-      : 'CRITICAL WARNING!\nThis will permanently delete your account and all associated events, photos, and scanned faces. This action CANNOT be undone!\n\nAre you absolutely sure you want to proceed?';
+    const confirmed = await confirm({
+      title: language === 'he' ? 'מחיקת חשבון לצמיתות' : 'Permanently Delete Account',
+      message: language === 'he'
+        ? 'אזהרה חמורה!\nפעולה זו תמחוק לצמיתות את החשבון שלך ואת כל האירועים, התמונות והפנים שנסרקו. לא ניתן לשחזר פעולה זו!\n\nהאם אתה בטוח לחלוטין שברצונך להמשיך?'
+        : 'CRITICAL WARNING!\nThis will permanently delete your account and all associated events, photos, and scanned faces. This action CANNOT be undone!\n\nAre you absolutely sure you want to proceed?',
+      confirmText: language === 'he' ? 'מחק חשבון' : 'Delete Account',
+      cancelText: language === 'he' ? 'ביטול' : 'Cancel',
+      variant: 'danger',
+    });
 
-    if (!confirm(warningMsg)) return;
+    if (!confirmed) return;
 
     try {
       setLoadingEvents(true);
@@ -224,21 +250,31 @@ export function Dashboard() {
 
       // 3. Delete Firebase user account
       await user.delete();
-      alert(language === 'he' ? 'החשבון והנתונים נמחקו בהצלחה.' : 'Account and data successfully deleted.');
+      await alert({
+        title: language === 'he' ? 'החשבון נמחק' : 'Account Deleted',
+        message: language === 'he' ? 'החשבון והנתונים נמחקו בהצלחה.' : 'Account and data successfully deleted.',
+        variant: 'success',
+      });
       signOut();
       navigate('/');
     } catch (err: any) {
       console.error('Failed to delete account:', err);
       if (err.code === 'auth/requires-recent-login') {
-        alert(language === 'he'
-          ? 'לשם אבטחה, עליך להתחבר מחדש לחשבון לפני מחיקתו. אנא התנתק, התחבר שוב ונסה שנית.'
-          : 'For security reasons, you must re-authenticate before deleting your account. Please sign out, sign in again, and retry.'
-        );
+        await alert({
+          title: language === 'he' ? 'אימות מחדש נדרש' : 'Re-authentication Required',
+          message: language === 'he'
+            ? 'לשם אבטחה, עליך להתחבר מחדש לחשבון לפני מחיקתו. אנא התנתק, התחבר שוב ונסה שנית.'
+            : 'For security reasons, you must re-authenticate before deleting your account. Please sign out, sign in again, and retry.',
+          variant: 'warning',
+        });
       } else {
-        alert(language === 'he'
-          ? 'שגיאה במחיקת החשבון. אנא נסה שוב או פנה לתמיכה.'
-          : 'Error deleting account. Please try again or contact support.'
-        );
+        await alert({
+          title: language === 'he' ? 'שגיאה במחיקת החשבון' : 'Error Deleting Account',
+          message: language === 'he'
+            ? 'שגיאה במחיקת החשבון. אנא נסה שוב או פנה לתמיכה.'
+            : 'Error deleting account. Please try again or contact support.',
+          variant: 'danger',
+        });
       }
     } finally {
       setLoadingEvents(false);
@@ -247,15 +283,28 @@ export function Dashboard() {
 
   const handleDeleteCloudEvent = async (event: CloudEvent, e: React.MouseEvent) => {
     e.stopPropagation();
-    if (!confirm(language === 'he' ? `האם אתה בטוח שברצונך למחוק את האירוע "${event.name}"?\nפעולה זו תמחק את כל הנתונים לצמיתות.` : `Are you sure you want to delete the event "${event.name}"?\nThis action will delete all data permanently.`)) {
-      return;
-    }
+    const confirmed = await confirm({
+      title: language === 'he' ? 'מחיקת אירוע' : 'Delete Event',
+      message: language === 'he'
+        ? `האם אתה בטוח שברצונך למחוק את האירוע "${event.name}"?\nפעולה זו תמחק את כל הנתונים לצמיתות.`
+        : `Are you sure you want to delete the event "${event.name}"?\nThis action will delete all data permanently.`,
+      confirmText: language === 'he' ? 'מחק אירוע' : 'Delete Event',
+      cancelText: language === 'he' ? 'ביטול' : 'Cancel',
+      variant: 'danger',
+    });
+
+    if (!confirmed) return;
+
     try {
       await deleteCloudEvent(event.id!);
       setCloudEvents((prev) => prev.filter((ev) => ev.id !== event.id));
     } catch (err) {
       console.error('Failed to delete event:', err);
-      alert(language === 'he' ? 'שגיאה במחיקת האירוע.' : 'Error deleting event.');
+      await alert({
+        title: language === 'he' ? 'שגיאה במחיקה' : 'Error Deleting',
+        message: language === 'he' ? 'שגיאה במחיקת האירוע.' : 'Error deleting event.',
+        variant: 'danger',
+      });
     }
   };
 
@@ -359,21 +408,37 @@ export function Dashboard() {
         {sidebarContent}
       </aside>
 
-      {/* Mobile Drawer */}
-      {mobileMenuOpen && (
-        <div className="fixed inset-0 z-50 flex md:hidden">
-          <div className="fixed inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setMobileMenuOpen(false)} />
-          <div className={`relative w-64 bg-surface-container-low h-full shadow-2xl flex flex-col z-10 transition-transform duration-300 animate-in slide-in-from-left`}>
-            <button 
-              onClick={() => setMobileMenuOpen(false)} 
-              className={`absolute top-4 ${isRtl ? 'left-4' : 'right-4'} p-2 text-sage-muted hover:text-on-background`}
-            >
-              <X className="w-5 h-5" />
-            </button>
-            {sidebarContent}
-          </div>
+      {/* Mobile Drawer with Smooth Animation */}
+      <div 
+        className={`fixed inset-0 z-50 md:hidden transition-all duration-300 ${
+          mobileMenuOpen ? 'visible pointer-events-auto' : 'invisible pointer-events-none'
+        }`}
+      >
+        {/* Backdrop Overlay */}
+        <div 
+          className={`fixed inset-0 bg-black/60 backdrop-blur-sm transition-opacity duration-300 ease-in-out ${
+            mobileMenuOpen ? 'opacity-100' : 'opacity-0'
+          }`} 
+          onClick={() => setMobileMenuOpen(false)} 
+        />
+        {/* Drawer Panel */}
+        <div 
+          className={`absolute top-0 bottom-0 w-64 bg-[#171a19] h-full shadow-2xl flex flex-col z-10 transition-transform duration-300 ease-out ${
+            isRtl 
+              ? `right-0 border-l border-surface-border/60 ${mobileMenuOpen ? 'translate-x-0' : 'translate-x-full'}` 
+              : `left-0 border-r border-surface-border/60 ${mobileMenuOpen ? 'translate-x-0' : '-translate-x-full'}`
+          }`}
+        >
+          <button 
+            onClick={() => setMobileMenuOpen(false)} 
+            className={`absolute top-4 ${isRtl ? 'left-4' : 'right-4'} p-2 text-sage-muted hover:text-on-background cursor-pointer rounded-lg hover:bg-surface-container-high transition-colors`}
+            title={language === 'he' ? 'סגור תפריט' : 'Close menu'}
+          >
+            <X className="w-5 h-5" />
+          </button>
+          {sidebarContent}
         </div>
-      )}
+      </div>
 
       {/* Main Content Area */}
       <main id="main-content" tabIndex={-1} className={`flex-1 bg-background relative min-h-screen pb-20 flex flex-col focus:outline-none ${
@@ -618,26 +683,26 @@ export function Dashboard() {
                         onClick={() => navigate(`/dashboard/event/${event.id}`)}
                         className="group relative border border-surface-border/60 hover:border-copper-accent/35 bg-surface-container rounded-xl p-6 cursor-pointer transition-all duration-300 flex flex-col gap-6 shadow hover:shadow-2xl hover:-translate-y-0.5 text-start"
                       >
-                        {/* Action overlays */}
-                        <div className={`absolute top-4 ${isRtl ? 'left-4' : 'right-4'} flex items-center gap-1.5 opacity-0 group-hover:opacity-100 transition-all z-10`}>
+                        {/* Action buttons (always visible on mobile/touch, hover on desktop) */}
+                        <div className={`absolute top-4 ${isRtl ? 'left-4' : 'right-4'} flex items-center gap-1.5 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-all z-10`}>
                           <button
                             onClick={(e) => handleCopyShareLink(event, e)}
                             title={language === 'he' ? 'העתק קישור שיתוף' : 'Copy share link'}
-                            className="p-2 rounded bg-surface-container-high border border-surface-border text-sage-muted hover:text-copper-accent transition-all cursor-pointer"
+                            className="p-2.5 sm:p-2 rounded-lg bg-surface-container-high/90 sm:bg-surface-container-high border border-surface-border text-sage-muted hover:text-copper-accent active:scale-95 transition-all cursor-pointer shadow-sm"
                           >
                             {copiedId === event.id ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Link2 className="w-3.5 h-3.5" />}
                           </button>
                           <button
                             onClick={(e) => { e.stopPropagation(); setQrEvent(event); }}
                             title={language === 'he' ? 'הצג QR קוד' : 'Show QR code'}
-                            className="p-2 rounded bg-surface-container-high border border-surface-border text-sage-muted hover:text-copper-accent transition-all cursor-pointer"
+                            className="p-2.5 sm:p-2 rounded-lg bg-surface-container-high/90 sm:bg-surface-container-high border border-surface-border text-sage-muted hover:text-copper-accent active:scale-95 transition-all cursor-pointer shadow-sm"
                           >
                             <QrCode className="w-3.5 h-3.5" />
                           </button>
                           <button
                             onClick={(e) => handleDeleteCloudEvent(event, e)}
                             title={language === 'he' ? 'מחק אירוע' : 'Delete event'}
-                            className="p-2 rounded bg-surface-container-high border border-surface-border text-sage-muted hover:text-red-400 transition-all cursor-pointer"
+                            className="p-2.5 sm:p-2 rounded-lg bg-surface-container-high/90 sm:bg-surface-container-high border border-surface-border text-sage-muted hover:text-red-400 active:scale-95 transition-all cursor-pointer shadow-sm"
                           >
                             <Trash2 className="w-3.5 h-3.5" />
                           </button>
