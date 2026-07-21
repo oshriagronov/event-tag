@@ -27,11 +27,17 @@ export function Dashboard() {
   const {
     user,
     dropboxAccessToken,
+    googleAccessToken,
+    onedriveAccessToken,
+    expiredProviders,
     signOut,
     connectDropbox,
     disconnectDropbox,
+    connectGoogle,
     disconnectGoogle,
+    connectOneDrive,
     disconnectOneDrive,
+    dismissExpiredProviderNotice,
   } = useAuth();
   const { theme, setTheme, setLanguage } = useSettings();
   const [showFolderPicker, setShowFolderPicker] = useState(false);
@@ -304,7 +310,7 @@ export function Dashboard() {
     <div className="flex flex-col h-full py-8 gap-y-6 text-start" dir={isRtl ? 'rtl' : 'ltr'}>
       {/* Brand */}
       <div className="px-6 mb-4 flex flex-col justify-center items-start mt-4">
-        <h1 className="font-display-lg text-2xl text-on-background tracking-tight m-0">EventTag</h1>
+        <h1 className="font-display-lg text-3xl font-bold text-on-background tracking-tight m-0">EventTag</h1>
         <p className="font-label-sm text-[10px] text-sage-muted mt-1 uppercase tracking-widest">
           {language === 'he' ? `${cloudEvents.length} אירועים פעילים` : `${cloudEvents.length} Active Events`}
         </p>
@@ -341,22 +347,6 @@ export function Dashboard() {
           <span className="font-label-sm text-xs uppercase tracking-wider">{t('settings.title')}</span>
         </button>
       </nav>
-
-      {/* CTA bottom */}
-      <div className="px-5 mt-auto flex flex-col gap-2">
-        <button
-          onClick={() => {
-            setNewEventName('');
-            setPendingPhotos([]);
-            setPendingFolder(null);
-            setShowProviderModal(true);
-          }}
-          className="w-full bg-deep-forest hover:bg-primary text-background font-label-sm text-xs uppercase tracking-widest py-3.5 rounded flex items-center justify-center gap-2 transition-colors shadow-sm cursor-pointer"
-        >
-          <FolderOpen className="w-4 h-4" />
-          <span>{language === 'he' ? 'אירוע מתיקייה' : 'Event from Folder'}</span>
-        </button>
-      </div>
     </div>
   );
 
@@ -503,6 +493,54 @@ export function Dashboard() {
 
         {/* Canvas Area */}
         <div className="px-6 md:px-12 py-10 max-w-7xl mx-auto w-full flex-grow flex flex-col gap-8 text-start">
+          {/* Expired Cloud Provider Connection Banners */}
+          {expiredProviders.map((provider) => {
+            const providerName = provider === 'dropbox' ? 'Dropbox' : provider === 'google' ? 'Google Drive' : 'OneDrive';
+            const handleReconnect = () => {
+              if (provider === 'dropbox') connectDropbox();
+              else if (provider === 'google') connectGoogle();
+              else if (provider === 'onedrive') connectOneDrive();
+            };
+
+            return (
+              <div
+                key={provider}
+                role="alert"
+                className="bg-red-500/10 border border-red-500/30 rounded-xl p-5 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 animate-in fade-in duration-300"
+              >
+                <div className="flex items-start sm:items-center gap-3 text-start">
+                  <div className="p-2.5 rounded-lg bg-red-500/15 border border-red-500/30 text-red-400 shrink-0 mt-0.5 sm:mt-0">
+                    <AlertTriangle className="w-5 h-5 text-red-400" />
+                  </div>
+                  <div className="flex flex-col gap-1 text-start">
+                    <h4 className="font-bold text-red-400 text-sm m-0">
+                      {t('dashboard.expiredTokenAlertTitle')}: <span style={{ unicodeBidi: 'isolate' }}>{providerName}</span>
+                    </h4>
+                    <p className="text-sage-muted text-xs m-0 leading-relaxed">
+                      {t('dashboard.expiredTokenAlertDesc', { provider: providerName })}
+                    </p>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-2 self-end sm:self-auto shrink-0">
+                  <button
+                    onClick={handleReconnect}
+                    className="px-4 py-2 rounded-lg bg-copper-accent hover:bg-copper-accent/90 text-background font-bold text-xs shadow transition-all cursor-pointer border-none"
+                  >
+                    {t('dashboard.reconnectProvider', { provider: providerName })}
+                  </button>
+                  <button
+                    onClick={() => dismissExpiredProviderNotice(provider)}
+                    className="p-2 rounded-lg text-sage-muted hover:text-on-background hover:bg-surface-container-high transition-colors cursor-pointer border-none bg-transparent"
+                    title={language === 'he' ? 'סגור התראה' : 'Dismiss notice'}
+                  >
+                    <X className="w-4 h-4" />
+                  </button>
+                </div>
+              </div>
+            );
+          })}
+
           {activeTab === 'events' ? (
             <>
               <div className="flex flex-col md:flex-row md:items-end justify-between gap-4">
@@ -523,7 +561,7 @@ export function Dashboard() {
                     className="px-5 py-2.5 rounded border border-surface-border text-on-background hover:bg-surface-container font-label-sm text-xs uppercase tracking-wider flex items-center gap-2 transition-all cursor-pointer"
                   >
                     <Plus className="w-4 h-4" />
-                    <span>{language === 'he' ? 'יצירת אירוע מתיקייה' : 'Create Event from Folder'}</span>
+                    <span>{language === 'he' ? 'צור אירוע' : 'Create Event'}</span>
                   </button>
                 </div>
               </div>
@@ -545,7 +583,7 @@ export function Dashboard() {
                   <div className="max-w-md">
                     <h3 className="font-title-md text-lg font-bold text-on-background m-0">{language === 'he' ? 'אין אירועים פעילים' : 'No Active Events'}</h3>
                     <p className="font-body-md text-sage-muted text-sm mt-2 leading-relaxed">
-                      {language === 'he' ? 'חבר תיקיית תמונות מ-Dropbox כדי להתחיל את הסריקה המקומית והזיהוי.' : 'Connect a folder from Dropbox to initialize on-device facial scanning.'}
+                      {language === 'he' ? 'חבר תיקיית תמונות מספק ענן כדי להתחיל את הסריקה המקומית והזיהוי.' : 'Connect a folder from a Cloud Provider to initialize on-device facial scanning.'}
                     </p>
                   </div>
                 </div>
@@ -830,7 +868,9 @@ export function Dashboard() {
                       <div>
                         <p className="font-bold text-sm text-on-background m-0">Dropbox</p>
                         <p className="text-xs text-sage-muted m-0">
-                          {dropboxAccessToken ? (
+                          {expiredProviders.includes('dropbox') ? (
+                            <span className="text-red-400 font-semibold">{t('settings.expired')}</span>
+                          ) : dropboxAccessToken ? (
                             <span className="text-emerald-400 font-semibold">{t('settings.connected')}</span>
                           ) : (
                             <span>{t('settings.notConnected')}</span>
@@ -838,7 +878,14 @@ export function Dashboard() {
                         </p>
                       </div>
                     </div>
-                    {dropboxAccessToken ? (
+                    {expiredProviders.includes('dropbox') ? (
+                      <button
+                        onClick={connectDropbox}
+                        className="px-4 py-2 rounded bg-copper-accent hover:bg-copper-accent/90 text-background text-xs font-bold transition-all cursor-pointer border-none"
+                      >
+                        {t('settings.reconnect')}
+                      </button>
+                    ) : dropboxAccessToken ? (
                       <button
                         onClick={() => handleDisconnectProvider('dropbox')}
                         className="px-4 py-2 rounded border border-red-500/30 bg-red-500/10 text-red-400 hover:bg-red-500/25 hover:border-red-500/50 text-xs font-bold transition-all cursor-pointer"
@@ -873,7 +920,15 @@ export function Dashboard() {
                             {t('settings.soon')}
                           </span>
                         </div>
-                        <p className="text-xs text-sage-muted m-0">{t('settings.notConnected')}</p>
+                        <p className="text-xs text-sage-muted m-0">
+                          {expiredProviders.includes('google') ? (
+                            <span className="text-red-400 font-semibold">{t('settings.expired')}</span>
+                          ) : googleAccessToken ? (
+                            <span className="text-emerald-400 font-semibold">{t('settings.connected')}</span>
+                          ) : (
+                            t('settings.notConnected')
+                          )}
+                        </p>
                       </div>
                     </div>
                     <button
@@ -900,7 +955,15 @@ export function Dashboard() {
                             {t('settings.soon')}
                           </span>
                         </div>
-                        <p className="text-xs text-sage-muted m-0">{t('settings.notConnected')}</p>
+                        <p className="text-xs text-sage-muted m-0">
+                          {expiredProviders.includes('onedrive') ? (
+                            <span className="text-red-400 font-semibold">{t('settings.expired')}</span>
+                          ) : onedriveAccessToken ? (
+                            <span className="text-emerald-400 font-semibold">{t('settings.connected')}</span>
+                          ) : (
+                            t('settings.notConnected')
+                          )}
+                        </p>
                       </div>
                     </div>
                     <button

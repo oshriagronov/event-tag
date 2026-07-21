@@ -2,6 +2,7 @@
 
 html {
   scroll-behavior: smooth;
+  font-size: 115%;
 }
 
 :root {
@@ -10,13 +11,13 @@ html {
   --primary: #051a17;
   --on-primary: #ffffff;
   --primary-container: #1a2f2b;
-  --on-primary-container: #809792;
+  --on-primary-container: #3C4E46;
   --secondary: #4c6358;
   --on-secondary: #ffffff;
   --secondary-container: #cee9da;
   --on-secondary-container: #52695e;
   --copper-accent: #B87333;
-  --sage-muted: #8FA89B;
+  --sage-muted: #3C4E46;
   --muted-gold: #C5A059;
   --surface-dim: #dbdad5;
   --surface-bright: #fbf9f4;
@@ -107,13 +108,13 @@ html {
 
 /* Font sizing classes driven by root */
 html.text-normal {
-  font-size: 16px;
+  font-size: 115%;
 }
 html.text-large {
-  font-size: 18px;
+  font-size: 132.25%;
 }
 html.text-xlarge {
-  font-size: 20px;
+  font-size: 149.5%;
 }
 
 /* Custom premium scrollbar */
@@ -225,15 +226,18 @@ html.a11y-contrast-mono {
   filter: grayscale(100%) !important;
 }
 
-/* Text Scaling */
-html.a11y-text-115 {
+/* Text Scaling (Scaled relative to new 115% base) */
+html.a11y-text-100 {
   font-size: 115% !important;
 }
+html.a11y-text-115 {
+  font-size: 132.25% !important;
+}
 html.a11y-text-130 {
-  font-size: 130% !important;
+  font-size: 149.5% !important;
 }
 html.a11y-text-150 {
-  font-size: 150% !important;
+  font-size: 172.5% !important;
 }
 
 /* Line Spacing */

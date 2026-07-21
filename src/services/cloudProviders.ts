@@ -82,14 +82,47 @@ export async function getOrCreateSharedLink(
 }
 
 /**
+ * Check if a Google Drive access token is valid
+ */
+export async function checkGoogleToken(accessToken: string): Promise<boolean> {
+  try {
+    const res = await fetch(`https://www.googleapis.com/oauth2/v3/tokeninfo?access_token=${accessToken}`);
+    return res.ok;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Check if a Microsoft OneDrive access token is valid
+ */
+export async function checkOneDriveToken(accessToken: string): Promise<boolean> {
+  try {
+    const res = await fetch('https://graph.microsoft.com/v1.0/me', {
+      headers: { Authorization: `Bearer ${accessToken}` },
+    });
+    return res.ok;
+  } catch {
+    return false;
+  }
+}
+
+/**
  * Check token validity depending on provider
  */
 export async function checkTokenValidity(
   provider: CloudProvider,
   accessToken: string
 ): Promise<boolean> {
+  if (!accessToken) return false;
   if (provider === 'dropbox') {
     return dbxCheckToken(accessToken);
+  }
+  if (provider === 'google') {
+    return checkGoogleToken(accessToken);
+  }
+  if (provider === 'onedrive') {
+    return checkOneDriveToken(accessToken);
   }
   return false;
 }

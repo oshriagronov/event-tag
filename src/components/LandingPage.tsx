@@ -81,7 +81,7 @@ export function LandingPage() {
             }}
             className="flex items-center gap-3 no-underline"
           >
-            <span className="font-display-lg text-2xl md:text-3xl text-on-background tracking-tight">
+            <span className="font-display-lg text-3xl md:text-4xl font-bold text-on-background tracking-tight">
               EventTag
             </span>
           </Link>

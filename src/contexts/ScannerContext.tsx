@@ -151,7 +151,7 @@ export function ScannerProvider({ children }: { children: ReactNode }) {
   const [activeScanningEventId, setActiveScanningEventId] = useState<string | null>(null);
   const [scanError, setScanError] = useState<'auth_expired' | 'network_error' | null>(null);
 
-  const { dropboxAccessToken } = useAuth();
+  const { dropboxAccessToken, markProviderExpired } = useAuth();
   const tokenRef = useRef(dropboxAccessToken);
 
   useEffect(() => {
@@ -356,6 +356,7 @@ export function ScannerProvider({ children }: { children: ReactNode }) {
         // If it's a 401 error, the token is either expired or lacks the sharing scopes.
         // We pause immediately and prompt the user to re-authenticate.
         if (errStr.includes('401')) {
+          markProviderExpired(provider);
           setScanError('auth_expired');
           setIsPaused(true);
           isPausedRef.current = true;
@@ -369,6 +370,7 @@ export function ScannerProvider({ children }: { children: ReactNode }) {
           const isValid = await checkTokenValidity(provider, accessToken);
           if (!isValid) {
             // Token is invalid/expired! Pause scanner, set scanError, clear cache
+            markProviderExpired(provider);
             setScanError('auth_expired');
             setIsPaused(true);
             isPausedRef.current = true;

@@ -120,7 +120,15 @@ interface EventViewProps {
 }
 
 export function EventView({ eventId, onBack }: EventViewProps) {
-  const { dropboxAccessToken, connectDropbox } = useAuth();
+  const {
+    dropboxAccessToken,
+    googleAccessToken,
+    onedriveAccessToken,
+    expiredProviders,
+    connectDropbox,
+    connectGoogle,
+    connectOneDrive,
+  } = useAuth();
   const { t, isRtl, language } = useTranslation();
   const [event, setEvent] = useState<CloudEvent | null>(null);
   const [photos, setPhotos] = useState<CloudPhoto[]>([]);
@@ -142,6 +150,15 @@ export function EventView({ eventId, onBack }: EventViewProps) {
   } = useScanner();
 
   const isThisEventScanning = activeScanningEventId === eventId;
+  const currentProvider = event?.provider || 'dropbox';
+  const currentProviderToken = currentProvider === 'google' ? googleAccessToken : currentProvider === 'onedrive' ? onedriveAccessToken : dropboxAccessToken;
+  const isCurrentProviderExpired = expiredProviders.includes(currentProvider);
+
+  const handleReconnectProvider = () => {
+    if (currentProvider === 'google') connectGoogle();
+    else if (currentProvider === 'onedrive') connectOneDrive();
+    else connectDropbox();
+  };
 
   const loadEventDetails = async () => {
     setLoading(true);
@@ -350,19 +367,23 @@ export function EventView({ eventId, onBack }: EventViewProps) {
           </div>
           <button
             onClick={handleStartScan}
-            disabled={!dropboxAccessToken}
+            disabled={!currentProviderToken}
             className="px-8 py-3.5 rounded bg-deep-forest hover:bg-primary text-background font-bold text-sm shadow transition-all cursor-pointer disabled:opacity-50 border-none"
           >
             {t('eventView.startAIScan')}
           </button>
-          {!dropboxAccessToken && (
+          {(!currentProviderToken || isCurrentProviderExpired) && (
             <div className="flex flex-col items-center gap-3">
-              <p className="text-red-400 text-xs m-0 font-bold">{language === 'he' ? 'יש להתחבר מחדש עם חשבון Dropbox כדי לאפשר גישה לתיקייה.' : 'Reconnect to Dropbox to allow folders authorization.'}</p>
+              <p className="text-red-400 text-xs m-0 font-bold">
+                {language === 'he'
+                  ? `יש להתחבר מחדש עם חשבון ${currentProvider === 'dropbox' ? 'Dropbox' : currentProvider === 'google' ? 'Google Drive' : 'OneDrive'} כדי לאפשר גישה לתיקייה.`
+                  : `Reconnect to ${currentProvider === 'dropbox' ? 'Dropbox' : currentProvider === 'google' ? 'Google Drive' : 'OneDrive'} to allow folders authorization.`}
+              </p>
               <button
-                onClick={connectDropbox}
-                className="px-5 py-2.5 rounded bg-copper-accent hover:bg-copper-accent/90 text-background font-bold text-xs shadow transition-all cursor-pointer"
+                onClick={handleReconnectProvider}
+                className="px-5 py-2.5 rounded bg-copper-accent hover:bg-copper-accent/90 text-background font-bold text-xs shadow transition-all cursor-pointer border-none"
               >
-                {language === 'he' ? 'התחבר לחשבון Dropbox' : 'Connect Dropbox Account'}
+                {language === 'he' ? `התחבר לחשבון ${currentProvider === 'dropbox' ? 'Dropbox' : currentProvider === 'google' ? 'Google Drive' : 'OneDrive'}` : `Connect ${currentProvider === 'dropbox' ? 'Dropbox' : currentProvider === 'google' ? 'Google Drive' : 'OneDrive'}`}
               </button>
             </div>
           )}
@@ -417,18 +438,22 @@ export function EventView({ eventId, onBack }: EventViewProps) {
               ? 'אנא השאר את הדפדפן פתוח במהלך הסריקה. המערכת מעבדת את התמונות מקומית במכשיר שלך ואינה מעלה אותן לשרת.' 
               : 'Please keep the browser open. Processing is entirely local on your device; images are not sent to any servers.'}
           </p>
-          {scanError === 'auth_expired' && (
+          {(scanError === 'auth_expired' || isCurrentProviderExpired) && (
             <div className="flex flex-col items-center gap-4 bg-red-500/10 border border-red-500/20 rounded-xl p-5 text-center mt-2">
               <AlertCircle className="w-7 h-7 text-red-400" />
               <div className="flex flex-col gap-1 text-center">
-                <h4 className="font-bold text-red-400 text-sm m-0">{language === 'he' ? 'חיבור ה-Dropbox פג תוקף' : 'Dropbox Authentication Expired'}</h4>
-                <p className="text-sage-muted text-xs m-0">{language === 'he' ? 'כדי להמשיך בסריקה, יש להתחבר מחדש לחשבון ה-Dropbox שלך.' : 'Please reconnect your Dropbox account to proceed with scanning.'}</p>
+                <h4 className="font-bold text-red-400 text-sm m-0">
+                  {language === 'he' ? `חיבור ה-${currentProvider === 'dropbox' ? 'Dropbox' : currentProvider === 'google' ? 'Google Drive' : 'OneDrive'} פג תוקף` : `${currentProvider === 'dropbox' ? 'Dropbox' : currentProvider === 'google' ? 'Google Drive' : 'OneDrive'} Authentication Expired`}
+                </h4>
+                <p className="text-sage-muted text-xs m-0">
+                  {language === 'he' ? `כדי להמשיך בסריקה, יש להתחבר מחדש לחשבון ה-${currentProvider === 'dropbox' ? 'Dropbox' : currentProvider === 'google' ? 'Google Drive' : 'OneDrive'} שלך.` : `Please reconnect your ${currentProvider === 'dropbox' ? 'Dropbox' : currentProvider === 'google' ? 'Google Drive' : 'OneDrive'} account to proceed with scanning.`}
+                </p>
               </div>
               <button
-                onClick={connectDropbox}
+                onClick={handleReconnectProvider}
                 className="px-5 py-2.5 rounded bg-copper-accent hover:bg-copper-accent/90 text-background font-bold text-xs shadow transition-all cursor-pointer border-none"
               >
-                {language === 'he' ? 'התחבר מחדש ל-Dropbox' : 'Reconnect Dropbox'}
+                {language === 'he' ? `התחבר מחדש ל-${currentProvider === 'dropbox' ? 'Dropbox' : currentProvider === 'google' ? 'Google Drive' : 'OneDrive'}` : `Reconnect ${currentProvider === 'dropbox' ? 'Dropbox' : currentProvider === 'google' ? 'Google Drive' : 'OneDrive'}`}
               </button>
             </div>
           )}
@@ -564,19 +589,19 @@ export function EventView({ eventId, onBack }: EventViewProps) {
             <h3 className="font-display-lg text-2xl text-on-background m-0">{language === 'he' ? 'גלריית תמונות' : 'Photo Gallery'}</h3>
             <div className="botanical-divider w-full" />
             
-            {!dropboxAccessToken ? (
+            {(!currentProviderToken || isCurrentProviderExpired) ? (
               <div className="text-center py-16 px-6 border border-dashed border-surface-border rounded-xl flex flex-col items-center gap-4 bg-surface-container/20">
                 <AlertCircle className="w-8 h-8 text-copper-accent" />
                 <p className="font-body-md text-sage-muted text-sm max-w-sm m-0 leading-relaxed text-center">
                   {language === 'he'
-                    ? 'פג תוקף החיבור לחשבון Dropbox. יש להתחבר מחדש כדי לצפות בתמונות שבתיקייה.'
-                    : 'Dropbox session expired. Re-authenticate to access contents.'}
+                    ? `פג תוקף החיבור לחשבון ${currentProvider === 'dropbox' ? 'Dropbox' : currentProvider === 'google' ? 'Google Drive' : 'OneDrive'}. יש להתחבר מחדש כדי לצפות בתמונות שבתיקייה.`
+                    : `${currentProvider === 'dropbox' ? 'Dropbox' : currentProvider === 'google' ? 'Google Drive' : 'OneDrive'} session expired. Re-authenticate to access contents.`}
                 </p>
                 <button
-                  onClick={connectDropbox}
+                  onClick={handleReconnectProvider}
                   className="px-6 py-2.5 rounded bg-copper-accent hover:bg-copper-accent/90 text-background font-bold text-sm shadow transition-all cursor-pointer border-none"
                 >
-                  {language === 'he' ? 'התחבר לחשבון Dropbox' : 'Connect Dropbox Account'}
+                  {language === 'he' ? `התחבר לחשבון ${currentProvider === 'dropbox' ? 'Dropbox' : currentProvider === 'google' ? 'Google Drive' : 'OneDrive'}` : `Connect ${currentProvider === 'dropbox' ? 'Dropbox' : currentProvider === 'google' ? 'Google Drive' : 'OneDrive'}`}
                 </button>
               </div>
             ) : photos.length === 0 ? (

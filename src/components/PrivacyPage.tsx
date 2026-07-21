@@ -19,7 +19,7 @@ export function PrivacyPage() {
         <div className="flex justify-between items-center px-6 md:px-12 h-20 max-w-7xl mx-auto w-full">
           {/* Brand */}
           <Link to="/" className="flex items-center gap-3 no-underline">
-            <span className="font-display-lg text-2xl md:text-3xl text-on-background tracking-tight">EventTag</span>
+            <span className="font-display-lg text-3xl md:text-4xl font-bold text-on-background tracking-tight">EventTag</span>
           </Link>
           
           {/* Navigation Links */}

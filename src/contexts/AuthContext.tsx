@@ -7,12 +7,15 @@ import {
 } from 'firebase/auth';
 import { auth, googleProvider } from '../firebase';
 
+import { checkTokenValidity, type CloudProvider } from '../services/cloudProviders';
+
 interface AuthContextType {
   user: User | null;
   loading: boolean;
   dropboxAccessToken: string | null;
   googleAccessToken: string | null;
   onedriveAccessToken: string | null;
+  expiredProviders: CloudProvider[];
   signIn: () => Promise<void>;
   signOut: () => Promise<void>;
   clearDropboxToken: () => void;
@@ -24,6 +27,9 @@ interface AuthContextType {
   disconnectGoogle: () => void;
   connectOneDrive: () => void;
   disconnectOneDrive: () => void;
+  checkCloudConnections: () => Promise<CloudProvider[]>;
+  markProviderExpired: (provider: CloudProvider) => void;
+  dismissExpiredProviderNotice: (provider: CloudProvider) => void;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -34,6 +40,64 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [dropboxAccessToken, setDropboxAccessToken] = useState<string | null>(null);
   const [googleAccessToken, setGoogleAccessToken] = useState<string | null>(null);
   const [onedriveAccessToken, setOneDriveAccessToken] = useState<string | null>(null);
+  const [expiredProviders, setExpiredProviders] = useState<CloudProvider[]>([]);
+
+  const markProviderExpired = (provider: CloudProvider) => {
+    if (provider === 'dropbox') {
+      setDropboxAccessToken(null);
+      localStorage.removeItem('dropbox_access_token');
+    } else if (provider === 'google') {
+      setGoogleAccessToken(null);
+      localStorage.removeItem('google_access_token');
+    } else if (provider === 'onedrive') {
+      setOneDriveAccessToken(null);
+      localStorage.removeItem('onedrive_access_token');
+    }
+    setExpiredProviders((prev) => (prev.includes(provider) ? prev : [...prev, provider]));
+  };
+
+  const dismissExpiredProviderNotice = (provider: CloudProvider) => {
+    setExpiredProviders((prev) => prev.filter((p) => p !== provider));
+  };
+
+  const checkCloudConnections = async (): Promise<CloudProvider[]> => {
+    const expired: CloudProvider[] = [];
+
+    const dbx = localStorage.getItem('dropbox_access_token') || dropboxAccessToken;
+    if (dbx) {
+      const isValid = await checkTokenValidity('dropbox', dbx);
+      if (!isValid) {
+        setDropboxAccessToken(null);
+        localStorage.removeItem('dropbox_access_token');
+        expired.push('dropbox');
+      }
+    }
+
+    const gdrive = localStorage.getItem('google_access_token') || googleAccessToken;
+    if (gdrive) {
+      const isValid = await checkTokenValidity('google', gdrive);
+      if (!isValid) {
+        setGoogleAccessToken(null);
+        localStorage.removeItem('google_access_token');
+        expired.push('google');
+      }
+    }
+
+    const onedrive = localStorage.getItem('onedrive_access_token') || onedriveAccessToken;
+    if (onedrive) {
+      const isValid = await checkTokenValidity('onedrive', onedrive);
+      if (!isValid) {
+        setOneDriveAccessToken(null);
+        localStorage.removeItem('onedrive_access_token');
+        expired.push('onedrive');
+      }
+    }
+
+    if (expired.length > 0) {
+      setExpiredProviders((prev) => Array.from(new Set([...prev, ...expired])));
+    }
+    return expired;
+  };
 
   useEffect(() => {
     // Restore tokens from localStorage so provider links persist across sessions and logouts until explicitly unlinked
@@ -64,12 +128,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         if (provider === 'google') {
           setGoogleAccessToken(token);
           localStorage.setItem('google_access_token', token);
+          setExpiredProviders((prev) => prev.filter((p) => p !== 'google'));
         } else if (provider === 'onedrive') {
           setOneDriveAccessToken(token);
           localStorage.setItem('onedrive_access_token', token);
+          setExpiredProviders((prev) => prev.filter((p) => p !== 'onedrive'));
         } else {
           setDropboxAccessToken(token);
           localStorage.setItem('dropbox_access_token', token);
+          setExpiredProviders((prev) => prev.filter((p) => p !== 'dropbox'));
         }
         
         // Clean up hash and search from URL
@@ -80,6 +147,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const unsubscribe = onAuthStateChanged(auth, (firebaseUser) => {
       setUser(firebaseUser);
       setLoading(false);
+      if (firebaseUser) {
+        checkCloudConnections();
+      }
     });
 
     return () => unsubscribe();
@@ -119,7 +189,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   const clearDropboxToken = () => {
-    disconnectDropbox();
+    markProviderExpired('dropbox');
   };
 
   const connectGoogle = () => {
@@ -141,7 +211,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   const clearGoogleToken = () => {
-    disconnectGoogle();
+    markProviderExpired('google');
   };
 
   const connectOneDrive = () => {
@@ -163,7 +233,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   const clearOneDriveToken = () => {
-    disconnectOneDrive();
+    markProviderExpired('onedrive');
   };
 
   return (
@@ -174,6 +244,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         dropboxAccessToken,
         googleAccessToken,
         onedriveAccessToken,
+        expiredProviders,
         signIn,
         signOut,
         clearDropboxToken,
@@ -185,10 +256,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         disconnectGoogle,
         connectOneDrive,
         disconnectOneDrive,
-      }}
-    >
-      {children}
-    </AuthContext.Provider>
+        checkCloudConnections,
+        markProviderExpired,
+        dismissExpiredProviderNotice,
+    }}
+  >
+    {children}
+  </AuthContext.Provider>
   );
 }
 

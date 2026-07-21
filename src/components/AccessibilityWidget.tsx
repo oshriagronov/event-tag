@@ -48,6 +48,7 @@ export function applyPrefsToElement(prefs: A11yPrefs, el: HTMLElement = document
   cl.toggle('a11y-contrast-high', prefs.contrast === 'high');
   cl.toggle('a11y-contrast-invert', prefs.contrast === 'invert');
   cl.toggle('a11y-contrast-mono', prefs.contrast === 'mono');
+  cl.toggle('a11y-text-100', prefs.textSize === 100);
   cl.toggle('a11y-text-115', prefs.textSize === 115);
   cl.toggle('a11y-text-130', prefs.textSize === 130);
   cl.toggle('a11y-text-150', prefs.textSize === 150);

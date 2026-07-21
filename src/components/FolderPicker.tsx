@@ -13,6 +13,7 @@ import {
 import { listFolders, countPhotosInFolder, type CloudProvider } from '../services/cloudProviders';
 import type { DropboxFolder as DriveFolder } from '../services/dropbox';
 import { useTranslation } from '../services/translations';
+import { useAuth } from '../contexts/AuthContext';
 
 interface FolderPickerProps {
   provider: CloudProvider;
@@ -28,9 +29,11 @@ interface BreadcrumbItem {
 
 export function FolderPicker({ provider, accessToken, onSelect, onCancel }: FolderPickerProps) {
   const { t, isRtl, language } = useTranslation();
+  const { connectDropbox, connectGoogle, connectOneDrive, markProviderExpired } = useAuth();
   const [folders, setFolders] = useState<DriveFolder[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [isExpired, setIsExpired] = useState(false);
   const [breadcrumbs, setBreadcrumbs] = useState<BreadcrumbItem[]>([
     { id: '', name: provider === 'dropbox' ? 'Dropbox' : provider === 'google' ? 'Google Drive' : 'OneDrive' },
   ]);
@@ -40,9 +43,16 @@ export function FolderPicker({ provider, accessToken, onSelect, onCancel }: Fold
 
   const currentFolderId = breadcrumbs[breadcrumbs.length - 1].id;
 
+  const handleReconnect = () => {
+    if (provider === 'dropbox') connectDropbox();
+    else if (provider === 'google') connectGoogle();
+    else if (provider === 'onedrive') connectOneDrive();
+  };
+
   const loadFolders = useCallback(async (parentId: string) => {
     setLoading(true);
     setError(null);
+    setIsExpired(false);
     setSelectedFolder(null);
     setPhotoCount(null);
 
@@ -52,15 +62,25 @@ export function FolderPicker({ provider, accessToken, onSelect, onCancel }: Fold
     } catch (err) {
       console.error('Error loading folders:', err);
       const providerName = provider === 'dropbox' ? 'Dropbox' : provider === 'google' ? 'Google Drive' : 'OneDrive';
-      setError(
-        err instanceof Error
-          ? err.message
-          : t('folderPicker.errorLoading', { provider: providerName })
-      );
+      const errStr = err instanceof Error ? err.message : String(err);
+      
+      if (errStr.includes('401') || errStr.includes('expired_access_token') || errStr.includes('invalid_token')) {
+        markProviderExpired(provider);
+        setIsExpired(true);
+        setError(language === 'he' 
+          ? `תוקף החיבור לחשבון ${providerName} פג. אנא התחבר מחדש.` 
+          : `Connection to ${providerName} has expired. Please log in again.`);
+      } else {
+        setError(
+          err instanceof Error
+            ? err.message
+            : t('folderPicker.errorLoading', { provider: providerName })
+        );
+      }
     } finally {
       setLoading(false);
     }
-  }, [accessToken, provider, t]);
+  }, [accessToken, provider, t, language, markProviderExpired]);
 
   useEffect(() => {
     loadFolders(currentFolderId);
@@ -183,19 +203,28 @@ export function FolderPicker({ provider, accessToken, onSelect, onCancel }: Fold
               </span>
             </div>
           ) : error ? (
-            <div className="flex flex-col items-center justify-center py-16 gap-3 text-center">
+            <div className="flex flex-col items-center justify-center py-16 gap-4 text-center">
               <div className="w-12 h-12 rounded-full bg-red-500/10 border border-red-500/20 flex items-center justify-center">
                 <AlertCircle className="w-6 h-6 text-red-500" />
               </div>
-              <p className="text-sm text-red-400 max-w-sm m-0">
+              <p className="text-sm text-red-400 max-w-sm m-0 leading-relaxed font-medium">
                 {error}
               </p>
-              <button
-                onClick={() => loadFolders(currentFolderId)}
-                className="text-sm text-copper-accent hover:underline cursor-pointer border-none bg-transparent p-0"
-              >
-                {t('folderPicker.tryAgain')}
-              </button>
+              {isExpired ? (
+                <button
+                  onClick={handleReconnect}
+                  className="px-5 py-2.5 rounded-lg bg-copper-accent hover:bg-copper-accent/90 text-background font-bold text-xs shadow transition-all cursor-pointer border-none"
+                >
+                  {language === 'he' ? 'התחבר מחדש לספק הענן' : 'Reconnect Cloud Provider'}
+                </button>
+              ) : (
+                <button
+                  onClick={() => loadFolders(currentFolderId)}
+                  className="text-sm text-copper-accent hover:underline cursor-pointer border-none bg-transparent p-0"
+                >
+                  {t('folderPicker.tryAgain')}
+                </button>
+              )}
             </div>
           ) : folders.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-16 gap-3 text-center">

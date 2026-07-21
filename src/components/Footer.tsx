@@ -24,7 +24,7 @@ export function Footer() {
       <div className="max-w-7xl mx-auto w-full">
         {/* Massive Brand Title */}
         <div className="mb-12">
-          <span className="font-display-lg text-6xl sm:text-7xl md:text-8xl lg:text-9xl font-black text-on-background tracking-tighter block select-none">
+          <span className="font-display-lg text-4xl sm:text-5xl md:text-6xl lg:text-7xl font-black text-on-background tracking-tighter block select-none">
             EventTag
           </span>
         </div>
