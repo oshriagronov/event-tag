@@ -293,6 +293,9 @@ export function ScannerProvider({ children }: { children: ReactNode }) {
     // Buffer to batch Firestore photo updates
     let photosBuffer: { id: string; updates: Partial<CloudPhoto> }[] = [];
 
+    // Track retries per photo ID to avoid pausing the loop on transient timeouts
+    const photoRetryMap = new Map<string, number>();
+
     // Cache preloaded blobs for downloads
     const preloadCache = new Map<string, Promise<Blob>>();
 
@@ -456,7 +459,10 @@ export function ScannerProvider({ children }: { children: ReactNode }) {
         } catch (err: unknown) {
           console.error(`Error scanning photo ${photo.fileName}:`, err);
           const errStr = err instanceof Error ? err.message : String(err);
-          
+          const photoId = photo.id || photo.driveFileId;
+          const currentRetries = (photoRetryMap.get(photoId) || 0) + 1;
+          photoRetryMap.set(photoId, currentRetries);
+
           if (errStr.includes('401')) {
             markProviderExpired(provider);
             pausedEventsRef.current.set(eventId, true);
@@ -475,26 +481,32 @@ export function ScannerProvider({ children }: { children: ReactNode }) {
               preloadCache.clear();
               idx--;
               continue;
-            } else {
-              if (errStr.includes('timed out') || errStr.includes('Failed to fetch') || errStr.includes('NetworkError') || errStr.includes('timeout') || errStr.includes('aborted')) {
-                pausedEventsRef.current.set(eventId, true);
-                updateEventState({ scanError: 'network_error', isPaused: true });
-                preloadCache.clear();
-                idx--;
-                continue;
-              } else {
-                await updateCloudPhoto(eventId, photo.id!, {
-                  processed: true,
-                });
-              }
             }
+
+            if (currentRetries <= 2) {
+              console.warn(`Retry attempt ${currentRetries}/2 for photo ${photo.fileName}...`);
+              preloadCache.delete(photo.driveFileId);
+              await new Promise((r) => setTimeout(r, 1500));
+              idx--;
+              continue;
+            }
+
+            console.warn(`Skipping photo ${photo.fileName} after ${currentRetries} failed attempts.`);
+            await updateCloudPhoto(eventId, photo.id!, {
+              processed: true,
+            });
+            preloadCache.delete(photo.driveFileId);
           } catch (innerErr) {
-            console.error('Fatal error in scanner loop recovery:', innerErr);
-            pausedEventsRef.current.set(eventId, true);
-            updateEventState({ scanError: 'network_error', isPaused: true });
-            preloadCache.clear();
-            idx--;
-            continue;
+            console.error('Error in scanner loop photo recovery:', innerErr);
+            if (currentRetries <= 2) {
+              preloadCache.delete(photo.driveFileId);
+              await new Promise((r) => setTimeout(r, 1500));
+              idx--;
+              continue;
+            }
+            await updateCloudPhoto(eventId, photo.id!, {
+              processed: true,
+            });
           }
         }
 

@@ -26,7 +26,6 @@ import {
 } from 'lucide-react';
 import JSZip from 'jszip';
 import { getCloudEvent, type CloudEvent } from '../services/firestore';
-import { convertToRawDropboxUrl } from '../services/dropbox';
 import { convertToRawUrl } from '../services/cloudProviders';
 import { matchSelfieToEvent, type MatchResult } from '../services/faceMatching';
 import { SelfieCapture } from './SelfieCapture';
@@ -153,6 +152,86 @@ export function GuestView({ eventId }: GuestViewProps) {
     setHiddenPhotoIds([]);
   }, []);
 
+  // Helper to load generic image URLs into Blobs (direct fetch or canvas fallback)
+  const fetchImageBlobFromUrl = (url: string, timeoutMs = 12000): Promise<Blob | null> => {
+    return new Promise((resolve) => {
+      let isResolved = false;
+      const safeResolve = (val: Blob | null) => {
+        if (!isResolved) {
+          isResolved = true;
+          resolve(val);
+        }
+      };
+
+      const controller = new AbortController();
+      const fetchTimer = setTimeout(() => controller.abort(), timeoutMs);
+
+      fetch(url, { signal: controller.signal })
+        .then(async (res) => {
+          clearTimeout(fetchTimer);
+          if (res.ok) {
+            const blob = await res.blob();
+            if (blob && blob.size > 200) {
+              safeResolve(blob);
+              return;
+            }
+          }
+          tryCanvasFallback();
+        })
+        .catch(() => {
+          clearTimeout(fetchTimer);
+          tryCanvasFallback();
+        });
+
+      function tryCanvasFallback() {
+        const img = new Image();
+        img.referrerPolicy = 'no-referrer';
+        img.crossOrigin = 'anonymous';
+        const imgTimer = setTimeout(() => safeResolve(null), timeoutMs);
+
+        img.onload = () => {
+          clearTimeout(imgTimer);
+          try {
+            const canvas = document.createElement('canvas');
+            canvas.width = img.naturalWidth || img.width || 1600;
+            canvas.height = img.naturalHeight || img.height || 1200;
+            const ctx = canvas.getContext('2d');
+            if (ctx) {
+              ctx.drawImage(img, 0, 0);
+              canvas.toBlob(
+                (blob) => {
+                  if (blob && blob.size > 200) {
+                    safeResolve(blob);
+                  } else {
+                    safeResolve(null);
+                  }
+                },
+                'image/jpeg',
+                0.95
+              );
+            } else {
+              safeResolve(null);
+            }
+          } catch {
+            safeResolve(null);
+          }
+        };
+
+        img.onerror = () => {
+          clearTimeout(imgTimer);
+          safeResolve(null);
+        };
+
+        img.src = url;
+      }
+    });
+  };
+
+  // Helper to load Google Drive images into Blobs via HTML5 Image + Canvas
+  const fetchGoogleDriveBlob = (fileId: string): Promise<Blob | null> => {
+    return fetchImageBlobFromUrl(`https://lh3.googleusercontent.com/d/${fileId}=s1600`);
+  };
+
   // ---- Download all as ZIP ----
   const handleDownloadAll = async () => {
     if (downloadableMatches.length === 0) return;
@@ -163,94 +242,47 @@ export function GuestView({ eventId }: GuestViewProps) {
     try {
       const zip = new JSZip();
       const total = downloadableMatches.length;
-
       let addedCount = 0;
+
       for (let i = 0; i < downloadableMatches.length; i++) {
         const match = downloadableMatches[i];
         let blob: Blob | null = null;
-        // Build array of URLs to attempt for any provider (Dropbox, Google Drive, OneDrive, etc.)
-        const urlsToTry: string[] = [];
 
-        if (match.publicUrl) {
-          const rawUrl = convertToRawUrl(event?.provider || 'dropbox', match.publicUrl);
-          urlsToTry.push(rawUrl);
-          urlsToTry.push(rawUrl.replace('raw=1', 'dl=1'));
-          urlsToTry.push(`https://corsproxy.io/?${encodeURIComponent(rawUrl)}`);
-          urlsToTry.push(`https://api.allorigins.win/raw?url=${encodeURIComponent(rawUrl)}`);
-        }
-        
-        if (match.driveFileId) {
-          const previewUrl = `https://lh3.googleusercontent.com/d/${match.driveFileId}=s1600`;
-          const exportUrl = `https://drive.google.com/uc?export=download&id=${match.driveFileId}`;
-          urlsToTry.push(previewUrl);
-          urlsToTry.push(exportUrl);
-          urlsToTry.push(`https://corsproxy.io/?${encodeURIComponent(previewUrl)}`);
-          urlsToTry.push(`https://corsproxy.io/?${encodeURIComponent(exportUrl)}`);
-          urlsToTry.push(`https://api.allorigins.win/raw?url=${encodeURIComponent(previewUrl)}`);
-        }
+        const provider = event?.provider || (match.publicUrl?.includes('dropbox') ? 'dropbox' : 'google');
 
-        // Try fetching blob from candidate URLs sequentially
-        for (const url of urlsToTry) {
-          try {
-            const response = await fetch(url);
-            if (response.ok) {
-              const fetchedBlob = await response.blob();
-              if (fetchedBlob && fetchedBlob.size > 100) {
-                blob = fetchedBlob;
-                break;
-              }
-            }
-          } catch {
-            // Continue to next candidate URL
+        if (provider === 'google') {
+          const fileId = match.driveFileId || (match.publicUrl ? match.publicUrl.match(/(?:id=|d\/)([^/&?]+)/)?.[1] : null);
+          if (fileId) {
+            blob = await fetchGoogleDriveBlob(fileId);
           }
         }
 
-        // Canvas fallback if direct & proxy fetches failed
-        if (!blob) {
-          try {
-            blob = await new Promise<Blob | null>((resolve) => {
-              const img = new Image();
-              img.crossOrigin = 'anonymous';
-              img.onload = () => {
-                try {
-                  const canvas = document.createElement('canvas');
-                  canvas.width = img.naturalWidth || img.width;
-                  canvas.height = img.naturalHeight || img.height;
-                  const ctx = canvas.getContext('2d');
-                  if (ctx) {
-                    ctx.drawImage(img, 0, 0);
-                    canvas.toBlob((b) => resolve(b), 'image/jpeg', 0.95);
-                  } else {
-                    resolve(null);
-                  }
-                } catch {
-                  resolve(null);
-                }
-              };
-              img.onerror = () => resolve(null);
-              const fallbackUrl = match.publicUrl
-                ? convertToRawUrl(event?.provider || 'dropbox', match.publicUrl)
-                : `https://lh3.googleusercontent.com/d/${match.driveFileId}=s1600`;
-              img.src = fallbackUrl;
-            });
-          } catch {
-            blob = null;
-          }
+        if (!blob && match.publicUrl) {
+          const rawUrl = convertToRawUrl(provider, match.publicUrl, 'full');
+          blob = await fetchImageBlobFromUrl(rawUrl);
         }
 
         if (blob && blob.size > 0) {
-          const extension = blob.type.includes('png') ? 'png' : 'jpg';
-          zip.file(`photo_${i + 1}.${extension}`, blob);
+          const ext = blob.type.includes('png') ? 'png' : 'jpg';
+          const fileName = match.fileName || `photo_${i + 1}.${ext}`;
+          zip.file(fileName.endsWith(`.${ext}`) ? fileName : `${fileName}.${ext}`, blob);
           addedCount++;
         } else {
-          console.warn(`Failed to retrieve blob for photo ${match.driveFileId}`);
+          console.warn(`Could not retrieve blob for photo ${match.driveFileId || match.fileName}`);
         }
 
         setDownloadProgress(Math.round(((i + 1) / total) * 100));
+
+        // Small 100ms pacing delay between photo fetches
+        await new Promise((r) => setTimeout(r, 100));
       }
 
       if (addedCount === 0) {
-        throw new Error(language === 'he' ? 'לא ניתן היה להוריד את התמונות כקובץ ZIP. נסה שוב מאוחר יותר.' : 'Could not fetch photos into ZIP package.');
+        throw new Error(
+          language === 'he'
+            ? 'לא ניתן היה לשלוף את התמונות כקובץ ZIP. וודא שהתיקייה או הקבצים מוגדרים כציבוריים לצפייה.'
+            : 'Could not fetch photos into ZIP package. Ensure the folder or photos are set to public viewing.'
+        );
       }
 
       const content = await zip.generateAsync({ type: 'blob' });
@@ -279,16 +311,15 @@ export function GuestView({ eventId }: GuestViewProps) {
   // ---- Download single photo ----
   const handleDownloadSingle = (driveFileId: string) => {
     const match = downloadableMatches.find((m) => m.driveFileId === driveFileId);
-    if (match?.publicUrl) {
-      const rawUrl = convertToRawUrl(event?.provider || 'dropbox', match.publicUrl);
+    const provider = event?.provider || (match?.publicUrl?.includes('dropbox') ? 'dropbox' : 'google');
+
+    if (provider === 'google') {
+      const id = match?.driveFileId || driveFileId;
+      window.open(`https://drive.google.com/uc?export=download&id=${id}`, '_blank', 'noopener,noreferrer');
+    } else if (match?.publicUrl) {
+      const rawUrl = convertToRawUrl(provider, match.publicUrl, 'full');
       const downloadUrl = rawUrl.includes('dropbox') ? rawUrl.replace('raw=1', 'dl=1') : rawUrl;
       window.open(downloadUrl, '_blank', 'noopener,noreferrer');
-    } else {
-      window.open(
-        `https://drive.google.com/uc?export=download&id=${driveFileId}`,
-        '_blank',
-        'noopener,noreferrer'
-      );
     }
   };
 
@@ -526,7 +557,7 @@ export function GuestView({ eventId }: GuestViewProps) {
               className="group relative aspect-square rounded overflow-hidden border border-surface-border cursor-pointer bg-surface-container-low shadow hover:shadow-2xl transition-all hover:scale-[1.01]"
             >
               <img
-                src={match.publicUrl ? convertToRawDropboxUrl(match.publicUrl) : `https://lh3.googleusercontent.com/d/${match.driveFileId}=s400`}
+                src={match.publicUrl ? convertToRawUrl(event?.provider || 'google', match.publicUrl, 'thumb') : `https://lh3.googleusercontent.com/d/${match.driveFileId}=s400`}
                 alt=""
                 className="w-full h-full object-cover group-hover:scale-102 transition-transform duration-300"
                 referrerPolicy="no-referrer"
@@ -583,7 +614,7 @@ export function GuestView({ eventId }: GuestViewProps) {
               </button>
 
               <img
-                src={selectedPhoto?.publicUrl ? convertToRawDropboxUrl(selectedPhoto.publicUrl) : `https://lh3.googleusercontent.com/d/${selectedPhotoId}=s1600`}
+                src={selectedPhoto?.publicUrl ? convertToRawUrl(event?.provider || 'google', selectedPhoto.publicUrl, 'full') : `https://lh3.googleusercontent.com/d/${selectedPhotoId}=s1600`}
                 alt=""
                 className="w-full max-h-[70vh] object-contain rounded border border-surface-border shadow-2xl"
                 referrerPolicy="no-referrer"

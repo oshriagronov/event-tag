@@ -1073,23 +1073,20 @@ export function Dashboard() {
                     )}
                   </div>
 
-                  {/* Google Drive - "Soon" */}
-                  <div className="flex items-center justify-between p-4 rounded-xl bg-surface-container-low/40 border border-surface-border/40 opacity-70">
+                  {/* Google Drive */}
+                  <div className="flex items-center justify-between p-4 rounded-xl bg-surface-container-low border border-surface-border">
                     <div className="flex items-center gap-3 text-start">
-                      <div className="w-10 h-10 rounded-lg bg-surface-container-high/50 flex items-center justify-center border border-surface-border/40 shrink-0">
+                      <div className="w-10 h-10 rounded-lg bg-surface-container-high flex items-center justify-center border border-surface-border shrink-0">
                         <svg viewBox="0 0 24 24" className="w-5 h-5 shrink-0" xmlns="http://www.w3.org/2000/svg">
-                          <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4" fillOpacity="0.8"/>
-                          <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853" fillOpacity="0.8"/>
-                          <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z" fill="#FBBC05" fillOpacity="0.8"/>
-                          <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z" fill="#EA4335" fillOpacity="0.8"/>
+                          <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4"/>
+                          <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853"/>
+                          <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z" fill="#FBBC05"/>
+                          <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z" fill="#EA4335"/>
                         </svg>
                       </div>
                       <div>
                         <div className="flex items-center gap-1.5">
                           <p className="font-bold text-sm text-on-background m-0">Google Drive</p>
-                          <span className="px-1.5 py-0.5 rounded text-[9px] font-bold bg-copper-accent/15 text-copper-accent border border-copper-accent/20 uppercase tracking-wide">
-                            {t('settings.soon')}
-                          </span>
                         </div>
                         <p className="text-xs text-sage-muted m-0">
                           {expiredProviders.includes('google') ? (
@@ -1102,12 +1099,28 @@ export function Dashboard() {
                         </p>
                       </div>
                     </div>
-                    <button
-                      disabled
-                      className="px-4 py-2 rounded bg-surface-container-high text-sage-muted text-xs font-bold border-none cursor-not-allowed"
-                    >
-                      {t('settings.connect')}
-                    </button>
+                    {expiredProviders.includes('google') ? (
+                      <button
+                        onClick={connectGoogle}
+                        className="px-4 py-2 rounded bg-copper-accent hover:bg-copper-accent/90 text-background text-xs font-bold transition-all cursor-pointer border-none"
+                      >
+                        {t('settings.reconnect')}
+                      </button>
+                    ) : googleAccessToken ? (
+                      <button
+                        onClick={() => handleDisconnectProvider('google')}
+                        className="px-4 py-2 rounded border border-red-500/30 bg-red-500/10 text-red-400 hover:bg-red-500/25 hover:border-red-500/50 text-xs font-bold transition-all cursor-pointer"
+                      >
+                        {t('settings.disconnect')}
+                      </button>
+                    ) : (
+                      <button
+                        onClick={connectGoogle}
+                        className="px-4 py-2 rounded bg-deep-forest hover:bg-primary text-background text-xs font-bold transition-all cursor-pointer border-none"
+                      >
+                        {t('settings.connect')}
+                      </button>
+                    )}
                   </div>
 
                   {/* OneDrive - "Soon" */}
@@ -1272,10 +1285,10 @@ export function Dashboard() {
           </div>
         </div>
       )}
-      {showFolderPicker && dropboxAccessToken && (
+      {showFolderPicker && (
         <FolderPicker
           provider={selectedProvider}
-          accessToken={dropboxAccessToken}
+          accessToken={selectedProvider === 'google' ? (googleAccessToken || '') : selectedProvider === 'onedrive' ? (onedriveAccessToken || '') : (dropboxAccessToken || '')}
           onSelect={(folderId, folderName) => {
             handleFolderSelected({ id: folderId, name: folderName });
             setShowFolderPicker(false);
@@ -1340,30 +1353,41 @@ export function Dashboard() {
                 )}
               </button>
 
-              {/* Google Drive Button - "Soon" */}
+              {/* Google Drive Button */}
               <button
-                disabled
-                className="flex items-center justify-between p-4 rounded-xl bg-surface-container-low/40 border border-surface-border/40 opacity-60 text-start w-full text-on-background cursor-not-allowed"
+                onClick={() => {
+                  setSelectedProvider('google');
+                  setShowProviderModal(false);
+                  if (!googleAccessToken) {
+                    connectGoogle();
+                  } else {
+                    setNewEventName('');
+                    setPendingPhotos([]);
+                    setPendingFolder(null);
+                    setShowFolderPicker(true);
+                  }
+                }}
+                className="flex items-center justify-between p-4 rounded-xl bg-surface-container-low border border-surface-border hover:border-copper-accent/40 hover:bg-surface-container transition-all cursor-pointer text-start w-full text-on-background"
               >
                 <div className="flex items-center gap-3">
-                  <div className="w-8 h-8 rounded bg-surface-container-high/50 flex items-center justify-center border border-surface-border/40 shrink-0">
+                  <div className="w-8 h-8 rounded bg-surface-container-high flex items-center justify-center border border-surface-border shrink-0">
                     <svg viewBox="0 0 24 24" className="w-4 h-4 shrink-0" xmlns="http://www.w3.org/2000/svg">
-                      <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4" fillOpacity="0.8"/>
-                      <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853" fillOpacity="0.8"/>
-                      <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z" fill="#FBBC05" fillOpacity="0.8"/>
-                      <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z" fill="#EA4335" fillOpacity="0.8"/>
+                      <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4"/>
+                      <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853"/>
+                      <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z" fill="#FBBC05"/>
+                      <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z" fill="#EA4335"/>
                     </svg>
                   </div>
                   <div>
-                    <div className="flex items-center gap-1.5">
-                      <span className="font-bold text-sm block">Google Drive</span>
-                      <span className="px-1 py-0.2 rounded text-[8px] font-bold bg-copper-accent/15 text-copper-accent border border-copper-accent/20 uppercase tracking-wide">
-                        {t('settings.soon')}
-                      </span>
-                    </div>
-                    <span className="text-[10px] text-sage-muted">{t('settings.notConnected')}</span>
+                    <span className="font-bold text-sm block">Google Drive</span>
+                    <span className="text-[10px] text-sage-muted">
+                      {googleAccessToken ? t('settings.connected') : t('settings.notConnected')}
+                    </span>
                   </div>
                 </div>
+                {googleAccessToken && (
+                  <span className="w-2 h-2 rounded-full bg-emerald-400" />
+                )}
               </button>
 
               {/* OneDrive Button - "Soon" */}

@@ -91,6 +91,7 @@ src/
     ├── faceAlignment.ts        # Facial landmark alignment (112x112 similarity transform)
     ├── faceMatching.ts         # Face vector distance & similarity matching
     ├── firestore.ts            # Firestore CRUD & batched descriptor writer
+    ├── google.ts               # Google Drive API REST v3 integration
     ├── onnxModel.ts            # ONNX Runtime Web (SFace WASM embedding extractor)
     └── translations.ts         # Hebrew/English localization strings
 ```

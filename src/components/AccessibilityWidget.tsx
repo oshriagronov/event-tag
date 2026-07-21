@@ -104,7 +104,7 @@ export function AccessibilityWidget() {
   // Initial load sync
   useEffect(() => {
     applyPrefsToElement(prefs);
-  }, []);
+  }, [prefs]);
 
   // Alt+A keyboard shortcut handler (layout-independent via e.code)
   useEffect(() => {

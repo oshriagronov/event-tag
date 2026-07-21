@@ -8,6 +8,16 @@ import {
   convertToRawDropboxUrl
 } from './dropbox';
 
+import {
+  listFolders as googleListFolders,
+  listPhotosInFolder as googleListPhotos,
+  getPhotoBlob as googleGetPhotoBlob,
+  getPhotoThumbnailBlob as googleGetThumbnail,
+  getOrCreateSharedLink as googleGetOrCreateSharedLink,
+  checkTokenValidity as googleCheckToken,
+  countPhotosInFolder as googleCountPhotos,
+} from './google';
+
 export type CloudProvider = 'dropbox' | 'google' | 'onedrive';
 
 /**
@@ -20,6 +30,9 @@ export async function listFolders(
 ) {
   if (provider === 'dropbox') {
     return dbxListFolders(accessToken, parentFolderId);
+  }
+  if (provider === 'google') {
+    return googleListFolders(accessToken, parentFolderId);
   }
   throw new Error(`Provider ${provider} not supported yet.`);
 }
@@ -35,6 +48,9 @@ export async function listPhotosInFolder(
   if (provider === 'dropbox') {
     return dbxListPhotos(accessToken, folderId);
   }
+  if (provider === 'google') {
+    return googleListPhotos(accessToken, folderId);
+  }
   throw new Error(`Provider ${provider} not supported yet.`);
 }
 
@@ -48,6 +64,9 @@ export async function getPhotoBlob(
 ): Promise<Blob> {
   if (provider === 'dropbox') {
     return dbxGetPhotoBlob(accessToken, fileId);
+  }
+  if (provider === 'google') {
+    return googleGetPhotoBlob(accessToken, fileId);
   }
   throw new Error(`Provider ${provider} not supported yet.`);
 }
@@ -64,6 +83,9 @@ export async function getPhotoThumbnailBlob(
   if (provider === 'dropbox') {
     return dbxGetThumbnail(accessToken, fileId, size);
   }
+  if (provider === 'google') {
+    return googleGetThumbnail(accessToken, fileId, size);
+  }
   throw new Error(`Provider ${provider} not supported yet.`);
 }
 
@@ -78,6 +100,9 @@ export async function getOrCreateSharedLink(
   if (provider === 'dropbox') {
     return dbxGetOrCreateLink(accessToken, fileId);
   }
+  if (provider === 'google') {
+    return googleGetOrCreateSharedLink(accessToken, fileId);
+  }
   throw new Error(`Provider ${provider} not supported yet.`);
 }
 
@@ -85,12 +110,7 @@ export async function getOrCreateSharedLink(
  * Check if a Google Drive access token is valid
  */
 export async function checkGoogleToken(accessToken: string): Promise<boolean> {
-  try {
-    const res = await fetch(`https://www.googleapis.com/oauth2/v3/tokeninfo?access_token=${accessToken}`);
-    return res.ok;
-  } catch {
-    return false;
-  }
+  return googleCheckToken(accessToken);
 }
 
 /**
@@ -130,7 +150,11 @@ export async function checkTokenValidity(
 /**
  * Convert raw URL depending on provider
  */
-export function convertToRawUrl(provider: CloudProvider, url: string): string {
+export function convertToRawUrl(
+  provider: CloudProvider,
+  url: string,
+  targetSize: 'thumb' | 'full' = 'thumb'
+): string {
   if (provider === 'dropbox') {
     return convertToRawDropboxUrl(url);
   }
@@ -138,12 +162,10 @@ export function convertToRawUrl(provider: CloudProvider, url: string): string {
     return url.replace('embed?', 'download?');
   }
   if (provider === 'google') {
-    // If given a view URL, convert to download/raw parameter format
-    if (url.includes('drive.google.com/file/d/')) {
-      const match = url.match(/\/d\/([^/]+)/);
-      if (match?.[1]) {
-        return `https://drive.google.com/uc?export=download&id=${match[1]}`;
-      }
+    const sizeParam = targetSize === 'thumb' ? '=s400' : '=s1600';
+    const match = url.match(/(?:id=|file\/d\/|usercontent\.com\/d\/)([^/&?]+)/);
+    if (match?.[1]) {
+      return `https://lh3.googleusercontent.com/d/${match[1]}${sizeParam}`;
     }
   }
   return url;
@@ -166,6 +188,10 @@ export async function countPhotosInFolder(
       return 0;
     }
   }
+  if (provider === 'google') {
+    return googleCountPhotos(accessToken, folderId);
+  }
   return 0;
 }
+
 

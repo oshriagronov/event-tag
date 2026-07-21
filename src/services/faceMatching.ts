@@ -12,6 +12,7 @@ export interface MatchResult {
   distance: number;
   box: { x: number; y: number; width: number; height: number };
   publicUrl?: string;
+  fileName?: string;
 }
 
 /**
@@ -45,12 +46,12 @@ export async function matchSelfieToEvent(
 
   if (allFaces.length === 0) return [];
 
-  // Fetch all photos to map photoId to publicUrl
+  // Fetch all photos to map photoId to publicUrl & fileName
   const photos = await getCloudPhotos(eventId);
-  const photoMap = new Map<string, string>();
+  const photoMap = new Map<string, { publicUrl?: string; fileName?: string }>();
   for (const photo of photos) {
-    if (photo.id && photo.publicUrl) {
-      photoMap.set(photo.id, photo.publicUrl);
+    if (photo.id) {
+      photoMap.set(photo.id, { publicUrl: photo.publicUrl, fileName: photo.fileName });
     }
   }
 
@@ -59,12 +60,14 @@ export async function matchSelfieToEvent(
   for (const face of allFaces) {
     const dist = euclideanDistance(selfieDescriptor, face.embedding);
     if (dist < threshold) {
+      const info = photoMap.get(face.photoId);
       matches.push({
         driveFileId: face.driveFileId,
         photoId: face.photoId,
         distance: dist,
         box: face.box,
-        publicUrl: photoMap.get(face.photoId),
+        publicUrl: info?.publicUrl,
+        fileName: info?.fileName,
       });
     }
   }

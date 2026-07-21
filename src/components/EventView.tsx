@@ -26,13 +26,15 @@ interface CloudPhotoImageProps {
   className?: string;
   alt?: string;
   publicUrl?: string;
+  size?: 'thumb' | 'full';
 }
 
-function CloudPhotoImage({ provider = 'dropbox', driveFileId, accessToken, className = '', alt = '', publicUrl }: CloudPhotoImageProps) {
+function CloudPhotoImage({ provider = 'dropbox', driveFileId, accessToken, className = '', alt = '', publicUrl, size = 'thumb' }: CloudPhotoImageProps) {
   const [src, setSrc] = useState<string>('');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
-  const { clearDropboxToken } = useAuth();
+  const [fallbackToBlob, setFallbackToBlob] = useState(false);
+  const { clearDropboxToken, clearGoogleToken, clearOneDriveToken } = useAuth();
 
   useEffect(() => {
     let active = true;
@@ -40,9 +42,9 @@ function CloudPhotoImage({ provider = 'dropbox', driveFileId, accessToken, class
 
     async function load() {
       // Use direct publicUrl if available to bypass API calls and avoid CORS issues
-      if (publicUrl) {
+      if (publicUrl && !fallbackToBlob) {
         if (active) {
-          setSrc(convertToRawUrl(provider, publicUrl));
+          setSrc(convertToRawUrl(provider, publicUrl, size));
           setLoading(false);
           setError(false);
         }
@@ -72,6 +74,10 @@ function CloudPhotoImage({ provider = 'dropbox', driveFileId, accessToken, class
             if (!isValid) {
               if (provider === 'dropbox') {
                 clearDropboxToken();
+              } else if (provider === 'google') {
+                clearGoogleToken();
+              } else if (provider === 'onedrive') {
+                clearOneDriveToken();
               }
             }
           }).catch(() => {});
@@ -91,7 +97,7 @@ function CloudPhotoImage({ provider = 'dropbox', driveFileId, accessToken, class
         URL.revokeObjectURL(url);
       }
     };
-  }, [driveFileId, accessToken, provider, publicUrl, clearDropboxToken]);
+  }, [driveFileId, accessToken, provider, publicUrl, fallbackToBlob, size, clearDropboxToken, clearGoogleToken, clearOneDriveToken]);
 
   if (error) {
     return (
@@ -111,6 +117,13 @@ function CloudPhotoImage({ provider = 'dropbox', driveFileId, accessToken, class
       className={className}
       alt={alt}
       loading="lazy"
+      onError={() => {
+        if (publicUrl && !fallbackToBlob) {
+          setFallbackToBlob(true);
+        } else {
+          setError(true);
+        }
+      }}
     />
   );
 }

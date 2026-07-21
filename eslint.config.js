@@ -21,7 +21,26 @@ export default defineConfig([
     rules: {
       'react-refresh/only-export-components': [
         'warn',
-        { allowConstantExport: true },
+        {
+          allowConstantExport: true,
+          allowExportNames: [
+            'useAuth',
+            'useConsent',
+            'useModal',
+            'useScanner',
+            'useSettings',
+            'useAccessibility',
+            'applyPrefsToElement',
+            'getInitialPrefs',
+            'savePrefs',
+            'hasConsent',
+            'resetConsent',
+            'DEFAULT_A11Y_PREFS',
+            'loadStoredPrefs',
+            'ALL_CATEGORIES_OFF',
+            'ALL_CATEGORIES_ON',
+          ],
+        },
       ],
       'react-hooks/set-state-in-effect': 'off',
     },
