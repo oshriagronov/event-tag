@@ -255,5 +255,5 @@ export async function getOrCreateSharedLink(
   _accessToken: string,
   fileId: string
 ): Promise<string> {
-  return `https://lh3.googleusercontent.com/d/${fileId}`;
+  return `https://drive.google.com/thumbnail?id=${fileId}&sz=w400`;
 }

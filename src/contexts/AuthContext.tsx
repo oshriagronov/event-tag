@@ -9,6 +9,25 @@ import { auth, googleProvider } from '../firebase';
 
 import { checkTokenValidity, type CloudProvider } from '../services/cloudProviders';
 
+declare global {
+  interface Window {
+    google?: {
+      accounts?: {
+        oauth2?: {
+          initTokenClient: (config: {
+            client_id: string;
+            scope: string;
+            callback: (response: { access_token?: string; expires_in?: number; error?: string }) => void;
+            error_callback?: (err: unknown) => void;
+          }) => {
+            requestAccessToken: (overrideConfig?: { prompt?: string }) => void;
+          };
+        };
+      };
+    };
+  }
+}
+
 interface AuthContextType {
   user: User | null;
   loading: boolean;
@@ -28,6 +47,7 @@ interface AuthContextType {
   connectOneDrive: () => void;
   disconnectOneDrive: () => void;
   checkCloudConnections: () => Promise<CloudProvider[]>;
+  refreshGoogleTokenSilently: () => Promise<string | null>;
   markProviderExpired: (provider: CloudProvider) => void;
   dismissExpiredProviderNotice: (provider: CloudProvider) => void;
 }
@@ -42,6 +62,7 @@ function getInitialToken(provider: CloudProvider): string | null {
     const hashParams = hash ? new URLSearchParams(hash.substring(1)) : new URLSearchParams();
     const queryParams = new URLSearchParams(search);
     const token = hashParams.get('access_token') || queryParams.get('access_token');
+    const expiresIn = hashParams.get('expires_in') || queryParams.get('expires_in');
     const state = hashParams.get('state') || queryParams.get('state') || '';
     let p = hashParams.get('provider') || queryParams.get('provider');
     if (!p && state.includes('provider=google')) p = 'google';
@@ -50,6 +71,10 @@ function getInitialToken(provider: CloudProvider): string | null {
 
     if (token && p === provider) {
       localStorage.setItem(`${provider}_access_token`, token);
+      if (expiresIn) {
+        const expiresAt = Date.now() + parseInt(expiresIn, 10) * 1000;
+        localStorage.setItem(`${provider}_token_expires_at`, expiresAt.toString());
+      }
       window.history.replaceState(null, '', window.location.pathname);
       return token;
     }
@@ -69,12 +94,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     if (provider === 'dropbox') {
       setDropboxAccessToken(null);
       localStorage.removeItem('dropbox_access_token');
+      localStorage.removeItem('dropbox_token_expires_at');
     } else if (provider === 'google') {
       setGoogleAccessToken(null);
       localStorage.removeItem('google_access_token');
+      localStorage.removeItem('google_token_expires_at');
     } else if (provider === 'onedrive') {
       setOneDriveAccessToken(null);
       localStorage.removeItem('onedrive_access_token');
+      localStorage.removeItem('onedrive_token_expires_at');
     }
     setExpiredProviders((prev) => Array.from(new Set([...prev, provider])));
   };
@@ -82,6 +110,47 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const dismissExpiredProviderNotice = (provider: CloudProvider) => {
     setExpiredProviders((prev) => prev.filter((p) => p !== provider));
   };
+
+  /**
+   * Attempt to renew Google access token silently via Google Identity Services (GIS)
+   */
+  const refreshGoogleTokenSilently = useCallback((): Promise<string | null> => {
+    return new Promise((resolve) => {
+      const clientId = import.meta.env.VITE_GOOGLE_CLIENT_ID;
+      if (!clientId || typeof window === 'undefined' || !window.google?.accounts?.oauth2) {
+        resolve(null);
+        return;
+      }
+
+      try {
+        const tokenClient = window.google.accounts.oauth2.initTokenClient({
+          client_id: clientId,
+          scope: 'https://www.googleapis.com/auth/drive.readonly',
+          callback: (response: { access_token?: string; expires_in?: number; error?: string }) => {
+            if (response.access_token) {
+              const token = response.access_token;
+              const expiresIn = response.expires_in || 3600;
+              const expiresAt = Date.now() + expiresIn * 1000;
+              setGoogleAccessToken(token);
+              localStorage.setItem('google_access_token', token);
+              localStorage.setItem('google_token_expires_at', expiresAt.toString());
+              setExpiredProviders((prev) => prev.filter((p) => p !== 'google'));
+              resolve(token);
+            } else {
+              resolve(null);
+            }
+          },
+          error_callback: () => resolve(null),
+        });
+
+        // Request access token silently without showing prompt if user granted permissions before
+        tokenClient.requestAccessToken({ prompt: '' });
+      } catch (err) {
+        console.warn('Silent Google token refresh failed:', err);
+        resolve(null);
+      }
+    });
+  }, []);
 
   const checkCloudConnections = useCallback(async (): Promise<CloudProvider[]> => {
     const expired: CloudProvider[] = [];
@@ -92,17 +161,30 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (!isValid) {
         setDropboxAccessToken(null);
         localStorage.removeItem('dropbox_access_token');
+        localStorage.removeItem('dropbox_token_expires_at');
         expired.push('dropbox');
       }
     }
 
     const gdrive = localStorage.getItem('google_access_token') || googleAccessToken;
     if (gdrive) {
-      const isValid = await checkTokenValidity('google', gdrive);
+      const expiresAt = localStorage.getItem('google_token_expires_at');
+      const isExpiredByTime = expiresAt ? Date.now() > (parseInt(expiresAt, 10) - 60000) : false;
+
+      let isValid = false;
+      if (!isExpiredByTime) {
+        isValid = await checkTokenValidity('google', gdrive);
+      }
+
       if (!isValid) {
-        setGoogleAccessToken(null);
-        localStorage.removeItem('google_access_token');
-        expired.push('google');
+        // Attempt silent token refresh before declaring token expired!
+        const refreshedToken = await refreshGoogleTokenSilently();
+        if (!refreshedToken) {
+          setGoogleAccessToken(null);
+          localStorage.removeItem('google_access_token');
+          localStorage.removeItem('google_token_expires_at');
+          expired.push('google');
+        }
       }
     }
 
@@ -112,6 +194,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (!isValid) {
         setOneDriveAccessToken(null);
         localStorage.removeItem('onedrive_access_token');
+        localStorage.removeItem('onedrive_token_expires_at');
         expired.push('onedrive');
       }
     }
@@ -120,7 +203,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setExpiredProviders((prev) => Array.from(new Set([...prev, ...expired])));
     }
     return expired;
-  }, [dropboxAccessToken, googleAccessToken, onedriveAccessToken]);
+  }, [dropboxAccessToken, googleAccessToken, onedriveAccessToken, refreshGoogleTokenSilently]);
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (firebaseUser) => {
@@ -147,7 +230,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const signOut = async () => {
     await firebaseSignOut(auth);
-    // Cloud provider connections remain saved in localStorage until explicitly unlinked by the user.
   };
 
   const connectDropbox = () => {
@@ -165,6 +247,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const disconnectDropbox = () => {
     setDropboxAccessToken(null);
     localStorage.removeItem('dropbox_access_token');
+    localStorage.removeItem('dropbox_token_expires_at');
   };
 
   const clearDropboxToken = () => {
@@ -178,6 +261,32 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       alert('שגיאה: מזהה לקוח Google Drive חסר בקובץ ההגדרות (.env)');
       return;
     }
+
+    // Try Google Identity Services GIS popup client first
+    if (typeof window !== 'undefined' && window.google?.accounts?.oauth2) {
+      try {
+        const tokenClient = window.google.accounts.oauth2.initTokenClient({
+          client_id: clientId,
+          scope: 'https://www.googleapis.com/auth/drive.readonly',
+          callback: (response: { access_token?: string; expires_in?: number }) => {
+            if (response.access_token) {
+              const token = response.access_token;
+              const expiresIn = response.expires_in || 3600;
+              const expiresAt = Date.now() + expiresIn * 1000;
+              setGoogleAccessToken(token);
+              localStorage.setItem('google_access_token', token);
+              localStorage.setItem('google_token_expires_at', expiresAt.toString());
+              dismissExpiredProviderNotice('google');
+            }
+          },
+        });
+        tokenClient.requestAccessToken();
+        return;
+      } catch (err) {
+        console.warn('GIS Token client failed, falling back to redirect:', err);
+      }
+    }
+
     const redirectUri = encodeURIComponent(window.location.origin + '/dashboard');
     const scope = encodeURIComponent('https://www.googleapis.com/auth/drive.readonly');
     const authUrl = `https://accounts.google.com/o/oauth2/v2/auth?client_id=${clientId}&redirect_uri=${redirectUri}&response_type=token&scope=${scope}&state=provider%3Dgoogle`;
@@ -187,6 +296,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const disconnectGoogle = () => {
     setGoogleAccessToken(null);
     localStorage.removeItem('google_access_token');
+    localStorage.removeItem('google_token_expires_at');
   };
 
   const clearGoogleToken = () => {
@@ -209,6 +319,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const disconnectOneDrive = () => {
     setOneDriveAccessToken(null);
     localStorage.removeItem('onedrive_access_token');
+    localStorage.removeItem('onedrive_token_expires_at');
   };
 
   const clearOneDriveToken = () => {
@@ -236,12 +347,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         connectOneDrive,
         disconnectOneDrive,
         checkCloudConnections,
+        refreshGoogleTokenSilently,
         markProviderExpired,
         dismissExpiredProviderNotice,
-    }}
-  >
-    {children}
-  </AuthContext.Provider>
+      }}
+    >
+      {children}
+    </AuthContext.Provider>
   );
 }
 

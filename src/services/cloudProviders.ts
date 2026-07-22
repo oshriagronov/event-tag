@@ -155,6 +155,7 @@ export function convertToRawUrl(
   url: string,
   targetSize: 'thumb' | 'full' = 'thumb'
 ): string {
+  if (!url) return '';
   if (provider === 'dropbox') {
     return convertToRawDropboxUrl(url);
   }
@@ -162,11 +163,12 @@ export function convertToRawUrl(
     return url.replace('embed?', 'download?');
   }
   if (provider === 'google') {
-    const sizeParam = targetSize === 'thumb' ? '=s400' : '=s1600';
+    const sizeParam = targetSize === 'thumb' ? '&sz=w400' : '&sz=w1600';
     const match = url.match(/(?:id=|file\/d\/|usercontent\.com\/d\/)([^/&?]+)/);
-    if (match?.[1]) {
-      return `https://lh3.googleusercontent.com/d/${match[1]}${sizeParam}`;
-    }
+    const fileId = match?.[1] || url;
+    // Strip trailing =s400/=s1600 if passed raw
+    const cleanId = fileId.replace(/=s\d+$/, '');
+    return `https://drive.google.com/thumbnail?id=${cleanId}${sizeParam}`;
   }
   return url;
 }

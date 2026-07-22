@@ -43,6 +43,65 @@ type ViewState =
   | 'no-matches'
   | 'error';
 
+interface GuestPhotoImageProps {
+  provider?: string;
+  driveFileId: string;
+  publicUrl?: string;
+  alt?: string;
+  className?: string;
+  size?: 'thumb' | 'full';
+  onError?: () => void;
+}
+
+function GuestPhotoImage({
+  provider = 'google',
+  driveFileId,
+  publicUrl,
+  alt = '',
+  className = '',
+  size = 'thumb',
+  onError,
+}: GuestPhotoImageProps) {
+  const cleanId = (driveFileId || (publicUrl ? publicUrl.match(/(?:id=|d\/)([^/&?]+)/)?.[1] : '') || '').replace(/=s\d+$/, '');
+  const primaryUrl = publicUrl
+    ? convertToRawUrl((provider as any) || 'google', publicUrl, size)
+    : convertToRawUrl((provider as any) || 'google', cleanId, size);
+
+  const [src, setSrc] = useState(primaryUrl);
+  const [stage, setStage] = useState(0);
+
+  useEffect(() => {
+    setSrc(primaryUrl);
+    setStage(0);
+  }, [primaryUrl]);
+
+  const handleError = () => {
+    if (provider === 'google' && cleanId) {
+      if (stage === 0) {
+        setStage(1);
+        setSrc(`https://drive.google.com/uc?export=view&id=${cleanId}`);
+        return;
+      }
+      if (stage === 1) {
+        setStage(2);
+        setSrc(`https://lh3.googleusercontent.com/d/${cleanId}`);
+        return;
+      }
+    }
+    if (onError) onError();
+  };
+
+  return (
+    <img
+      src={src}
+      alt={alt}
+      className={className}
+      referrerPolicy="no-referrer"
+      onError={handleError}
+    />
+  );
+}
+
 export function GuestView({ eventId }: GuestViewProps) {
   const { t, isRtl, language } = useTranslation();
   const { alert } = useModal();
@@ -227,9 +286,17 @@ export function GuestView({ eventId }: GuestViewProps) {
     });
   };
 
-  // Helper to load Google Drive images into Blobs via HTML5 Image + Canvas
-  const fetchGoogleDriveBlob = (fileId: string): Promise<Blob | null> => {
-    return fetchImageBlobFromUrl(`https://lh3.googleusercontent.com/d/${fileId}=s1600`);
+  // Helper to load Google Drive images into Blobs with multi-endpoint fallback
+  const fetchGoogleDriveBlob = async (fileId: string): Promise<Blob | null> => {
+    const cleanId = fileId.replace(/=s\d+$/, '');
+    let blob = await fetchImageBlobFromUrl(`https://drive.google.com/thumbnail?id=${cleanId}&sz=w1600`);
+    if (!blob) {
+      blob = await fetchImageBlobFromUrl(`https://drive.google.com/uc?export=view&id=${cleanId}`);
+    }
+    if (!blob) {
+      blob = await fetchImageBlobFromUrl(`https://lh3.googleusercontent.com/d/${cleanId}`);
+    }
+    return blob;
   };
 
   // ---- Download all as ZIP ----
@@ -556,11 +623,12 @@ export function GuestView({ eventId }: GuestViewProps) {
               onClick={() => setSelectedPhotoId(match.driveFileId)}
               className="group relative aspect-square rounded overflow-hidden border border-surface-border cursor-pointer bg-surface-container-low shadow hover:shadow-2xl transition-all hover:scale-[1.01]"
             >
-              <img
-                src={match.publicUrl ? convertToRawUrl(event?.provider || 'google', match.publicUrl, 'thumb') : `https://lh3.googleusercontent.com/d/${match.driveFileId}=s400`}
-                alt=""
+              <GuestPhotoImage
+                provider={event?.provider || 'google'}
+                driveFileId={match.driveFileId}
+                publicUrl={match.publicUrl}
+                size="thumb"
                 className="w-full h-full object-cover group-hover:scale-102 transition-transform duration-300"
-                referrerPolicy="no-referrer"
                 onError={() => {
                   setFailedPhotoIds((prev) => ({ ...prev, [match.driveFileId]: true }));
                   setHasLoadError(true);
@@ -613,11 +681,12 @@ export function GuestView({ eventId }: GuestViewProps) {
                 <X className="w-5 h-5 shrink-0" />
               </button>
 
-              <img
-                src={selectedPhoto?.publicUrl ? convertToRawUrl(event?.provider || 'google', selectedPhoto.publicUrl, 'full') : `https://lh3.googleusercontent.com/d/${selectedPhotoId}=s1600`}
-                alt=""
+              <GuestPhotoImage
+                provider={event?.provider || 'google'}
+                driveFileId={selectedPhotoId}
+                publicUrl={selectedPhoto?.publicUrl}
+                size="full"
                 className="w-full max-h-[70vh] object-contain rounded border border-surface-border shadow-2xl"
-                referrerPolicy="no-referrer"
               />
 
               <div className="flex justify-between items-center gap-4 bg-surface-container/85 backdrop-blur-md border border-surface-border p-4 rounded-lg">
