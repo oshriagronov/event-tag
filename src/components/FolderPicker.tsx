@@ -205,16 +205,14 @@ export function FolderPicker({ provider, accessToken, onSelect, onCancel }: Fold
           ))}
         </div>
 
-        {/* Provider specific notice */}
-        {provider === 'google' && (
-          <div className="px-6 py-2 bg-amber-500/10 border-b border-amber-500/20 text-start">
-            <p className="text-[11px] text-amber-300/90 m-0 font-medium leading-relaxed">
-              {language === 'he' 
-                ? '💡 טיפ: יש לוודא שהגישה לתיקייה ב-Google Drive מוגדרת כציבורית ("כל מי שקיבל את הקישור יכול לצפות") כדי שאורחים באירוע יוכלו לצפות בתמונות.' 
-                : '💡 Tip: Ensure your Google Drive folder link sharing is set to "Anyone with the link can view" so guests can view their photos.'}
-            </p>
-          </div>
-        )}
+        {/* Cloud provider sharing notice */}
+        <div className="px-6 py-2 bg-amber-500/10 border-b border-amber-500/20 text-start">
+          <p className="text-[11px] text-amber-300/90 m-0 font-medium leading-relaxed">
+            {t('folderPicker.tip', {
+              provider: provider === 'dropbox' ? 'Dropbox' : provider === 'google' ? 'Google Drive' : 'OneDrive',
+            })}
+          </p>
+        </div>
 
         {/* Content */}
         <div className="flex-1 overflow-y-auto p-4 min-h-[300px]">
@@ -257,11 +255,6 @@ export function FolderPicker({ provider, accessToken, onSelect, onCancel }: Fold
               <p className="text-sm text-sage-muted font-medium m-0">
                 {t('folderPicker.noSubfolders')}
               </p>
-              {breadcrumbs.length > 1 && (
-                <p className="text-xs text-sage-muted/70 m-0">
-                  {t('folderPicker.selectCurrentFolderDesc')}
-                </p>
-              )}
             </div>
           ) : (
             <div className="grid grid-cols-1 gap-2">
@@ -356,19 +349,6 @@ export function FolderPicker({ provider, accessToken, onSelect, onCancel }: Fold
             >
               {t('folderPicker.cancel')}
             </button>
-
-            {/* Select current folder (when inside a subfolder) */}
-            {breadcrumbs.length > 1 && !selectedFolder && (
-              <button
-                onClick={() => {
-                  const current = breadcrumbs[breadcrumbs.length - 1];
-                  onSelect(current.id, current.name);
-                }}
-                className="px-4 py-2 rounded-lg text-sm bg-surface-container-high border border-surface-border text-on-background hover:bg-surface-container transition-colors cursor-pointer font-medium"
-              >
-                {t('folderPicker.selectCurrentFolderBtn')}
-              </button>
-            )}
 
             <button
               onClick={handleConfirmSelection}
