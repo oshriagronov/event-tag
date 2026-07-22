@@ -64,7 +64,7 @@ export function FolderPicker({ provider, accessToken, onSelect, onCancel }: Fold
       const providerName = provider === 'dropbox' ? 'Dropbox' : provider === 'google' ? 'Google Drive' : 'OneDrive';
       const errStr = err instanceof Error ? err.message : String(err);
       
-      if (errStr.includes('401') || errStr.includes('expired_access_token') || errStr.includes('invalid_token')) {
+      if (errStr.includes('401') || errStr.includes('403') || errStr.includes('expired_access_token') || errStr.includes('invalid_token') || errStr.includes('unregistered callers') || errStr.includes('PERMISSION_DENIED')) {
         if (provider === 'google') {
           const refreshed = await refreshGoogleTokenSilently();
           if (refreshed) {

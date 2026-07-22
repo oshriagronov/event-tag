@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="public/logo.png" alt="EventTag Logo" width="350" style="border-radius: 16px;"/>
+  <img src="public/logo.png" alt="EventTag Logo" width="300" style="border-radius: 16px;"/>
 </p>
 
 <p align="center">
@@ -45,15 +45,7 @@ EventTag (GuestID) is a smart event photo sharing and retrieval platform designe
 - **Multi-Cloud Storage Connection** — Connect photo libraries directly from **Google Drive** (via native Google Picker API) or **Dropbox** (via Dropbox Chooser / API).
 - **Automatic Face Clustering** — On-device AI groups recognized faces automatically into distinct guest profiles.
 - **Live Scanning Queue & Parallel Ingestion** — Scan multiple events concurrently with independent pause/stop controls per event, real-time ETA display, and performance warning alerts.
-- **Profile Merging & Naming** — Assign names to face clusters, merge duplicate clusters, and hide unwanted faces.
-- **Full Gallery Lightbox** — Browse all event photos with face bounding boxes and cluster tags.
 - **Multi-Event Management** — Isolated dashboard for creating, sharing, and deleting multiple events.
-
-### 🔒 Israeli Legal, Privacy & Accessibility Compliance
-- **Israeli Privacy Protection Law (Amendment 13)** — Integrated `ConsentContext`, customizable `CookieBanner`, `PreferencesModal` for granular user privacy controls, and zero binary media retention.
-- **IS 5568 / WCAG 2.0 AA Accessibility** — Full right-to-left Hebrew layout (`dir="rtl"`), `AccessibilityWidget` (contrast controls, font scaling, animation pause, link underlines), `SkipLink` keyboard navigation, and screen reader compatible markup.
-- **Dark & Light Modes** — Responsive theme toggling with persistent user settings.
-
 
 
 ## Architecture
@@ -118,7 +110,7 @@ Cloud Storage (Google Drive / Dropbox)
 | `faces`    | Extracted face vectors & bounding boxes | `id`, `photoId`, `clusterId`, `descriptor` (128 floats), `boundingBox` |
 | `clusters` | Face group clusters assigned to guests | `id`, `eventId`, `name`, `faceCount` |
 
----
+
 
 ## ⚡ Performance & Scanning Optimizations
 
@@ -139,7 +131,7 @@ Cloud Storage (Google Drive / Dropbox)
 
 ```bash
 # Clone repository
-git clone https://github.com/your-username/event-tag.git
+git clone https://github.com/oshriagronov/event-tag.git
 cd event-tag
 
 # Install dependencies
@@ -147,12 +139,9 @@ npm install
 
 # Start Vite development server
 npm run dev
-
-# Type-check and production build
-npm run build
 ```
 
----
+
 
 ## Available Scripts
 
@@ -192,14 +181,14 @@ In Firebase Console, Google Cloud Console, and Dropbox App Console:
 
 `vercel.json` is included in the project root to automatically handle SPA single-page routing rewrites and static WASM model cache headers.
 
----
 
-## Privacy & Security
+
+## 🔒 Privacy & Security
 
 EventTag (GuestID) is built around strict data privacy and regulatory compliance:
 
-- 🔒 **Zero Photo Uploads:** Photos are processed in client memory from Google Drive or Dropbox and are **never uploaded to backend servers**.
-- 🔒 **Local ML Processing:** All facial recognition runs on the client device via WASM and WebGL.
-- 🔒 **Mathematical Descriptors Only:** Only anonymous 128-dimensional floating point vectors are stored in Firestore.
-- 🔒 **Complete Account Deletion:** Deleting an account purges all associated Firestore events, photo references, and face descriptors, cancels active scans, disconnects cloud storage OAuth tokens, wipes local caches, deletes the Firebase Auth account, and resets privacy consent (`resetConsent()`) so the consent screen is presented on the next visit/login.
-- 🔒 **Israeli Privacy Protection Law (Amendment 13) Compliant:** User consent controls, transparent data policies, and no third-party tracking.
+- **Zero Photo Uploads:** Photos are processed in client memory from Google Drive or Dropbox and are **never uploaded to backend servers**.
+- **Local ML Processing:** All facial recognition runs on the client device via WASM and WebGL.
+- **Mathematical Descriptors Only:** Only anonymous 128-dimensional floating point vectors are stored in Firestore.
+- **Complete Account Deletion:** Deleting an account purges all associated Firestore events, photo references, and face descriptors, cancels active scans, disconnects cloud storage OAuth tokens, wipes local caches, deletes the Firebase Auth account, and resets privacy consent (`resetConsent()`) so the consent screen is presented on the next visit/login.
+- **Israeli Privacy Protection Law (Amendment 13) Compliant:** User consent controls, transparent data policies, and no third-party tracking.

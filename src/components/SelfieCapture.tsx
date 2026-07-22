@@ -9,7 +9,7 @@ import { useState, useRef, useCallback, useEffect } from 'react';
 import * as faceapi from '@vladmandic/face-api';
 import { Camera, Upload, RotateCcw, Loader2, AlertCircle, CheckCircle2, X } from 'lucide-react';
 import { useTranslation } from '../services/translations';
-import { getONNXSession, extractEmbedding } from '../services/onnxModel';
+import { extractEmbedding } from '../services/onnxModel';
 import { alignFace } from '../services/faceAlignment';
 
 interface SelfieCaptureProps {
@@ -18,30 +18,7 @@ interface SelfieCaptureProps {
 
 type CaptureMode = 'select' | 'camera' | 'preview';
 
-// Singleton model loading state
-export let modelsLoaded = false;
-let modelsLoading = false;
-let modelLoadPromise: Promise<void> | null = null;
-
-export async function ensureModelsLoaded(): Promise<void> {
-  if (modelsLoaded) return;
-  if (modelsLoading && modelLoadPromise) return modelLoadPromise;
-
-  modelsLoading = true;
-  modelLoadPromise = (async () => {
-    const MODEL_URL = '/models';
-    await Promise.all([
-      faceapi.nets.ssdMobilenetv1.loadFromUri(MODEL_URL),
-      faceapi.nets.faceLandmark68Net.loadFromUri(MODEL_URL),
-    ]);
-    // Initialize the SFace ONNX session
-    await getONNXSession();
-    modelsLoaded = true;
-    modelsLoading = false;
-  })();
-
-  return modelLoadPromise;
-}
+import { ensureModelsLoaded } from '../services/modelLoader';
 
 /**
  * Helper to rotate a canvas by 90, 180, or 270 degrees
@@ -128,7 +105,8 @@ export function SelfieCapture({ onCapture }: SelfieCaptureProps) {
   const streamRef = useRef<MediaStream | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
 
-  // Validation result
+  // Validation result & captured frame snapshot
+  const [capturedFrame, setCapturedFrame] = useState<string | null>(null);
   const [pendingResult, setPendingResult] = useState<{
     descriptor: number[];
     thumbnail: string;
@@ -164,6 +142,7 @@ export function SelfieCapture({ onCapture }: SelfieCaptureProps) {
   const startCamera = async () => {
     setError(null);
     setLoading(true);
+    setCapturedFrame(null);
     setMode('camera');
 
     try {
@@ -255,6 +234,7 @@ export function SelfieCapture({ onCapture }: SelfieCaptureProps) {
       }
 
       if (!detection) {
+        setCapturedFrame(null);
         const detections = await faceapi.detectAllFaces(finalSource, options);
         if (detections.length > 1) {
           setError(t('selfieCapture.multipleFacesDetected', { count: detections.length }));
@@ -277,9 +257,11 @@ export function SelfieCapture({ onCapture }: SelfieCaptureProps) {
       setPendingResult({ descriptor, thumbnail, previewSrc });
       setValidated(true);
       setMode('preview');
+      setCapturedFrame(null);
       stopCamera();
     } catch (err) {
       console.error('Face detection failed:', err);
+      setCapturedFrame(null);
       setError(t('selfieCapture.noFaceDetected'));
     } finally {
       setLoading(false);
@@ -287,7 +269,7 @@ export function SelfieCapture({ onCapture }: SelfieCaptureProps) {
   };
 
   const handleCapture = async () => {
-    if (!videoRef.current || !streamRef.current) return;
+    if (!videoRef.current || !streamRef.current || loading) return;
     
     const video = videoRef.current;
     const canvas = document.createElement('canvas');
@@ -302,7 +284,12 @@ export function SelfieCapture({ onCapture }: SelfieCaptureProps) {
       originalSrc = canvas.toDataURL('image/jpeg', 0.95);
     }
     
-    // Pass the captured canvas frame directly for instant, accurate face processing
+    // Instantly freeze camera preview with the captured snapshot image
+    setCapturedFrame(originalSrc);
+    setLoading(true);
+    setError(null);
+
+    // Pass the captured canvas frame directly for instant face processing
     await processSelfieImage(canvas, originalSrc || undefined);
   };
 
@@ -312,6 +299,7 @@ export function SelfieCapture({ onCapture }: SelfieCaptureProps) {
 
     setError(null);
     setLoading(true);
+    setCapturedFrame(null);
 
     try {
       const { canvas, originalSrc } = await loadOrientedCanvas(file);
@@ -335,6 +323,7 @@ export function SelfieCapture({ onCapture }: SelfieCaptureProps) {
     setError(null);
     setValidated(false);
     setPendingResult(null);
+    setCapturedFrame(null);
     setLoading(false);
   };
 
@@ -342,6 +331,7 @@ export function SelfieCapture({ onCapture }: SelfieCaptureProps) {
     setError(null);
     setValidated(false);
     setPendingResult(null);
+    setCapturedFrame(null);
     startCamera();
   };
 
@@ -392,7 +382,7 @@ export function SelfieCapture({ onCapture }: SelfieCaptureProps) {
         </div>
       )}
 
-      {/* Camera Live Preview */}
+      {/* Camera Live Preview & Captured Snapshot */}
       {mode === 'camera' && (
         <div className="relative aspect-[3/4] rounded-lg overflow-hidden border border-surface-border bg-background flex flex-col justify-end">
           <video
@@ -403,27 +393,47 @@ export function SelfieCapture({ onCapture }: SelfieCaptureProps) {
             className="absolute inset-0 w-full h-full object-cover -scale-x-100"
           />
 
+          {/* Instant Frozen Snapshot Preview when user taps Capture */}
+          {capturedFrame && (
+            <img
+              src={capturedFrame}
+              alt="Captured Snapshot"
+              className="absolute inset-0 w-full h-full object-cover z-10"
+            />
+          )}
+
+          {/* Processing Overlay */}
           {loading && (
-            <div className="absolute inset-0 bg-background/80 backdrop-blur-sm flex flex-col items-center justify-center gap-3">
-              <Loader2 className="w-8 h-8 animate-spin text-copper-accent" />
-              <span className="text-xs font-semibold text-sage-muted">{t('selfieCapture.analyzing')}</span>
+            <div className="absolute inset-0 z-20 bg-background/75 backdrop-blur-sm flex flex-col items-center justify-center gap-3">
+              <Loader2 className="w-9 h-9 animate-spin text-copper-accent" />
+              <span className="text-xs font-bold text-on-background tracking-wider uppercase">
+                {t('selfieCapture.processing')}
+              </span>
             </div>
           )}
 
           {/* HUD buttons */}
-          <div className="relative z-10 p-5 bg-gradient-to-t from-background to-transparent flex gap-3 items-center">
+          <div className="relative z-30 p-5 bg-gradient-to-t from-background via-background/60 to-transparent flex gap-3 items-center">
             <button
               type="button"
               onClick={handleCapture}
               disabled={loading}
-              className="flex-1 py-3 rounded bg-deep-forest hover:bg-primary text-background font-bold text-xs uppercase tracking-wider transition-all cursor-pointer shadow active:scale-95 disabled:opacity-50 border-none"
+              className="flex-1 py-3.5 rounded bg-deep-forest hover:bg-primary text-background font-bold text-xs uppercase tracking-wider transition-all cursor-pointer shadow active:scale-95 disabled:opacity-80 disabled:cursor-not-allowed border-none flex items-center justify-center gap-2"
             >
-              {t('selfieCapture.captureBtn')}
+              {loading ? (
+                <>
+                  <Loader2 className="w-4 h-4 animate-spin shrink-0" />
+                  <span>{t('selfieCapture.processing')}</span>
+                </>
+              ) : (
+                <span>{t('selfieCapture.captureBtn')}</span>
+              )}
             </button>
             <button
               type="button"
               onClick={handleCancel}
-              className="px-5 py-3 rounded bg-surface-container border border-surface-border hover:bg-surface-container-high text-on-background font-medium text-xs transition-all cursor-pointer"
+              disabled={loading}
+              className="px-5 py-3.5 rounded bg-surface-container border border-surface-border hover:bg-surface-container-high text-on-background font-medium text-xs transition-all cursor-pointer disabled:opacity-50"
             >
               {t('common.cancel')}
             </button>
@@ -492,13 +502,40 @@ export function SelfieCapture({ onCapture }: SelfieCaptureProps) {
         </div>
       )}
 
-      {/* Errors */}
+      {/* Errors & Tips */}
       {error && (
-        <div className="mt-4 bg-red-500/10 border border-red-500/20 rounded p-4 flex gap-3 text-start">
-          <AlertCircle className="w-4 h-4 text-red-400 shrink-0 mt-0.5" />
-          <span className="text-xs text-red-400 font-bold leading-relaxed">
-            {error}
-          </span>
+        <div className="mt-4 bg-red-500/10 border border-red-500/25 rounded-lg p-4 flex flex-col gap-3 text-start shadow-sm">
+          <div className="flex gap-3 items-start">
+            <AlertCircle className="w-4 h-4 text-red-400 shrink-0 mt-0.5" />
+            <span className="text-xs text-red-400 font-bold leading-relaxed">
+              {error}
+            </span>
+          </div>
+
+          {/* Actionable Tips Box */}
+          <div className="pt-3 border-t border-red-500/15 text-start text-xs space-y-2">
+            <span className="font-bold text-on-background block text-[11px]">
+              {t('selfieCapture.tipsTitle')}
+            </span>
+            <ul className="space-y-1.5 text-sage-muted font-body-md text-[11px] leading-relaxed list-none p-0 m-0">
+              <li className="flex items-start gap-2">
+                <span className="shrink-0 text-copper-accent">💡</span>
+                <span>{t('selfieCapture.tipLighting')}</span>
+              </li>
+              <li className="flex items-start gap-2">
+                <span className="shrink-0 text-copper-accent">👤</span>
+                <span>{t('selfieCapture.tipCenter')}</span>
+              </li>
+              <li className="flex items-start gap-2">
+                <span className="shrink-0 text-copper-accent">🕶️</span>
+                <span>{t('selfieCapture.tipObstructions')}</span>
+              </li>
+              <li className="flex items-start gap-2">
+                <span className="shrink-0 text-copper-accent">📱</span>
+                <span>{t('selfieCapture.tipHoldSteady')}</span>
+              </li>
+            </ul>
+          </div>
         </div>
       )}
     </div>

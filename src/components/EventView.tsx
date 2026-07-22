@@ -69,7 +69,7 @@ function CloudPhotoImage({ provider = 'dropbox', driveFileId, accessToken, class
       } catch (err: unknown) {
         console.error("Failed to load cloud photo blob:", err);
         const errStr = err instanceof Error ? err.message : String(err);
-        if (errStr.includes('401') || errStr.includes('404')) {
+        if (errStr.includes('401') || errStr.includes('403') || errStr.includes('404') || errStr.includes('PERMISSION_DENIED')) {
           checkTokenValidity(provider, accessToken).then((isValid) => {
             if (!isValid) {
               if (provider === 'dropbox') {

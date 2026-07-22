@@ -374,7 +374,7 @@ export function ScannerProvider({ children }: { children: ReactNode }) {
             console.error(`Failed to generate publicUrl for processed photo ${photo.fileName}:`, sharedLinkErr);
             const errStr = sharedLinkErr instanceof Error ? sharedLinkErr.message : String(sharedLinkErr);
             
-            if (errStr.includes('401')) {
+            if (errStr.includes('401') || errStr.includes('403') || errStr.includes('PERMISSION_DENIED') || errStr.includes('unregistered callers')) {
               if (provider === 'google') {
                 const refreshed = await refreshGoogleTokenSilently();
                 if (refreshed) {
@@ -472,7 +472,7 @@ export function ScannerProvider({ children }: { children: ReactNode }) {
           const currentRetries = (photoRetryMap.get(photoId) || 0) + 1;
           photoRetryMap.set(photoId, currentRetries);
 
-          if (errStr.includes('401')) {
+          if (errStr.includes('401') || errStr.includes('403') || errStr.includes('PERMISSION_DENIED') || errStr.includes('unregistered callers')) {
             if (provider === 'google') {
               const refreshed = await refreshGoogleTokenSilently();
               if (refreshed) {

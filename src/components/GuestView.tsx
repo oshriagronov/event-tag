@@ -26,9 +26,10 @@ import {
 } from 'lucide-react';
 import JSZip from 'jszip';
 import { getCloudEvent, type CloudEvent } from '../services/firestore';
-import { convertToRawUrl } from '../services/cloudProviders';
+import { convertToRawUrl, type CloudProvider } from '../services/cloudProviders';
 import { matchSelfieToEvent, type MatchResult } from '../services/faceMatching';
-import { SelfieCapture, ensureModelsLoaded } from './SelfieCapture';
+import { SelfieCapture } from './SelfieCapture';
+import { ensureModelsLoaded } from '../services/modelLoader';
 import { warmUpONNX } from '../services/onnxModel';
 import { useConsent } from '../contexts/ConsentContext';
 
@@ -64,9 +65,10 @@ function GuestPhotoImage({
   onError,
 }: GuestPhotoImageProps) {
   const cleanId = (driveFileId || (publicUrl ? publicUrl.match(/(?:id=|d\/)([^/&?]+)/)?.[1] : '') || '').replace(/=s\d+$/, '');
+  const cloudProvider: CloudProvider = (provider === 'dropbox' || provider === 'onedrive') ? provider : 'google';
   const primaryUrl = publicUrl
-    ? convertToRawUrl((provider as any) || 'google', publicUrl, size)
-    : convertToRawUrl((provider as any) || 'google', cleanId, size);
+    ? convertToRawUrl(cloudProvider, publicUrl, size)
+    : convertToRawUrl(cloudProvider, cleanId, size);
 
   const [src, setSrc] = useState(primaryUrl);
   const [stage, setStage] = useState(0);

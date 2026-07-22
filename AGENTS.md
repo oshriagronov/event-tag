@@ -77,3 +77,4 @@ Agents working on this repository **MUST** consult and apply the relevant skills
 
 ### 5. Documentation Maintenance & Self-Updating Context
 - **Rule:** Whenever the architecture of the project (e.g., adding/removing folders, components, contexts, services) or the core logical/data flows change, the agent **MUST** immediately update `AGENTS.md` and `README.md` to reflect the updated state. This ensures that agent instructions and project documentation are always accurate and aligned with the current codebase.
+- **README Guidelines:** Keep `README.md` clean, professional, and concise. Avoid excessive or unnecessary emojis.
