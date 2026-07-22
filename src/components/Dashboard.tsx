@@ -32,6 +32,9 @@ export function Dashboard() {
     dropboxAccessToken,
     googleAccessToken,
     onedriveAccessToken,
+    isDropboxConnected,
+    isGoogleConnected,
+    isOneDriveConnected,
     expiredProviders,
     signOut,
     connectDropbox,
@@ -1039,24 +1042,15 @@ export function Dashboard() {
                       <div>
                         <p className="font-bold text-sm text-on-background m-0">Dropbox</p>
                         <p className="text-xs text-sage-muted m-0">
-                          {expiredProviders.includes('dropbox') ? (
-                            <span className="text-red-400 font-semibold">{t('settings.expired')}</span>
-                          ) : dropboxAccessToken ? (
+                          {isDropboxConnected || dropboxAccessToken ? (
                             <span className="text-emerald-400 font-semibold">{t('settings.connected')}</span>
                           ) : (
-                            <span>{t('settings.notConnected')}</span>
+                            t('settings.notConnected')
                           )}
                         </p>
                       </div>
                     </div>
-                    {expiredProviders.includes('dropbox') ? (
-                      <button
-                        onClick={connectDropbox}
-                        className="px-4 py-2 rounded bg-copper-accent hover:bg-copper-accent/90 text-background text-xs font-bold transition-all cursor-pointer border-none"
-                      >
-                        {t('settings.reconnect')}
-                      </button>
-                    ) : dropboxAccessToken ? (
+                    {isDropboxConnected || dropboxAccessToken ? (
                       <button
                         onClick={() => handleDisconnectProvider('dropbox')}
                         className="px-4 py-2 rounded border border-red-500/30 bg-red-500/10 text-red-400 hover:bg-red-500/25 hover:border-red-500/50 text-xs font-bold transition-all cursor-pointer"
@@ -1089,9 +1083,7 @@ export function Dashboard() {
                           <p className="font-bold text-sm text-on-background m-0">Google Drive</p>
                         </div>
                         <p className="text-xs text-sage-muted m-0">
-                          {expiredProviders.includes('google') ? (
-                            <span className="text-red-400 font-semibold">{t('settings.expired')}</span>
-                          ) : googleAccessToken ? (
+                          {isGoogleConnected || googleAccessToken ? (
                             <span className="text-emerald-400 font-semibold">{t('settings.connected')}</span>
                           ) : (
                             t('settings.notConnected')
@@ -1099,14 +1091,7 @@ export function Dashboard() {
                         </p>
                       </div>
                     </div>
-                    {expiredProviders.includes('google') ? (
-                      <button
-                        onClick={connectGoogle}
-                        className="px-4 py-2 rounded bg-copper-accent hover:bg-copper-accent/90 text-background text-xs font-bold transition-all cursor-pointer border-none"
-                      >
-                        {t('settings.reconnect')}
-                      </button>
-                    ) : googleAccessToken ? (
+                    {isGoogleConnected || googleAccessToken ? (
                       <button
                         onClick={() => handleDisconnectProvider('google')}
                         className="px-4 py-2 rounded border border-red-500/30 bg-red-500/10 text-red-400 hover:bg-red-500/25 hover:border-red-500/50 text-xs font-bold transition-all cursor-pointer"
@@ -1140,9 +1125,7 @@ export function Dashboard() {
                           </span>
                         </div>
                         <p className="text-xs text-sage-muted m-0">
-                          {expiredProviders.includes('onedrive') ? (
-                            <span className="text-red-400 font-semibold">{t('settings.expired')}</span>
-                          ) : onedriveAccessToken ? (
+                          {isOneDriveConnected || onedriveAccessToken ? (
                             <span className="text-emerald-400 font-semibold">{t('settings.connected')}</span>
                           ) : (
                             t('settings.notConnected')
@@ -1344,11 +1327,11 @@ export function Dashboard() {
                   <div>
                     <span className="font-bold text-sm block">Dropbox</span>
                     <span className="text-[10px] text-sage-muted">
-                      {dropboxAccessToken ? t('settings.connected') : t('settings.notConnected')}
+                      {isDropboxConnected || dropboxAccessToken ? t('settings.connected') : t('settings.notConnected')}
                     </span>
                   </div>
                 </div>
-                {dropboxAccessToken && (
+                {(isDropboxConnected || dropboxAccessToken) && (
                   <span className="w-2 h-2 rounded-full bg-emerald-400" />
                 )}
               </button>
@@ -1358,7 +1341,7 @@ export function Dashboard() {
                 onClick={() => {
                   setSelectedProvider('google');
                   setShowProviderModal(false);
-                  if (!googleAccessToken) {
+                  if (!googleAccessToken && !isGoogleConnected) {
                     connectGoogle();
                   } else {
                     setNewEventName('');
@@ -1381,11 +1364,11 @@ export function Dashboard() {
                   <div>
                     <span className="font-bold text-sm block">Google Drive</span>
                     <span className="text-[10px] text-sage-muted">
-                      {googleAccessToken ? t('settings.connected') : t('settings.notConnected')}
+                      {isGoogleConnected || googleAccessToken ? t('settings.connected') : t('settings.notConnected')}
                     </span>
                   </div>
                 </div>
-                {googleAccessToken && (
+                {(isGoogleConnected || googleAccessToken) && (
                   <span className="w-2 h-2 rounded-full bg-emerald-400" />
                 )}
               </button>

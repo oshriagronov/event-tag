@@ -28,7 +28,8 @@ import JSZip from 'jszip';
 import { getCloudEvent, type CloudEvent } from '../services/firestore';
 import { convertToRawUrl } from '../services/cloudProviders';
 import { matchSelfieToEvent, type MatchResult } from '../services/faceMatching';
-import { SelfieCapture } from './SelfieCapture';
+import { SelfieCapture, ensureModelsLoaded } from './SelfieCapture';
+import { warmUpONNX } from '../services/onnxModel';
 import { useConsent } from '../contexts/ConsentContext';
 
 interface GuestViewProps {
@@ -123,6 +124,12 @@ export function GuestView({ eventId }: GuestViewProps) {
   const downloadableMatches = displayedMatches.filter(m => !failedPhotoIds[m.driveFileId]);
   const matchCount = displayedMatches.length;
   const selectedPhoto = displayedMatches.find(m => m.driveFileId === selectedPhotoId);
+
+  // Warm up AI models eagerly on mount so guest capture flow is instantaneous
+  useEffect(() => {
+    ensureModelsLoaded().catch(() => {});
+    warmUpONNX();
+  }, []);
 
   // ---- Load event data ----
   useEffect(() => {

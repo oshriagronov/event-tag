@@ -56,8 +56,9 @@ Agents working on this repository **MUST** consult and apply the relevant skills
 ### 1. Storage Architecture (Cloud-Only & Privacy-First)
 - GuestID supports **Cloud Events only**.
 - All photos are ingested on-the-fly from cloud providers (Google Drive / Dropbox) directly into browser memory.
+- **Persistent Cloud Provider Connections:** When a user connects a cloud provider (Dropbox, Google Drive, OneDrive), the connection state (`dropbox_connected`, `google_connected`, `onedrive_connected`) is stored persistently in `localStorage` and remains active continuously until the user explicitly clicks "Disconnect" ("נתק") in Settings. Google Drive tokens undergo silent background GIS auto-refresh (every 15 minutes), and FolderPicker/scanning operations automatically renew tokens without forcing a disconnected state.
 - All metadata, image file references, face descriptors, and clusters sync to Firebase Firestore. No photo binaries are ever uploaded to backend servers.
-- **Account Deletion & Data Purge:** When a user deletes their account, all associated Firestore events and subcollections (`photos`, `faceBatches`) are deleted, cloud provider OAuth tokens are disconnected, active scanning loops are cancelled, client-side storage & IndexedDB are wiped, Firebase Auth user account is deleted, and privacy consent is completely reset (`resetConsent()`) so the consent banner is re-triggered on next visit/login.
+- **Account Deletion & Data Purge:** When a user deletes their account, all associated Firestore events and subcollections (`photos`, `faceBatches`) are deleted, cloud provider OAuth tokens and persistent connections are disconnected, active scanning loops are cancelled, client-side storage & IndexedDB are wiped, Firebase Auth user account is deleted, and privacy consent is completely reset (`resetConsent()`) so the consent banner is re-triggered on next visit/login.
 
 ### 2. Ingest Performance & Memory Safety
 - **Image Downscaling:** To prevent WebGL out-of-memory crashes and speed up inference, images must be conditionally downscaled to a maximum dimension of `1600px` using an offscreen canvas prior to passing to `face-api.js` (implemented in scanning workflow).
@@ -65,8 +66,9 @@ Agents working on this repository **MUST** consult and apply the relevant skills
 - **Firestore Write Buffering:** Face descriptors must be buffered in memory and written to Firestore in chunks (every 15 photos or 50 faces) instead of awaiting sequential updates, preventing database write performance degradation.
 - **Parallel Multi-Event Ingestion:** `ScannerContext` tracks scan loops, pause flags, and cancellations independently per event ID (`scanStates` map, `pausedEventsRef`, `cancelledEventsRef`), allowing multiple events to scan in parallel. A warning modal notifies users on event creation during an active scan regarding potential performance impacts.
 
-### 3. Model Accuracy & Clustering Thresholds
-- **Detection recall:** Keep SSD MobileNet V1's `minConfidence` at `0.45` to ensure side profiles and shadows are successfully detected.
+### 3. Model Accuracy, Mobile Selfie Capture & Clustering Thresholds
+- **Detection recall:** Keep SSD MobileNet V1's `minConfidence` at `0.45` for event photo scanning and `0.38` for guest selfie capture to ensure side profiles, mobile camera soft focus, and shadows are successfully detected.
+- **EXIF Auto-Orientation & Rotational Fallback:** All uploaded guest files and mobile camera captures are auto-oriented using `createImageBitmap(file, { imageOrientation: 'from-image' })`. If face detection fails at 0°, a rotational fallback sequence (90°, 270°, 180°) is executed on canvas to guarantee detection regardless of phone holding orientation or missing EXIF metadata.
 - **Clustering precision:** Incremental face clustering uses L2-normalized Euclidean distance matching with calibrated thresholds (`matchThreshold = 0.90` and `avgThreshold = 0.95`). Guest selfie matches in `GuestView.tsx` use a strict threshold of `0.85` to prevent false positives.
 
 ### 4. UI/UX & Localization
