@@ -32,8 +32,7 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
   const [language, setLanguageState] = useState<Language>(() => {
     const savedLanguage = localStorage.getItem('event-tag-lang') as Language;
     if (savedLanguage && ['he', 'en'].includes(savedLanguage)) return savedLanguage;
-    const sysLang = navigator.language || '';
-    return sysLang.toLowerCase().startsWith('he') ? 'he' : 'en';
+    return 'he';
   });
 
   const setTheme = (t: Theme) => {

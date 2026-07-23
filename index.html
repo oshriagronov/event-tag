@@ -23,9 +23,8 @@
           }
           
           var savedLang = localStorage.getItem('event-tag-lang');
-          if (!savedLang) {
-            var sysLang = navigator.language || '';
-            savedLang = sysLang.toLowerCase().startsWith('he') ? 'he' : 'en';
+          if (!savedLang || !['he', 'en'].includes(savedLang)) {
+            savedLang = 'he';
           }
           document.documentElement.lang = savedLang;
           document.documentElement.dir = savedLang === 'he' ? 'rtl' : 'ltr';
