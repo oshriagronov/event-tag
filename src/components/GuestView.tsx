@@ -11,9 +11,10 @@ import { useTranslation } from '../services/translations';
 import { useModal } from '../contexts/ModalContext';
 import {
   Camera,
+  Check,
+  CheckSquare,
   Download,
   DownloadCloud,
-  Image as ImageIcon,
   Loader2,
   RotateCcw,
   Search,
@@ -120,10 +121,13 @@ export function GuestView({ eventId }: GuestViewProps) {
   const [hasLoadError, setHasLoadError] = useState(false);
   const [failedPhotoIds, setFailedPhotoIds] = useState<Record<string, boolean>>({});
   const [hiddenPhotoIds, setHiddenPhotoIds] = useState<string[]>([]);
+  const [isSelectionMode, setIsSelectionMode] = useState(false);
+  const [selectedPhotoIds, setSelectedPhotoIds] = useState<string[]>([]);
 
   // Derived state
   const displayedMatches = matches.filter(m => !hiddenPhotoIds.includes(m.driveFileId));
   const downloadableMatches = displayedMatches.filter(m => !failedPhotoIds[m.driveFileId]);
+  const selectedMatches = downloadableMatches.filter(m => selectedPhotoIds.includes(m.driveFileId));
   const matchCount = displayedMatches.length;
   const selectedPhoto = displayedMatches.find(m => m.driveFileId === selectedPhotoId);
 
@@ -180,6 +184,8 @@ export function GuestView({ eventId }: GuestViewProps) {
       setHasLoadError(false);
       setFailedPhotoIds({});
       setHiddenPhotoIds([]);
+      setIsSelectionMode(false);
+      setSelectedPhotoIds([]);
 
       try {
         // Fetch using a calibrated SFace L2 distance threshold of 0.85 to prevent false matches
@@ -207,17 +213,43 @@ export function GuestView({ eventId }: GuestViewProps) {
     setHasLoadError(false);
     setFailedPhotoIds({});
     setHiddenPhotoIds([]);
+    setIsSelectionMode(false);
+    setSelectedPhotoIds([]);
     setViewState('selfie-input');
   }, []);
 
-  // ---- Hide photo (false recognition / not interested) ----
-  const handleHidePhoto = useCallback((driveFileId: string) => {
-    setHiddenPhotoIds((prev) => [...prev, driveFileId]);
-  }, []);
+
 
   // ---- Restore hidden photos ----
   const handleRestoreHidden = useCallback(() => {
     setHiddenPhotoIds([]);
+  }, []);
+
+  // ---- Selection helpers ----
+  const togglePhotoSelection = useCallback((driveFileId: string) => {
+    setSelectedPhotoIds((prev) =>
+      prev.includes(driveFileId)
+        ? prev.filter((id) => id !== driveFileId)
+        : [...prev, driveFileId]
+    );
+  }, []);
+
+  const handleSelectAll = () => {
+    setSelectedPhotoIds(downloadableMatches.map((m) => m.driveFileId));
+  };
+
+  const handleDeselectAll = () => {
+    setSelectedPhotoIds([]);
+  };
+
+  const toggleSelectionMode = useCallback(() => {
+    setIsSelectionMode((prev) => {
+      const next = !prev;
+      if (!next) {
+        setSelectedPhotoIds([]);
+      }
+      return next;
+    });
   }, []);
 
   // Helper to load generic image URLs into Blobs (direct fetch or canvas fallback)
@@ -308,20 +340,21 @@ export function GuestView({ eventId }: GuestViewProps) {
     return blob;
   };
 
-  // ---- Download all as ZIP ----
-  const handleDownloadAll = async () => {
-    if (downloadableMatches.length === 0) return;
+  // ---- Download photos as ZIP ----
+  const handleDownload = async () => {
+    const targets = isSelectionMode ? selectedMatches : downloadableMatches;
+    if (targets.length === 0) return;
 
     setDownloadingAll(true);
     setDownloadProgress(0);
 
     try {
       const zip = new JSZip();
-      const total = downloadableMatches.length;
+      const total = targets.length;
       let addedCount = 0;
 
-      for (let i = 0; i < downloadableMatches.length; i++) {
-        const match = downloadableMatches[i];
+      for (let i = 0; i < targets.length; i++) {
+        const match = targets[i];
         let blob: Blob | null = null;
 
         const provider = event?.provider || (match.publicUrl?.includes('dropbox') ? 'dropbox' : 'google');
@@ -466,12 +499,6 @@ export function GuestView({ eventId }: GuestViewProps) {
           {/* Event info card */}
           <div className="mb-6 p-5 rounded bg-surface-container border border-surface-border text-start">
             <h2 className="font-display-lg text-xl text-on-background m-0">{event?.name}</h2>
-            <div className="flex items-center gap-4 text-xs text-sage-muted mt-2">
-              <span className="flex items-center gap-1.5 font-body-md">
-                <ImageIcon className="w-3.5 h-3.5" />
-                {t('guestView.photosCount', { count: event?.photoCount || 0 })}
-              </span>
-            </div>
           </div>
 
           {/* Instruction */}
@@ -510,7 +537,6 @@ export function GuestView({ eventId }: GuestViewProps) {
           </div>
           <div className="text-center">
             <h2 className="font-title-md text-base font-bold text-on-background mb-1 m-0">{t('guestView.searchingTitle')}</h2>
-            <p className="font-body-md text-sage-muted text-sm m-0">{t('guestView.scanningCount', { count: event?.photoCount || 0 })}</p>
           </div>
         </div>
       </div>
@@ -561,51 +587,98 @@ export function GuestView({ eventId }: GuestViewProps) {
               <h2 className="font-title-md text-base font-bold text-on-background m-0">
                 {t('guestView.foundMatches', { count: matchCount })}
               </h2>
+              <p className="font-body-md text-xs text-sage-muted m-0 mt-0.5">
+                {language === 'he'
+                  ? '💡 חסרות תמונות? מומלץ ללחוץ "החלף סלפי" ולנסות 2-3 תמונות מזוויות ותאורות שונות.'
+                  : '💡 Missing photos? Tap "Change Selfie" and try 2-3 photos with different angles or lighting.'}
+              </p>
             </div>
           </div>
 
-          <div className="flex flex-wrap gap-4 items-center justify-between">
-            {downloadableMatches.length > 0 && (
+          <div className="flex flex-wrap gap-3 items-center justify-between">
+            <div className="flex flex-wrap items-center gap-3">
+              {/* Primary Download Button */}
+              {downloadableMatches.length > 0 && (
+                <button
+                  type="button"
+                  onClick={handleDownload}
+                  disabled={downloadingAll || (isSelectionMode && selectedPhotoIds.length === 0)}
+                  className="flex items-center gap-2 px-5 py-3 rounded bg-deep-forest hover:bg-primary text-background font-bold text-xs uppercase tracking-wider transition-all shadow cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed border-none"
+                >
+                  {downloadingAll ? (
+                    <>
+                      <Loader2 className="w-4 h-4 animate-spin shrink-0" />
+                      <span>
+                        {language === 'he' ? `מוריד... (${downloadProgress}%)` : `Downloading... (${downloadProgress}%)`}
+                      </span>
+                    </>
+                  ) : (
+                    <>
+                      <DownloadCloud className="w-4 h-4 shrink-0" />
+                      <span>
+                        {isSelectionMode
+                          ? t('guestView.downloadSelectedBtn', { count: selectedPhotoIds.length })
+                          : t('guestView.downloadZipBtn', { count: downloadableMatches.length })}
+                      </span>
+                    </>
+                  )}
+                </button>
+              )}
+
+              {/* Select Photos Toggle Button */}
+              {downloadableMatches.length > 0 && (
+                <button
+                  type="button"
+                  onClick={toggleSelectionMode}
+                  className={`flex items-center gap-2 px-4 py-3 rounded text-xs font-bold uppercase tracking-wider transition-all shadow cursor-pointer border ${
+                    isSelectionMode
+                      ? 'bg-copper-accent text-background border-copper-accent'
+                      : 'bg-surface-container border-surface-border text-on-background hover:bg-surface-container-high'
+                  }`}
+                >
+                  <CheckSquare className="w-4 h-4 shrink-0" />
+                  <span>
+                    {isSelectionMode ? t('guestView.cancelSelection') : t('guestView.selectPhotos')}
+                  </span>
+                </button>
+              )}
+
+              {/* Quick Select All / Clear Selection */}
+              {isSelectionMode && (
+                <button
+                  type="button"
+                  onClick={selectedPhotoIds.length === downloadableMatches.length ? handleDeselectAll : handleSelectAll}
+                  className="flex items-center gap-1.5 px-3 py-2.5 rounded bg-surface-container/60 hover:bg-surface-container border border-surface-border text-sage-muted hover:text-on-background text-xs font-semibold transition-all cursor-pointer"
+                >
+                  <span>
+                    {selectedPhotoIds.length === downloadableMatches.length
+                      ? t('guestView.deselectAll')
+                      : t('guestView.selectAll')}
+                  </span>
+                </button>
+              )}
+            </div>
+
+            <div className="flex items-center gap-3 ms-auto">
+              {hiddenPhotoIds.length > 0 && (
+                <button
+                  type="button"
+                  onClick={handleRestoreHidden}
+                  className="flex items-center gap-2 px-4 py-2.5 rounded bg-surface-container border border-surface-border text-on-background hover:bg-surface-container-high text-xs font-semibold transition-all cursor-pointer"
+                >
+                  <span>{t('guestView.restoreRemoved', { count: hiddenPhotoIds.length })}</span>
+                </button>
+              )}
+
               <button
                 type="button"
-                onClick={handleDownloadAll}
-                disabled={downloadingAll}
-                className="flex items-center gap-2 px-5 py-3 rounded bg-deep-forest hover:bg-primary text-background font-bold text-xs uppercase tracking-wider transition-all shadow cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed border-none"
+                onClick={handleRetake}
+                className="flex items-center gap-1.5 text-copper-accent hover:underline text-xs uppercase tracking-wider cursor-pointer font-bold border-none bg-transparent outline-none"
               >
-                {downloadingAll ? (
-                  <>
-                    <Loader2 className="w-4 h-4 animate-spin shrink-0" />
-                    <span>
-                      {language === 'he' ? `מוריד... (${downloadProgress}%)` : `Downloading... (${downloadProgress}%)`}
-                    </span>
-                  </>
-                ) : (
-                  <>
-                    <DownloadCloud className="w-4 h-4 shrink-0" />
-                    <span>{t('guestView.downloadZipBtn', { count: downloadableMatches.length })}</span>
-                  </>
-                )}
+                <RotateCcw className="w-3.5 h-3.5 shrink-0" />
+                <span>{t('guestView.changeSelfie')}</span>
               </button>
-            )}
-
-            {hiddenPhotoIds.length > 0 && (
-              <button
-                type="button"
-                onClick={handleRestoreHidden}
-                className="flex items-center gap-2 px-4 py-2.5 rounded bg-surface-container border border-surface-border text-on-background hover:bg-surface-container-high text-xs font-semibold transition-all cursor-pointer"
-              >
-                <span>{t('guestView.restoreRemoved', { count: hiddenPhotoIds.length })}</span>
-              </button>
-            )}
-
-            <button
-              type="button"
-              onClick={handleRetake}
-              className={`flex items-center gap-1.5 text-copper-accent hover:underline text-xs uppercase tracking-wider cursor-pointer font-bold border-none bg-transparent outline-none ${downloadableMatches.length > 0 ? '' : (isRtl ? 'mr-auto' : 'ml-auto')}`}
-            >
-              <RotateCcw className="w-3.5 h-3.5 shrink-0" />
-              <span>{t('guestView.changeSelfie')}</span>
-            </button>
+            </div>
           </div>
         </div>
 
@@ -626,86 +699,108 @@ export function GuestView({ eventId }: GuestViewProps) {
 
         {/* Matches Grid */}
         <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
-          {displayedMatches.map((match) => (
-            <div
-              key={match.driveFileId}
-              onClick={() => setSelectedPhotoId(match.driveFileId)}
-              className="group relative aspect-square rounded overflow-hidden border border-surface-border cursor-pointer bg-surface-container-low shadow hover:shadow-2xl transition-all hover:scale-[1.01]"
-            >
-              <GuestPhotoImage
-                provider={event?.provider || 'google'}
-                driveFileId={match.driveFileId}
-                publicUrl={match.publicUrl}
-                size="thumb"
-                className="w-full h-full object-cover group-hover:scale-102 transition-transform duration-300"
-                onError={() => {
-                  setFailedPhotoIds((prev) => ({ ...prev, [match.driveFileId]: true }));
-                  setHasLoadError(true);
+          {displayedMatches.map((match) => {
+            const isSelected = selectedPhotoIds.includes(match.driveFileId);
+            return (
+              <div
+                key={match.driveFileId}
+                onClick={() => {
+                  if (isSelectionMode) {
+                    togglePhotoSelection(match.driveFileId);
+                  } else {
+                    setSelectedPhotoId(match.driveFileId);
+                  }
                 }}
-              />
+                className={`group relative aspect-square rounded-lg overflow-hidden border cursor-pointer bg-surface-container-low shadow hover:shadow-2xl transition-all ${
+                  isSelectionMode && isSelected
+                    ? 'ring-2 ring-copper-accent border-copper-accent scale-[0.98]'
+                    : 'border-surface-border hover:scale-[1.01]'
+                }`}
+              >
+                <GuestPhotoImage
+                  provider={event?.provider || 'google'}
+                  driveFileId={match.driveFileId}
+                  publicUrl={match.publicUrl}
+                  size="thumb"
+                  className="w-full h-full object-cover group-hover:scale-102 transition-transform duration-300 pointer-events-none"
+                  onError={() => {
+                    setFailedPhotoIds((prev) => ({ ...prev, [match.driveFileId]: true }));
+                    setHasLoadError(true);
+                  }}
+                />
 
-              <div className="absolute inset-0 bg-black/40 sm:bg-background/50 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity flex items-center justify-center gap-3">
-                <button
-                  type="button"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    handleDownloadSingle(match.driveFileId);
-                  }}
-                  className="p-2.5 sm:p-2 rounded-lg bg-surface-container/90 text-on-background border border-surface-border hover:text-copper-accent hover:border-copper-accent active:scale-95 transition-all shadow cursor-pointer"
-                  title={t('guestView.downloadBtn')}
-                >
-                  <Download className="w-4 h-4 shrink-0" />
-                </button>
-                <button
-                  type="button"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    handleHidePhoto(match.driveFileId);
-                  }}
-                  className="p-2.5 sm:p-2 rounded-lg bg-surface-container/90 text-on-background border border-surface-border hover:text-red-400 hover:border-red-500/30 active:scale-95 transition-all shadow cursor-pointer"
-                  title={t('guestView.removeBtn')}
-                >
-                  <X className="w-4 h-4 shrink-0" />
-                </button>
+                {/* Selection Mode Badge */}
+                {isSelectionMode && (
+                  <div className="absolute top-2.5 inset-s-2.5 z-10 pointer-events-none">
+                    <div
+                      className={`w-7 h-7 rounded-full flex items-center justify-center shadow-md transition-all ${
+                        isSelected
+                          ? 'bg-copper-accent text-background scale-110'
+                          : 'bg-background/80 backdrop-blur-md border border-surface-border text-sage-muted'
+                      }`}
+                    >
+                      <Check className={`w-4 h-4 transition-transform ${isSelected ? 'scale-100' : 'scale-0'}`} />
+                    </div>
+                  </div>
+                )}
               </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
 
         {/* Zoom Lightbox Modal */}
         {selectedPhotoId && (
           <div
-            className="fixed inset-0 bg-black/95 flex items-center justify-center z-50 p-4"
+            className="fixed inset-0 bg-black/95 flex items-center justify-center z-50 p-4 sm:p-6 overflow-y-auto"
             onClick={() => setSelectedPhotoId(null)}
           >
             <div
-              className="relative max-w-3xl w-full flex flex-col gap-4"
+              className="relative max-w-3xl w-full max-h-[90vh] flex flex-col gap-3 sm:gap-4 my-auto bg-surface-container-low/95 backdrop-blur-xl border border-surface-border rounded-xl p-4 sm:p-5 shadow-2xl overflow-hidden"
               onClick={(e) => e.stopPropagation()}
             >
-              <button
-                type="button"
-                onClick={() => setSelectedPhotoId(null)}
-                className="absolute -top-12 right-0 p-2 rounded bg-surface-container border border-surface-border text-on-background hover:bg-surface-container-high hover:text-copper-accent transition-all cursor-pointer"
-              >
-                <X className="w-5 h-5 shrink-0" />
-              </button>
-
-              <GuestPhotoImage
-                provider={event?.provider || 'google'}
-                driveFileId={selectedPhotoId}
-                publicUrl={selectedPhoto?.publicUrl}
-                size="full"
-                className="w-full max-h-[70vh] object-contain rounded border border-surface-border shadow-2xl"
-              />
-
-              <div className="flex justify-between items-center gap-4 bg-surface-container/85 backdrop-blur-md border border-surface-border p-4 rounded-lg">
+              {/* Header bar with title and close button */}
+              <div className="flex items-center justify-between pb-2 border-b border-surface-border/50 shrink-0">
+                <span className="text-xs font-bold text-sage-muted uppercase tracking-wider">
+                  {language === 'he' ? 'תצוגה מקדימה' : 'Photo Preview'}
+                </span>
                 <button
                   type="button"
-                  onClick={() => handleHidePhoto(selectedPhotoId)}
-                  className="flex items-center gap-2 px-4 py-2 rounded bg-surface-container-low hover:bg-surface-container border border-red-500/20 text-red-400 text-sm font-semibold transition-colors cursor-pointer"
+                  onClick={() => setSelectedPhotoId(null)}
+                  className="p-2 rounded-lg bg-surface-container border border-surface-border text-on-background hover:bg-surface-container-high hover:text-copper-accent transition-all cursor-pointer"
+                  aria-label={t('common.close')}
                 >
-                  <X className="w-4 h-4 shrink-0" />
-                  {t('guestView.removeBtn')}
+                  <X className="w-5 h-5 shrink-0" />
+                </button>
+              </div>
+
+              {/* Image Container */}
+              <div className="flex-1 min-h-0 flex items-center justify-center overflow-hidden">
+                <GuestPhotoImage
+                  provider={event?.provider || 'google'}
+                  driveFileId={selectedPhotoId}
+                  publicUrl={selectedPhoto?.publicUrl}
+                  size="full"
+                  className="w-full max-h-[58vh] sm:max-h-[65vh] object-contain rounded border border-surface-border shadow-md"
+                />
+              </div>
+
+              {/* Footer bar */}
+              <div className="flex items-center justify-end gap-3 pt-2 border-t border-surface-border/50 shrink-0">
+                <button
+                  type="button"
+                  onClick={() => togglePhotoSelection(selectedPhotoId)}
+                  className={`flex items-center gap-2 px-4 py-2 rounded text-sm font-bold transition-all cursor-pointer border ${
+                    selectedPhotoIds.includes(selectedPhotoId)
+                      ? 'bg-copper-accent text-background border-copper-accent'
+                      : 'bg-surface-container border-surface-border text-on-background hover:bg-surface-container-high'
+                  }`}
+                >
+                  <CheckSquare className="w-4 h-4 shrink-0" />
+                  <span>
+                    {selectedPhotoIds.includes(selectedPhotoId)
+                      ? (language === 'he' ? 'נבחרה' : 'Selected')
+                      : (language === 'he' ? 'בחר תמונה' : 'Select')}
+                  </span>
                 </button>
 
                 <button

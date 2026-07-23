@@ -7,7 +7,7 @@
 
 import { useState, useRef, useCallback, useEffect } from 'react';
 import * as faceapi from '@vladmandic/face-api';
-import { Camera, Upload, RotateCcw, Loader2, AlertCircle, CheckCircle2, X } from 'lucide-react';
+import { Camera, Upload, RotateCcw, Loader2, AlertCircle, CheckCircle2, X, Sparkles } from 'lucide-react';
 import { useTranslation } from '../services/translations';
 import { getONNXSession, extractEmbedding } from '../services/onnxModel';
 import { alignFace } from '../services/faceAlignment';
@@ -311,6 +311,20 @@ export function SelfieCapture({ onCapture }: SelfieCaptureProps) {
             accept="image/*"
             className="hidden"
           />
+
+          {/* Tips box for best photo results */}
+          <div className="mt-2 p-4 rounded-lg bg-surface-container/70 border border-surface-border/60 text-start font-body-md shadow-sm">
+            <div className="flex items-center gap-2 mb-2 text-copper-accent font-bold text-xs uppercase tracking-wider">
+              <Sparkles className="w-4 h-4 shrink-0" />
+              <span>{t('selfieCapture.tipsTitle')}</span>
+            </div>
+            <ul className="space-y-1.5 text-xs text-sage-muted list-disc list-inside ps-0.5 m-0 leading-relaxed">
+              <li>{t('selfieCapture.tipLighting')}</li>
+              <li>{t('selfieCapture.tipCenter')}</li>
+              <li>{t('selfieCapture.tipObstructions')}</li>
+              <li className="font-semibold text-on-background/90">{t('selfieCapture.tipMultipleTries')}</li>
+            </ul>
+          </div>
         </div>
       )}
 
@@ -384,7 +398,7 @@ export function SelfieCapture({ onCapture }: SelfieCaptureProps) {
               onClick={handleConfirm}
               className="flex-1 py-3 rounded bg-emerald-500 hover:bg-emerald-400 text-white font-bold text-xs uppercase tracking-wider transition-all cursor-pointer shadow active:scale-95 border-none"
             >
-              {t('common.save')}
+              {t('common.search')}
             </button>
             <button
               type="button"
