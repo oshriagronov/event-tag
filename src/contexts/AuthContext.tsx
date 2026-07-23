@@ -139,7 +139,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       try {
         const tokenClient = window.google.accounts.oauth2.initTokenClient({
           client_id: clientId,
-          scope: 'https://www.googleapis.com/auth/drive.readonly',
+          scope: 'https://www.googleapis.com/auth/drive.file',
           callback: (response: { access_token?: string; expires_in?: number; error?: string }) => {
             if (response.access_token) {
               const token = response.access_token;
