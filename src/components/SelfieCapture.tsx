@@ -9,7 +9,7 @@ import { useState, useRef, useCallback, useEffect } from 'react';
 import * as faceapi from '@vladmandic/face-api';
 import { Camera, Upload, RotateCcw, Loader2, AlertCircle, CheckCircle2, X } from 'lucide-react';
 import { useTranslation } from '../services/translations';
-import { extractEmbedding } from '../services/onnxModel';
+import { getONNXSession, extractEmbedding } from '../services/onnxModel';
 import { alignFace } from '../services/faceAlignment';
 
 interface SelfieCaptureProps {
@@ -18,78 +18,38 @@ interface SelfieCaptureProps {
 
 type CaptureMode = 'select' | 'camera' | 'preview';
 
-import { ensureModelsLoaded } from '../services/modelLoader';
+// Singleton model loading state
+let modelsLoaded = false;
+let modelsLoading = false;
+let modelLoadPromise: Promise<void> | null = null;
 
-/**
- * Helper to rotate a canvas by 90, 180, or 270 degrees
- */
-function rotateCanvas(
-  source: HTMLCanvasElement | HTMLImageElement,
-  degree: number
-): HTMLCanvasElement {
-  const canvas = document.createElement('canvas');
-  const srcWidth = source instanceof HTMLImageElement ? source.naturalWidth || source.width : source.width;
-  const srcHeight = source instanceof HTMLImageElement ? source.naturalHeight || source.height : source.height;
+async function ensureModelsLoaded(): Promise<void> {
+  if (modelsLoaded) return;
+  if (modelsLoading && modelLoadPromise) return modelLoadPromise;
 
-  if (degree === 90 || degree === 270) {
-    canvas.width = srcHeight;
-    canvas.height = srcWidth;
-  } else {
-    canvas.width = srcWidth;
-    canvas.height = srcHeight;
-  }
+  modelsLoading = true;
+  modelLoadPromise = (async () => {
+    const MODEL_URL = '/models';
+    await Promise.all([
+      faceapi.nets.ssdMobilenetv1.loadFromUri(MODEL_URL),
+      faceapi.nets.faceLandmark68Net.loadFromUri(MODEL_URL),
+    ]);
+    // Initialize the SFace ONNX session
+    await getONNXSession();
+    modelsLoaded = true;
+    modelsLoading = false;
+  })();
 
-  const ctx = canvas.getContext('2d');
-  if (ctx) {
-    ctx.translate(canvas.width / 2, canvas.height / 2);
-    ctx.rotate((degree * Math.PI) / 180);
-    ctx.drawImage(source, -srcWidth / 2, -srcHeight / 2);
-  }
-  return canvas;
+  return modelLoadPromise;
 }
 
-/**
- * Helper to load a File/Blob into an upright HTMLCanvasElement with EXIF orientation auto-corrected
- */
-async function loadOrientedCanvas(
-  file: File
-): Promise<{ canvas: HTMLCanvasElement; originalSrc: string }> {
-  if (typeof createImageBitmap === 'function') {
-    try {
-      const bitmap = await createImageBitmap(file, { imageOrientation: 'from-image' });
-      const canvas = document.createElement('canvas');
-      canvas.width = bitmap.width;
-      canvas.height = bitmap.height;
-      const ctx = canvas.getContext('2d');
-      if (ctx) {
-        ctx.drawImage(bitmap, 0, 0);
-        const originalSrc = canvas.toDataURL('image/jpeg', 0.95);
-        return { canvas, originalSrc };
-      }
-    } catch {
-      // Fall back to FileReader + Image if createImageBitmap fails
-    }
-  }
-
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = (event) => {
-      const dataUrl = event.target?.result as string;
-      const img = new Image();
-      img.onload = () => {
-        const c = document.createElement('canvas');
-        c.width = img.naturalWidth || img.width;
-        c.height = img.naturalHeight || img.height;
-        const ctx = c.getContext('2d');
-        if (ctx) ctx.drawImage(img, 0, 0);
-        resolve({ canvas: c, originalSrc: dataUrl });
-      };
-      img.onerror = reject;
-      img.src = dataUrl;
-    };
-    reader.onerror = reject;
-    reader.readAsDataURL(file);
-  });
+function isMobileDevice(): boolean {
+  if (typeof window === 'undefined') return false;
+  return (
+    window.matchMedia('(max-width: 768px)').matches ||
+    'ontouchstart' in window ||
+    navigator.maxTouchPoints > 0
+  );
 }
 
 export function SelfieCapture({ onCapture }: SelfieCaptureProps) {
@@ -100,25 +60,18 @@ export function SelfieCapture({ onCapture }: SelfieCaptureProps) {
   const [error, setError] = useState<string | null>(null);
   const [validated, setValidated] = useState(false);
   
-  // Camera streams
+  // Camera streams & file inputs
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const cameraFileInputRef = useRef<HTMLInputElement | null>(null);
 
-  // Validation result & captured frame snapshot
-  const [capturedFrame, setCapturedFrame] = useState<string | null>(null);
+  // Validation result
   const [pendingResult, setPendingResult] = useState<{
     descriptor: number[];
     thumbnail: string;
     previewSrc: string;
   } | null>(null);
-
-  // Eagerly pre-load AI models on mount so selfie capture & upload feel instant
-  useEffect(() => {
-    ensureModelsLoaded().catch((err) => {
-      console.error('Failed to pre-load face models:', err);
-    });
-  }, []);
 
   // Stop camera on unmount
   useEffect(() => {
@@ -142,18 +95,13 @@ export function SelfieCapture({ onCapture }: SelfieCaptureProps) {
   const startCamera = async () => {
     setError(null);
     setLoading(true);
-    setCapturedFrame(null);
     setMode('camera');
 
     try {
       await ensureModelsLoaded();
 
       const stream = await navigator.mediaDevices.getUserMedia({
-        video: {
-          facingMode: 'user',
-          width: { ideal: 1280 },
-          height: { ideal: 720 },
-        },
+        video: { facingMode: 'user', width: 640, height: 480 },
         audio: false,
       });
 
@@ -172,7 +120,7 @@ export function SelfieCapture({ onCapture }: SelfieCaptureProps) {
   };
 
   const processSelfieImage = async (
-    imageElement: HTMLImageElement | HTMLVideoElement | HTMLCanvasElement,
+    imageElement: HTMLImageElement | HTMLVideoElement,
     originalSrc?: string
   ) => {
     setLoading(true);
@@ -185,57 +133,29 @@ export function SelfieCapture({ onCapture }: SelfieCaptureProps) {
       const maxDim = 1024;
       let detectionSource: HTMLImageElement | HTMLVideoElement | HTMLCanvasElement = imageElement;
       
-      const rawW = imageElement instanceof HTMLImageElement
-        ? imageElement.naturalWidth || imageElement.width
-        : imageElement instanceof HTMLCanvasElement
-        ? imageElement.width
-        : imageElement.videoWidth;
-      const rawH = imageElement instanceof HTMLImageElement
-        ? imageElement.naturalHeight || imageElement.height
-        : imageElement instanceof HTMLCanvasElement
-        ? imageElement.height
-        : imageElement.videoHeight;
-
-      if (rawW > 0 && rawH > 0 && Math.max(rawW, rawH) > maxDim) {
-        const scale = maxDim / Math.max(rawW, rawH);
-        const canvas = document.createElement('canvas');
-        canvas.width = Math.round(rawW * scale);
-        canvas.height = Math.round(rawH * scale);
-        const ctx = canvas.getContext('2d');
-        if (ctx) {
-          ctx.drawImage(imageElement, 0, 0, canvas.width, canvas.height);
-          detectionSource = canvas;
-        }
-      }
-
-      // Use calibrated confidence threshold suitable for mobile selfies (0.38)
-      const options = new faceapi.SsdMobilenetv1Options({ minConfidence: 0.38 });
-
-      // Primary face detection
-      let detection = await faceapi
-        .detectSingleFace(detectionSource, options)
-        .withFaceLandmarks();
-
-      let finalSource: HTMLImageElement | HTMLVideoElement | HTMLCanvasElement = detectionSource;
-
-      // Rotational fallbacks for photos taken sideways or with missing EXIF metadata
-      if (!detection && (detectionSource instanceof HTMLCanvasElement || detectionSource instanceof HTMLImageElement)) {
-        for (const degree of [90, 270, 180]) {
-          const rotated = rotateCanvas(detectionSource, degree);
-          const rotDetection = await faceapi
-            .detectSingleFace(rotated, options)
-            .withFaceLandmarks();
-          if (rotDetection) {
-            detection = rotDetection;
-            finalSource = rotated;
-            break;
+      if (imageElement instanceof HTMLImageElement) {
+        const w = imageElement.naturalWidth;
+        const h = imageElement.naturalHeight;
+        if (Math.max(w, h) > maxDim) {
+          const scale = maxDim / Math.max(w, h);
+          const canvas = document.createElement('canvas');
+          canvas.width = Math.round(w * scale);
+          canvas.height = Math.round(h * scale);
+          const ctx = canvas.getContext('2d');
+          if (ctx) {
+            ctx.drawImage(imageElement, 0, 0, canvas.width, canvas.height);
+            detectionSource = canvas;
           }
         }
       }
 
+      // Find face landmarks
+      const detection = await faceapi
+        .detectSingleFace(detectionSource)
+        .withFaceLandmarks();
+
       if (!detection) {
-        setCapturedFrame(null);
-        const detections = await faceapi.detectAllFaces(finalSource, options);
+        const detections = await faceapi.detectAllFaces(detectionSource);
         if (detections.length > 1) {
           setError(t('selfieCapture.multipleFacesDetected', { count: detections.length }));
         } else {
@@ -245,23 +165,21 @@ export function SelfieCapture({ onCapture }: SelfieCaptureProps) {
       }
 
       // Align and crop face to 112x112
-      const alignedCanvas = alignFace(finalSource, detection.landmarks);
+      const alignedCanvas = alignFace(detectionSource, detection.landmarks);
 
       // Extract SFace vector
       const descriptor = await extractEmbedding(alignedCanvas);
 
       // Aligned thumbnail
       const thumbnail = alignedCanvas.toDataURL('image/jpeg', 0.85);
-      const previewSrc = originalSrc || (finalSource instanceof HTMLCanvasElement ? finalSource.toDataURL('image/jpeg', 0.95) : thumbnail);
+      const previewSrc = originalSrc || thumbnail;
 
       setPendingResult({ descriptor, thumbnail, previewSrc });
       setValidated(true);
       setMode('preview');
-      setCapturedFrame(null);
       stopCamera();
     } catch (err) {
       console.error('Face detection failed:', err);
-      setCapturedFrame(null);
       setError(t('selfieCapture.noFaceDetected'));
     } finally {
       setLoading(false);
@@ -269,7 +187,7 @@ export function SelfieCapture({ onCapture }: SelfieCaptureProps) {
   };
 
   const handleCapture = async () => {
-    if (!videoRef.current || !streamRef.current || loading) return;
+    if (!videoRef.current || !streamRef.current) return;
     
     const video = videoRef.current;
     const canvas = document.createElement('canvas');
@@ -284,13 +202,7 @@ export function SelfieCapture({ onCapture }: SelfieCaptureProps) {
       originalSrc = canvas.toDataURL('image/jpeg', 0.95);
     }
     
-    // Instantly freeze camera preview with the captured snapshot image
-    setCapturedFrame(originalSrc);
-    setLoading(true);
-    setError(null);
-
-    // Pass the captured canvas frame directly for instant face processing
-    await processSelfieImage(canvas, originalSrc || undefined);
+    await processSelfieImage(video, originalSrc || undefined);
   };
 
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -299,16 +211,21 @@ export function SelfieCapture({ onCapture }: SelfieCaptureProps) {
 
     setError(null);
     setLoading(true);
-    setCapturedFrame(null);
 
-    try {
-      const { canvas, originalSrc } = await loadOrientedCanvas(file);
-      await processSelfieImage(canvas, originalSrc);
-    } catch (err) {
-      console.error('Error loading uploaded image file:', err);
-      setError(t('selfieCapture.noFaceDetected'));
-      setLoading(false);
-    }
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      const originalSrc = event.target?.result as string;
+      const img = new Image();
+      img.onload = async () => {
+        await processSelfieImage(img, originalSrc);
+      };
+      img.onerror = () => {
+        setError(t('selfieCapture.noFaceDetected'));
+        setLoading(false);
+      };
+      img.src = originalSrc;
+    };
+    reader.readAsDataURL(file);
   };
 
   const handleConfirm = () => {
@@ -323,16 +240,22 @@ export function SelfieCapture({ onCapture }: SelfieCaptureProps) {
     setError(null);
     setValidated(false);
     setPendingResult(null);
-    setCapturedFrame(null);
     setLoading(false);
+  };
+
+  const handleTakeSelfie = () => {
+    if (isMobileDevice()) {
+      cameraFileInputRef.current?.click();
+    } else {
+      startCamera();
+    }
   };
 
   const handleRetake = () => {
     setError(null);
     setValidated(false);
     setPendingResult(null);
-    setCapturedFrame(null);
-    startCamera();
+    handleTakeSelfie();
   };
 
   return (
@@ -342,7 +265,7 @@ export function SelfieCapture({ onCapture }: SelfieCaptureProps) {
         <div className="flex flex-col gap-4">
           <button
             type="button"
-            onClick={startCamera}
+            onClick={handleTakeSelfie}
             className="group relative flex items-center gap-4 p-5 rounded bg-surface-container border border-surface-border hover:border-copper-accent/35 transition-all duration-300 cursor-pointer shadow-sm hover:shadow-2xl active:scale-[0.99]"
           >
             <div className="w-11 h-11 rounded bg-primary/10 border border-primary/20 flex items-center justify-center text-primary shrink-0 group-hover:scale-105 transition-transform duration-300">
@@ -374,6 +297,15 @@ export function SelfieCapture({ onCapture }: SelfieCaptureProps) {
 
           <input
             type="file"
+            ref={cameraFileInputRef}
+            onChange={handleFileUpload}
+            accept="image/*"
+            capture="user"
+            className="hidden"
+          />
+
+          <input
+            type="file"
             ref={fileInputRef}
             onChange={handleFileUpload}
             accept="image/*"
@@ -382,7 +314,7 @@ export function SelfieCapture({ onCapture }: SelfieCaptureProps) {
         </div>
       )}
 
-      {/* Camera Live Preview & Captured Snapshot */}
+      {/* Camera Live Preview */}
       {mode === 'camera' && (
         <div className="relative aspect-[3/4] rounded-lg overflow-hidden border border-surface-border bg-background flex flex-col justify-end">
           <video
@@ -393,47 +325,27 @@ export function SelfieCapture({ onCapture }: SelfieCaptureProps) {
             className="absolute inset-0 w-full h-full object-cover -scale-x-100"
           />
 
-          {/* Instant Frozen Snapshot Preview when user taps Capture */}
-          {capturedFrame && (
-            <img
-              src={capturedFrame}
-              alt="Captured Snapshot"
-              className="absolute inset-0 w-full h-full object-cover z-10"
-            />
-          )}
-
-          {/* Processing Overlay */}
           {loading && (
-            <div className="absolute inset-0 z-20 bg-background/75 backdrop-blur-sm flex flex-col items-center justify-center gap-3">
-              <Loader2 className="w-9 h-9 animate-spin text-copper-accent" />
-              <span className="text-xs font-bold text-on-background tracking-wider uppercase">
-                {t('selfieCapture.processing')}
-              </span>
+            <div className="absolute inset-0 bg-background/80 backdrop-blur-sm flex flex-col items-center justify-center gap-3">
+              <Loader2 className="w-8 h-8 animate-spin text-copper-accent" />
+              <span className="text-xs font-semibold text-sage-muted">{t('selfieCapture.analyzing')}</span>
             </div>
           )}
 
           {/* HUD buttons */}
-          <div className="relative z-30 p-5 bg-gradient-to-t from-background via-background/60 to-transparent flex gap-3 items-center">
+          <div className="relative z-10 p-5 bg-gradient-to-t from-background to-transparent flex gap-3 items-center">
             <button
               type="button"
               onClick={handleCapture}
               disabled={loading}
-              className="flex-1 py-3.5 rounded bg-deep-forest hover:bg-primary text-background font-bold text-xs uppercase tracking-wider transition-all cursor-pointer shadow active:scale-95 disabled:opacity-80 disabled:cursor-not-allowed border-none flex items-center justify-center gap-2"
+              className="flex-1 py-3 rounded bg-deep-forest hover:bg-primary text-background font-bold text-xs uppercase tracking-wider transition-all cursor-pointer shadow active:scale-95 disabled:opacity-50 border-none"
             >
-              {loading ? (
-                <>
-                  <Loader2 className="w-4 h-4 animate-spin shrink-0" />
-                  <span>{t('selfieCapture.processing')}</span>
-                </>
-              ) : (
-                <span>{t('selfieCapture.captureBtn')}</span>
-              )}
+              {t('selfieCapture.captureBtn')}
             </button>
             <button
               type="button"
               onClick={handleCancel}
-              disabled={loading}
-              className="px-5 py-3.5 rounded bg-surface-container border border-surface-border hover:bg-surface-container-high text-on-background font-medium text-xs transition-all cursor-pointer disabled:opacity-50"
+              className="px-5 py-3 rounded bg-surface-container border border-surface-border hover:bg-surface-container-high text-on-background font-medium text-xs transition-all cursor-pointer"
             >
               {t('common.cancel')}
             </button>
@@ -502,40 +414,13 @@ export function SelfieCapture({ onCapture }: SelfieCaptureProps) {
         </div>
       )}
 
-      {/* Errors & Tips */}
+      {/* Errors */}
       {error && (
-        <div className="mt-4 bg-red-500/10 border border-red-500/25 rounded-lg p-4 flex flex-col gap-3 text-start shadow-sm">
-          <div className="flex gap-3 items-start">
-            <AlertCircle className="w-4 h-4 text-red-400 shrink-0 mt-0.5" />
-            <span className="text-xs text-red-400 font-bold leading-relaxed">
-              {error}
-            </span>
-          </div>
-
-          {/* Actionable Tips Box */}
-          <div className="pt-3 border-t border-red-500/15 text-start text-xs space-y-2">
-            <span className="font-bold text-on-background block text-[11px]">
-              {t('selfieCapture.tipsTitle')}
-            </span>
-            <ul className="space-y-1.5 text-sage-muted font-body-md text-[11px] leading-relaxed list-none p-0 m-0">
-              <li className="flex items-start gap-2">
-                <span className="shrink-0 text-copper-accent">💡</span>
-                <span>{t('selfieCapture.tipLighting')}</span>
-              </li>
-              <li className="flex items-start gap-2">
-                <span className="shrink-0 text-copper-accent">👤</span>
-                <span>{t('selfieCapture.tipCenter')}</span>
-              </li>
-              <li className="flex items-start gap-2">
-                <span className="shrink-0 text-copper-accent">🕶️</span>
-                <span>{t('selfieCapture.tipObstructions')}</span>
-              </li>
-              <li className="flex items-start gap-2">
-                <span className="shrink-0 text-copper-accent">📱</span>
-                <span>{t('selfieCapture.tipHoldSteady')}</span>
-              </li>
-            </ul>
-          </div>
+        <div className="mt-4 bg-red-500/10 border border-red-500/20 rounded p-4 flex gap-3 text-start">
+          <AlertCircle className="w-4 h-4 text-red-400 shrink-0 mt-0.5" />
+          <span className="text-xs text-red-400 font-bold leading-relaxed">
+            {error}
+          </span>
         </div>
       )}
     </div>
