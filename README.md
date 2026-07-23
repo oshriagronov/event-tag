@@ -22,7 +22,7 @@
 
 ## What is EventTag / GuestID?
 
-EventTag (GuestID) is a smart event photo sharing and retrieval platform designed to eliminate manual sorting and searching through thousands of event photos. Event owners connect photo folders directly from **Google Drive** or **Dropbox**, and guests scan a share link / QR code with a single selfie to instantly locate and download all photos they appear in.
+EventTag (GuestID) is a smart event photo sharing and retrieval platform designed to eliminate manual sorting and searching through thousands of event photos. Event owners connect photo folders directly from **Dropbox** (with **Google Drive** and **OneDrive** coming soon), and guests scan a share link / QR code with a single selfie to instantly locate and download all photos they appear in.
 
 ### 🎯 The Goal
 - **For Guests:** Instant, self-service access to all their photos from any event via a simple selfie scan.
@@ -42,7 +42,7 @@ EventTag (GuestID) is a smart event photo sharing and retrieval platform designe
 - **QR Code & Share Links** — Instant access via event QR code or custom share URL (`qrcode.react`).
 
 ### 🛠️ Event Owner Experience
-- **Multi-Cloud Storage Connection** — Connect photo libraries directly from **Google Drive** (via native Google Picker API) or **Dropbox** (via Dropbox Chooser / API).
+- **Multi-Cloud Storage Connection** — Connect photo libraries directly from **Dropbox** (Google Drive & OneDrive marked as "Soon").
 - **Automatic Face Clustering** — On-device AI groups recognized faces automatically into distinct guest profiles.
 - **Live Scanning Queue & Parallel Ingestion** — Scan multiple events concurrently with independent pause/stop controls per event, real-time ETA display, and performance warning alerts.
 - **Multi-Event Management** — Isolated dashboard for creating, sharing, and deleting multiple events.

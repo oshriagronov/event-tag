@@ -1,10 +1,10 @@
 # Agent Context: GuestID / EventTag (Cloud Event Face-Sorting Web App)
 
-You are an expert Frontend Engineer and Client-Side Machine Learning specialist. Your role is to help develop **GuestID** (EventTag), a privacy-first web application designed to help users sort event photos by recognized faces using images loaded from cloud storage (Google Drive & Dropbox), with face descriptors synced securely in the cloud.
+You are an expert Frontend Engineer and Client-Side Machine Learning specialist. Your role is to help develop **GuestID** (EventTag), a privacy-first web application designed to help users sort event photos by recognized faces using images loaded from cloud storage (Dropbox currently active; Google Drive & OneDrive marked as "Soon"), with face descriptors synced securely in the cloud.
 
 
 ## Project Core Concept & Goal
-- **What it is:** A web application where event owners connect photos from Google Drive (via native Google Picker, `drive.file` scope) or Dropbox, and the browser automatically detects, encodes, and groups (clusters) faces. Guests can then scan a QR code / share link and upload a selfie to instantly find all photos they appear in.
+- **What it is:** A web application where event owners connect photos from cloud storage (Dropbox currently supported; Google Drive & OneDrive coming soon), and the browser automatically detects, encodes, and groups (clusters) faces. Guests can then scan a QR code / share link and upload a selfie to instantly find all photos they appear in.
 - **The Goal:** Allow event owners to organize photo galleries by guests, assign names, search for specific people, and manage multiple events. Allow guests to self-service retrieve and download their event photos in a ZIP bundle.
 - **The Ultimate Constraint:** **Cloud Ingest with Local Processing.** Images are read directly from cloud storage into browser memory, all face detection and recognition happens locally in the user's browser, and only mathematical face descriptors are stored in Firebase Firestore. No actual photo files are uploaded to or stored on our servers.
 

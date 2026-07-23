@@ -1067,10 +1067,10 @@ export function Dashboard() {
                     )}
                   </div>
 
-                  {/* Google Drive */}
-                  <div className="flex items-center justify-between p-4 rounded-xl bg-surface-container-low border border-surface-border">
+                  {/* Google Drive - "Soon" */}
+                  <div className="flex items-center justify-between p-4 rounded-xl bg-surface-container-low/40 border border-surface-border/40 opacity-70">
                     <div className="flex items-center gap-3 text-start">
-                      <div className="w-10 h-10 rounded-lg bg-surface-container-high flex items-center justify-center border border-surface-border shrink-0">
+                      <div className="w-10 h-10 rounded-lg bg-surface-container-high flex items-center justify-center border border-surface-border shrink-0 opacity-60">
                         <svg viewBox="0 0 24 24" className="w-5 h-5 shrink-0" xmlns="http://www.w3.org/2000/svg">
                           <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4"/>
                           <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853"/>
@@ -1081,6 +1081,9 @@ export function Dashboard() {
                       <div>
                         <div className="flex items-center gap-1.5">
                           <p className="font-bold text-sm text-on-background m-0">Google Drive</p>
+                          <span className="px-1.5 py-0.5 rounded text-[9px] font-bold bg-copper-accent/15 text-copper-accent border border-copper-accent/20 uppercase tracking-wide">
+                            {t('settings.soon')}
+                          </span>
                         </div>
                         <p className="text-xs text-sage-muted m-0">
                           {isGoogleConnected || googleAccessToken ? (
@@ -1091,21 +1094,12 @@ export function Dashboard() {
                         </p>
                       </div>
                     </div>
-                    {isGoogleConnected || googleAccessToken ? (
-                      <button
-                        onClick={() => handleDisconnectProvider('google')}
-                        className="px-4 py-2 rounded border border-red-500/30 bg-red-500/10 text-red-400 hover:bg-red-500/25 hover:border-red-500/50 text-xs font-bold transition-all cursor-pointer"
-                      >
-                        {t('settings.disconnect')}
-                      </button>
-                    ) : (
-                      <button
-                        onClick={connectGoogle}
-                        className="px-4 py-2 rounded bg-deep-forest hover:bg-primary text-background text-xs font-bold transition-all cursor-pointer border-none"
-                      >
-                        {t('settings.connect')}
-                      </button>
-                    )}
+                    <button
+                      disabled
+                      className="px-4 py-2 rounded bg-surface-container-high text-sage-muted text-xs font-bold border-none cursor-not-allowed"
+                    >
+                      {t('settings.connect')}
+                    </button>
                   </div>
 
                   {/* OneDrive - "Soon" */}
@@ -1336,24 +1330,13 @@ export function Dashboard() {
                 )}
               </button>
 
-              {/* Google Drive Button */}
+              {/* Google Drive Button - "Soon" */}
               <button
-                onClick={() => {
-                  setSelectedProvider('google');
-                  setShowProviderModal(false);
-                  if (!googleAccessToken && !isGoogleConnected) {
-                    connectGoogle();
-                  } else {
-                    setNewEventName('');
-                    setPendingPhotos([]);
-                    setPendingFolder(null);
-                    setShowFolderPicker(true);
-                  }
-                }}
-                className="flex items-center justify-between p-4 rounded-xl bg-surface-container-low border border-surface-border hover:border-copper-accent/40 hover:bg-surface-container transition-all cursor-pointer text-start w-full text-on-background"
+                disabled
+                className="flex items-center justify-between p-4 rounded-xl bg-surface-container-low/40 border border-surface-border/40 opacity-60 text-start w-full text-on-background cursor-not-allowed"
               >
                 <div className="flex items-center gap-3">
-                  <div className="w-8 h-8 rounded bg-surface-container-high flex items-center justify-center border border-surface-border shrink-0">
+                  <div className="w-8 h-8 rounded bg-surface-container-high flex items-center justify-center border border-surface-border shrink-0 opacity-60">
                     <svg viewBox="0 0 24 24" className="w-4 h-4 shrink-0" xmlns="http://www.w3.org/2000/svg">
                       <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4"/>
                       <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853"/>
@@ -1362,15 +1345,15 @@ export function Dashboard() {
                     </svg>
                   </div>
                   <div>
-                    <span className="font-bold text-sm block">Google Drive</span>
-                    <span className="text-[10px] text-sage-muted">
-                      {isGoogleConnected || googleAccessToken ? t('settings.connected') : t('settings.notConnected')}
-                    </span>
+                    <div className="flex items-center gap-1.5">
+                      <span className="font-bold text-sm block">Google Drive</span>
+                      <span className="px-1 py-0.2 rounded text-[8px] font-bold bg-copper-accent/15 text-copper-accent border border-copper-accent/20 uppercase tracking-wide">
+                        {t('settings.soon')}
+                      </span>
+                    </div>
+                    <span className="text-[10px] text-sage-muted">{t('settings.notConnected')}</span>
                   </div>
                 </div>
-                {(isGoogleConnected || googleAccessToken) && (
-                  <span className="w-2 h-2 rounded-full bg-emerald-400" />
-                )}
               </button>
 
               {/* OneDrive Button - "Soon" */}
