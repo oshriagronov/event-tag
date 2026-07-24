@@ -26,7 +26,6 @@ import {
   X,
   ExternalLink,
 } from 'lucide-react';
-import JSZip from 'jszip';
 import { getCloudEvent, type CloudEvent } from '../services/firestore';
 import { convertToRawUrl, type CloudProvider } from '../services/cloudProviders';
 import { matchSelfieToEvent, type MatchResult } from '../services/faceMatching';
@@ -88,6 +87,9 @@ function GuestPhotoImage({
         <BoxIcon className="w-8 h-8 text-[#0061D5] shrink-0" />
         <span className="text-xs font-bold text-on-background truncate max-w-full unicode-isolate">
           {alt || 'תמונה מ-Box'}
+        </span>
+        <span className="text-[10px] text-amber-400 font-medium">
+          לא תומך בתצוגה מקדימה
         </span>
         {boxTargetUrl && (
           <a
@@ -358,7 +360,7 @@ export function GuestView({ eventId }: GuestViewProps) {
     return blob;
   };
 
-  // ---- Download photos as ZIP ----
+  // ---- Download photos one by one ----
   const handleDownload = async () => {
     const targets = isSelectionMode ? selectedMatches : downloadableMatches;
     if (targets.length === 0) return;
@@ -367,9 +369,8 @@ export function GuestView({ eventId }: GuestViewProps) {
     setDownloadProgress(0);
 
     try {
-      const zip = new JSZip();
       const total = targets.length;
-      let addedCount = 0;
+      let downloadedCount = 0;
 
       for (let i = 0; i < targets.length; i++) {
         const match = targets[i];
@@ -391,38 +392,47 @@ export function GuestView({ eventId }: GuestViewProps) {
 
         if (blob && blob.size > 0) {
           const ext = blob.type.includes('png') ? 'png' : 'jpg';
-          const fileName = match.fileName || `photo_${i + 1}.${ext}`;
-          zip.file(fileName.endsWith(`.${ext}`) ? fileName : `${fileName}.${ext}`, blob);
-          addedCount++;
+          const baseName = match.fileName || `photo_${i + 1}.${ext}`;
+          const finalFileName = baseName.endsWith(`.${ext}`) ? baseName : `${baseName}.${ext}`;
+
+          const url = URL.createObjectURL(blob);
+          const a = document.createElement('a');
+          a.href = url;
+          a.download = finalFileName;
+          document.body.appendChild(a);
+          a.click();
+          document.body.removeChild(a);
+          setTimeout(() => URL.revokeObjectURL(url), 1000);
+          downloadedCount++;
+        } else if (match.publicUrl) {
+          const rawUrl = convertToRawUrl(provider, match.publicUrl, 'full');
+          const downloadUrl = rawUrl.includes('dropbox') ? rawUrl.replace('raw=1', 'dl=1') : rawUrl;
+          const a = document.createElement('a');
+          a.href = downloadUrl;
+          a.download = match.fileName || `photo_${i + 1}.jpg`;
+          document.body.appendChild(a);
+          a.click();
+          document.body.removeChild(a);
+          downloadedCount++;
         } else {
-          console.warn(`Could not retrieve blob for photo ${match.driveFileId || match.fileName}`);
+          console.warn(`Could not retrieve photo ${match.driveFileId || match.fileName}`);
         }
 
         setDownloadProgress(Math.round(((i + 1) / total) * 100));
 
-        // Small 100ms pacing delay between photo fetches
-        await new Promise((r) => setTimeout(r, 100));
+        // Small 250ms pacing delay between photo downloads
+        await new Promise((r) => setTimeout(r, 250));
       }
 
-      if (addedCount === 0) {
+      if (downloadedCount === 0) {
         throw new Error(
           language === 'he'
-            ? 'לא ניתן היה לשלוף את התמונות כקובץ ZIP. וודא שהתיקייה או הקבצים מוגדרים כציבוריים לצפייה.'
-            : 'Could not fetch photos into ZIP package. Ensure the folder or photos are set to public viewing.'
+            ? 'לא ניתן היה להוריד את התמונות. וודא שהתיקייה או הקבצים מוגדרים כציבוריים לצפייה.'
+            : 'Could not download photos. Ensure the folder or photos are set to public viewing.'
         );
       }
-
-      const content = await zip.generateAsync({ type: 'blob' });
-      const url = URL.createObjectURL(content);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = `${event?.name ?? 'event'}_photos.zip`;
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-      setTimeout(() => URL.revokeObjectURL(url), 1000);
     } catch (err: unknown) {
-      console.error('ZIP download error:', err);
+      console.error('Download error:', err);
       const errMsg = err instanceof Error ? err.message : String(err);
       await alert({
         title: language === 'he' ? 'שגיאה בהורדה' : 'Download Error',
@@ -440,26 +450,40 @@ export function GuestView({ eventId }: GuestViewProps) {
     const match = downloadableMatches.find((m) => m.driveFileId === driveFileId);
     const provider = event?.provider || (match?.publicUrl?.includes('dropbox') ? 'dropbox' : 'google');
 
+    let blob: Blob | null = null;
     if (provider === 'google') {
       const id = match?.driveFileId || driveFileId;
-      const blob = await fetchGoogleDriveBlob(id);
-      if (blob && blob.size > 0) {
-        const ext = blob.type.includes('png') ? 'png' : 'jpg';
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = match?.fileName || `photo_${id}.${ext}`;
-        document.body.appendChild(a);
-        a.click();
-        document.body.removeChild(a);
-        setTimeout(() => URL.revokeObjectURL(url), 1000);
-        return;
-      }
-      window.open(`https://lh3.googleusercontent.com/d/${id}`, '_blank', 'noopener,noreferrer');
-    } else if (match?.publicUrl) {
+      blob = await fetchGoogleDriveBlob(id);
+    }
+    if (!blob && match?.publicUrl) {
+      const rawUrl = convertToRawUrl(provider, match.publicUrl, 'full');
+      blob = await fetchImageBlobFromUrl(rawUrl);
+    }
+
+    if (blob && blob.size > 0) {
+      const ext = blob.type.includes('png') ? 'png' : 'jpg';
+      const baseName = match?.fileName || `photo_${driveFileId}.${ext}`;
+      const finalFileName = baseName.endsWith(`.${ext}`) ? baseName : `${baseName}.${ext}`;
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = finalFileName;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      setTimeout(() => URL.revokeObjectURL(url), 2000);
+      return;
+    }
+
+    if (match?.publicUrl) {
       const rawUrl = convertToRawUrl(provider, match.publicUrl, 'full');
       const downloadUrl = rawUrl.includes('dropbox') ? rawUrl.replace('raw=1', 'dl=1') : rawUrl;
-      window.open(downloadUrl, '_blank', 'noopener,noreferrer');
+      const a = document.createElement('a');
+      a.href = downloadUrl;
+      a.download = match?.fileName || `photo_${driveFileId}.jpg`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
     }
   };
 

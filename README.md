@@ -22,7 +22,7 @@
 
 ## What is EventTag?
 
-EventTag is a privacy-first event photo sharing and retrieval platform designed to make sharing photos between event owners and guests as effortless and private as possible. Event owners connect cloud photo folders directly from **Dropbox**, **pCloud**, or **Box** (with **Google Drive** and **OneDrive** coming soon) for browser-based scanning, and guests scan a share link / QR code with a selfie to instantly find and download all photos they appear in.
+EventTag is a privacy-first event photo sharing and retrieval platform designed to make sharing photos between event owners and guests as effortless and private as possible. Event owners connect cloud photo folders directly from **Dropbox** or **Box** (with **pCloud**, **Google Drive**, and **OneDrive** coming soon) for browser-based scanning, and guests scan a share link / QR code with a selfie to instantly find and download all photos they appear in.
 
 ### 🎯 The Goal
 - **For Guests:** Instant, private, self-service retrieval of all their event photos via a simple selfie scan.
@@ -37,12 +37,11 @@ EventTag is a privacy-first event photo sharing and retrieval platform designed 
 ### 📸 Guest Experience
 - **Selfie Search** — Guests capture or upload a selfie to instantly query event photos.
 - **Strict Face Matching** — Calibrated 0.85 vector distance threshold prevents false positives.
-- **Instant Photo Retrieval & Downloads** — View full-resolution photos directly from cloud storage.
-- **ZIP Export** — Download all matching photos in a single ZIP file (`jszip`).
+- **Instant Photo Retrieval & Downloads** — View full-resolution photos directly from cloud storage and download them one by one.
 - **QR Code & Share Links** — Instant access via event QR code or custom share URL (`qrcode.react`).
 
 ### 🛠️ Event Owner Experience
-- **Multi-Cloud Storage Connection** — Connect photo libraries directly from **Dropbox**, **pCloud**, and **Box** (Google Drive & OneDrive marked as "Soon").
+- **Multi-Cloud Storage Connection** — Connect photo libraries directly from **Dropbox** and **Box** (pCloud, Google Drive & OneDrive marked as "Soon").
 - **Developer & Verification Guides** — Step-by-step documentation for developer setup and API verification for [pCloud](docs/PCLOUD_GUIDE.md) and [Box](docs/BOX_GUIDE.md).
 - **Automatic Face Clustering** — On-device AI groups recognized faces automatically into distinct guest profiles.
 - **Live Scanning Queue & Parallel Ingestion** — Scan multiple events concurrently with independent pause/stop controls per event, real-time ETA display, and performance warning alerts.

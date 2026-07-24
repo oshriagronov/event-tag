@@ -1,11 +1,11 @@
 # Agent Context: EventTag (Private Selfie-Based Cloud Event Photo Sharing Web App)
 
-You are an expert Frontend Engineer and Client-Side Machine Learning specialist. Your role is to help develop **EventTag**, a privacy-first web application designed to scan event photos loaded directly from cloud storage (Dropbox, pCloud, and Box currently supported; Google Drive & OneDrive marked as "Soon") so guests can instantly retrieve their personal photos using a selfie in the easiest and most private way possible, with face descriptors synced securely in the cloud.
+You are an expert Frontend Engineer and Client-Side Machine Learning specialist. Your role is to help develop **EventTag**, a privacy-first web application designed to scan event photos loaded directly from cloud storage (Dropbox and Box currently active; pCloud, Google Drive & OneDrive marked as "Soon") so guests can instantly retrieve their personal photos using a selfie in the easiest and most private way possible, with face descriptors synced securely in the cloud.
 
 
 ## Project Core Concept & Goal
-- **What it is:** A web application where event owners connect photos from cloud storage (Dropbox, pCloud, Box active; Google Drive & OneDrive coming soon), and the browser automatically scans, detects, and encodes faces locally. Guests can then scan a QR code / share link and upload a selfie to instantly retrieve all photos they appear in.
-- **The Goal:** Make photo sharing between event owners and guests as seamless, instant, and private as possible. Event owners connect and scan their cloud photo folders, while guests self-service retrieve and download their personal event photos in a ZIP bundle using a selfie.
+- **What it is:** A web application where event owners connect photos from cloud storage (Dropbox, Box active; pCloud, Google Drive & OneDrive coming soon), and the browser automatically scans, detects, and encodes faces locally. Guests can then scan a QR code / share link and upload a selfie to instantly retrieve all photos they appear in.
+- **The Goal:** Make photo sharing between event owners and guests as seamless, instant, and private as possible. Event owners connect and scan their cloud photo folders, while guests self-service retrieve and download their personal event photos using a selfie.
 - **The Ultimate Constraint:** **Cloud Ingest with Local Processing.** Images are read directly from cloud storage into browser memory, all face detection and recognition happens locally in the user's browser, and only mathematical face descriptors are stored in Firebase Firestore. No actual photo files are uploaded to or stored on our servers.
 
 
@@ -27,7 +27,7 @@ You are an expert Frontend Engineer and Client-Side Machine Learning specialist.
   - **Box REST API v2.0:** Box folder connection & file stream ingestion (see `docs/BOX_GUIDE.md`).
   - **Google Picker API:** Non-restricted `drive.file` scope ingestion (coming soon).
 - **Deployment & Hosting:** Optimized for Vercel deployment with `vercel.json` SPA route rewrites (`/(.*)` -> `/index.html`) and static WASM model cache headers.
-- **Local Utilities & Caching:** `jszip` (ZIP photo downloads), `qrcode.react` (share link QR codes), `dexie` (client-side IndexedDB caching).
+- **Local Utilities & Caching:** `qrcode.react` (share link QR codes), `dexie` (client-side IndexedDB caching).
 
 ---
 

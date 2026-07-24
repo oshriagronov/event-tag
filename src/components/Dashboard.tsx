@@ -1180,7 +1180,12 @@ export function Dashboard() {
                         <BoxIcon className="w-5 h-5 shrink-0" />
                       </div>
                       <div>
-                        <p className="font-bold text-sm text-on-background m-0">Box</p>
+                        <div className="flex items-center gap-1.5">
+                          <p className="font-bold text-sm text-on-background m-0">Box</p>
+                          <span className="px-1.5 py-0.5 rounded text-[9px] font-bold bg-amber-500/15 text-amber-400 border border-amber-500/20 uppercase tracking-wide">
+                            {t('settings.noPreview')}
+                          </span>
+                        </div>
                         <p className="text-xs text-sage-muted m-0">
                           {isBoxConnected || boxAccessToken ? (
                             <span className="text-emerald-400 font-semibold">{t('settings.connected')}</span>
@@ -1396,37 +1401,25 @@ export function Dashboard() {
                 )}
               </button>
 
-              {/* pCloud Button */}
+              {/* pCloud Button - "Soon" */}
               <button
-                type="button"
-                onClick={() => {
-                  setSelectedProvider('pcloud');
-                  setShowProviderModal(false);
-                  if (!pcloudAccessToken) {
-                    connectPCloud();
-                  } else {
-                    setNewEventName('');
-                    setPendingPhotos([]);
-                    setPendingFolder(null);
-                    setShowFolderPicker(true);
-                  }
-                }}
-                className="flex items-center justify-between p-4 rounded-xl bg-surface-container-low border border-surface-border hover:border-copper-accent/40 hover:bg-surface-container transition-all cursor-pointer text-start w-full text-on-background"
+                disabled
+                className="flex items-center justify-between p-4 rounded-xl bg-surface-container-low/40 border border-surface-border/40 opacity-60 text-start w-full text-on-background cursor-not-allowed"
               >
                 <div className="flex items-center gap-3">
-                  <div className="w-8 h-8 rounded bg-[#139EFB]/10 flex items-center justify-center border border-[#139EFB]/30 shrink-0">
+                  <div className="w-8 h-8 rounded bg-[#139EFB]/10 flex items-center justify-center border border-[#139EFB]/30 shrink-0 opacity-60">
                     <PCloudIcon className="w-4 h-4 shrink-0" />
                   </div>
                   <div>
-                    <span className="font-bold text-sm block">pCloud</span>
-                    <span className="text-[10px] text-sage-muted">
-                      {isPCloudConnected || pcloudAccessToken ? t('settings.connected') : t('settings.notConnected')}
-                    </span>
+                    <div className="flex items-center gap-1.5">
+                      <span className="font-bold text-sm block">pCloud</span>
+                      <span className="px-1 py-0.2 rounded text-[8px] font-bold bg-copper-accent/15 text-copper-accent border border-copper-accent/20 uppercase tracking-wide">
+                        {t('settings.soon')}
+                      </span>
+                    </div>
+                    <span className="text-[10px] text-sage-muted">{t('settings.notConnected')}</span>
                   </div>
                 </div>
-                {(isPCloudConnected || pcloudAccessToken) && (
-                  <span className="w-2 h-2 rounded-full bg-emerald-400" />
-                )}
               </button>
 
               {/* Box Button */}
@@ -1451,7 +1444,12 @@ export function Dashboard() {
                     <BoxIcon className="w-4 h-4 shrink-0" />
                   </div>
                   <div>
-                    <span className="font-bold text-sm block">Box</span>
+                    <div className="flex items-center gap-1.5">
+                      <span className="font-bold text-sm block">Box</span>
+                      <span className="px-1 py-0.2 rounded text-[8px] font-bold bg-amber-500/15 text-amber-400 border border-amber-500/20 uppercase tracking-wide">
+                        {t('settings.noPreview')}
+                      </span>
+                    </div>
                     <span className="text-[10px] text-sage-muted">
                       {isBoxConnected || boxAccessToken ? t('settings.connected') : t('settings.notConnected')}
                     </span>
