@@ -22,13 +22,13 @@
 
 ## What is EventTag?
 
-EventTag is a privacy-first event photo sharing and retrieval platform designed to make sharing photos between event owners and guests as effortless and private as possible. Event owners connect cloud photo folders directly from **Dropbox** (with **Google Drive** and **OneDrive** coming soon) for browser-based scanning, and guests scan a share link / QR code with a selfie to instantly find and download all photos they appear in.
+EventTag is a privacy-first event photo sharing and retrieval platform designed to make sharing photos between event owners and guests as effortless and private as possible. Event owners connect cloud photo folders directly from **Dropbox** or **Google Drive** (with **OneDrive** coming soon) for browser-based scanning, and guests scan a share link / QR code with a selfie to instantly find and download all photos they appear in.
 
 ### 🎯 The Goal
 - **For Guests:** Instant, private, self-service retrieval of all their event photos via a simple selfie scan.
 - **For Event Owners:** Effortless photo sharing with guests while keeping user privacy paramount and avoiding manual photo distribution.
 
-**Privacy-First & On-Device AI:** All face detection, alignment, and 128-dimensional embedding extraction happen **100% locally in the user's browser** using WebAssembly (ONNX Runtime Web with SFace + face-api.js). Photos are ingested in-memory from cloud storage; **no photo files are ever uploaded to or saved on backend servers**. Only mathematical face vectors and metadata are stored in Firebase Firestore.
+**Privacy-First & On-Device AI:** All face detection, alignment, and 128-dimensional embedding extraction happen **100% locally in the user's browser** using WebAssembly (ONNX Runtime Web with SFace + face-api.js). Photos are ingested in-memory from cloud storage or local disk; **no photo files are ever uploaded to or saved on backend servers**. Only mathematical face vectors and metadata are stored in Firebase Firestore.
 
 
 
@@ -41,7 +41,8 @@ EventTag is a privacy-first event photo sharing and retrieval platform designed 
 - **QR Code & Share Links** — Instant access via event QR code or custom share URL (`qrcode.react`).
 
 ### 🛠️ Event Owner Experience
-- **Multi-Cloud Storage Connection** — Connect photo libraries directly from **Dropbox** (Google Drive & OneDrive marked as "Soon").
+- **Multi-Cloud Storage Connection** — Connect photo libraries directly from **Dropbox** and **Google Drive** (OneDrive marked as "Soon").
+- **Google Drive Auto-Ingest & Upload** — Select local photos or folders to automatically generate an event folder in Google Drive using `drive.file` non-restricted scope and scan faces locally with 2-worker parallel processing.
 - **Automatic Face Clustering** — On-device AI groups recognized faces automatically into distinct guest profiles.
 - **Live Scanning Queue & Parallel Ingestion** — Scan multiple events concurrently with independent pause/stop controls per event, real-time ETA display, and performance warning alerts.
 - **Multi-Event Management** — Isolated dashboard for creating, sharing, and deleting multiple events.

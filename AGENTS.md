@@ -1,12 +1,12 @@
 # Agent Context: EventTag (Private Selfie-Based Cloud Event Photo Sharing Web App)
 
-You are an expert Frontend Engineer and Client-Side Machine Learning specialist. Your role is to help develop **EventTag**, a privacy-first web application designed to scan event photos loaded directly from cloud storage (Dropbox currently active; Google Drive & OneDrive marked as "Soon") so guests can instantly retrieve their personal photos using a selfie in the easiest and most private way possible, with face descriptors synced securely in the cloud.
+You are an expert Frontend Engineer and Client-Side Machine Learning specialist. Your role is to help develop **EventTag**, a privacy-first web application designed to scan event photos loaded directly from cloud storage (Dropbox & Google Drive active; OneDrive marked as "Soon") so guests can instantly retrieve their personal photos using a selfie in the easiest and most private way possible, with face descriptors synced securely in the cloud.
 
 
 ## Project Core Concept & Goal
-- **What it is:** A web application where event owners connect photos from cloud storage (Dropbox active; Google Drive & OneDrive coming soon), and the browser automatically scans, detects, and encodes faces locally. Guests can then scan a QR code / share link and upload a selfie to instantly retrieve all photos they appear in.
+- **What it is:** A web application where event owners connect photos from cloud storage (Dropbox & Google Drive active; OneDrive coming soon), and the browser automatically scans, detects, and encodes faces locally. Guests can then scan a QR code / share link and upload a selfie to instantly retrieve all photos they appear in.
 - **The Goal:** Make photo sharing between event owners and guests as seamless, instant, and private as possible. Event owners connect and scan their cloud photo folders, while guests self-service retrieve and download their personal event photos using a selfie.
-- **The Ultimate Constraint:** **Cloud Ingest with Local Processing.** Images are read directly from cloud storage into browser memory, all face detection and recognition happens locally in the user's browser, and only mathematical face descriptors are stored in Firebase Firestore. No actual photo files are uploaded to or stored on our servers.
+- **The Ultimate Constraint:** **Cloud Ingest with Local Processing.** Images are read directly from cloud storage or local disk into browser memory, all face detection and recognition happens locally in the user's browser, and only mathematical face descriptors are stored in Firebase Firestore. No actual photo files are uploaded to or stored on our servers.
 
 
 ## Tech Stack & Project Architecture
@@ -24,7 +24,7 @@ You are an expert Frontend Engineer and Client-Side Machine Learning specialist.
   - **ShareModal & shareUtils:** Native OS Web Share API integration (`navigator.share`) with automatic fallback to a custom multi-platform share modal (WhatsApp, Telegram, Email, Facebook, X/Twitter, QR Code).
 - **Cloud Storage Integrations:**
   - **Dropbox API:** Direct Dropbox folder connection & file stream ingestion.
-  - **Google Picker API:** Non-restricted `drive.file` scope ingestion (coming soon).
+  - **Google Drive API:** Non-restricted `drive.file` scope ingestion with client-side local file upload to automated Google Drive event folders, and 2-worker parallel face scanning.
 - **Deployment & Hosting:** Optimized for Vercel deployment with `vercel.json` SPA route rewrites (`/(.*)` -> `/index.html`) and static WASM model cache headers.
 - **Local Utilities & Caching:** `qrcode.react` (share link QR codes), `dexie` (client-side IndexedDB caching).
 

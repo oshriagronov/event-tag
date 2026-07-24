@@ -110,6 +110,139 @@ export async function listFolders(
 }
 
 /**
+ * Share a Google Drive folder publicly ("Anyone with link can view")
+ */
+export async function makeFolderPublic(
+  accessToken: string,
+  folderId: string
+): Promise<boolean> {
+  try {
+    const url = `${API_BASE}/files/${folderId}/permissions`;
+    const res = await fetchWithRetry(url, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        role: 'reader',
+        type: 'anyone',
+      }),
+    });
+    return res.ok;
+  } catch (err) {
+    console.warn('Failed to set public permission on Google Drive folder:', err);
+    return false;
+  }
+}
+
+/**
+ * Create a new folder in user's Google Drive and set it to public view
+ */
+export async function createGoogleFolder(
+  accessToken: string,
+  folderName: string,
+  parentFolderId = 'root'
+): Promise<GoogleFolder> {
+  const metadata = {
+    name: folderName,
+    mimeType: 'application/vnd.google-apps.folder',
+    parents: parentFolderId && parentFolderId !== 'root' ? [parentFolderId] : ['root'],
+  };
+
+  const url = `${API_BASE}/files`;
+
+  const res = await fetchWithRetry(url, {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${accessToken}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(metadata),
+  });
+
+  if (!res.ok) {
+    const error = await res.text();
+    if (
+      res.status === 401 ||
+      res.status === 403 ||
+      error.includes('PERMISSION_DENIED') ||
+      error.includes('insufficient')
+    ) {
+      throw new Error(`Google Drive API error: 401 - expired_access_token - ${error}`);
+    }
+    throw new Error(`Failed to create folder in Google Drive (${res.status}): ${error}`);
+  }
+
+  const data = await res.json();
+
+  // Automatically make folder publicly viewable ("anyone with link can view")
+  await makeFolderPublic(accessToken, data.id);
+
+  return {
+    id: data.id,
+    name: data.name || folderName,
+    path: data.name || folderName,
+  };
+}
+
+/**
+ * Upload a local image file directly to a Google Drive folder
+ */
+export async function uploadPhotoToGoogleDrive(
+  accessToken: string,
+  folderId: string,
+  file: File
+): Promise<GoogleFile> {
+  const metadata = {
+    name: file.name,
+    parents: [folderId],
+    mimeType: file.type || 'image/jpeg',
+  };
+
+  const formData = new FormData();
+  formData.append('metadata', new Blob([JSON.stringify(metadata)], { type: 'application/json' }));
+  formData.append('file', file);
+
+  const url = `https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&fields=id,name,size,modifiedTime`;
+
+  const res = await fetchWithRetry(
+    url,
+    {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+      },
+      body: formData,
+    },
+    60000,
+    2
+  );
+
+  if (!res.ok) {
+    const error = await res.text();
+    if (
+      res.status === 401 ||
+      res.status === 403 ||
+      error.includes('PERMISSION_DENIED') ||
+      error.includes('insufficient')
+    ) {
+      throw new Error(`Google Drive API error: 401 - expired_access_token - ${error}`);
+    }
+    throw new Error(`Failed to upload photo to Google Drive (${res.status}): ${error}`);
+  }
+
+  const data = await res.json();
+  return {
+    id: data.id,
+    name: data.name || file.name,
+    path: data.name || file.name,
+    size: Number(data.size || file.size),
+    modifiedTime: data.modifiedTime || new Date().toISOString(),
+  };
+}
+
+/**
  * List image files in a folder, with pagination support
  */
 export async function listPhotosInFolder(

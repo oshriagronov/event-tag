@@ -182,7 +182,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       try {
         const tokenClient = window.google.accounts.oauth2.initTokenClient({
           client_id: clientId,
-          scope: 'https://www.googleapis.com/auth/drive.readonly',
+          scope: 'https://www.googleapis.com/auth/drive.file',
           callback: (response: { access_token?: string; expires_in?: number; error?: string }) => {
             if (response.access_token) {
               const token = response.access_token;
@@ -349,7 +349,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       try {
         const tokenClient = window.google.accounts.oauth2.initTokenClient({
           client_id: clientId,
-          scope: 'https://www.googleapis.com/auth/drive.readonly',
+          scope: 'https://www.googleapis.com/auth/drive.file',
           callback: (response: { access_token?: string; expires_in?: number }) => {
             if (response.access_token) {
               const token = response.access_token;
@@ -372,7 +372,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
 
     const redirectUri = encodeURIComponent(window.location.origin + '/dashboard');
-    const scope = encodeURIComponent('https://www.googleapis.com/auth/drive.readonly');
+    const scope = encodeURIComponent('https://www.googleapis.com/auth/drive.file');
     const authUrl = `https://accounts.google.com/o/oauth2/v2/auth?client_id=${clientId}&redirect_uri=${redirectUri}&response_type=token&scope=${scope}&state=provider%3Dgoogle`;
     window.location.href = authUrl;
   };

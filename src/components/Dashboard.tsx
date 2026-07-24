@@ -19,8 +19,9 @@ import {
   ArrowLeft, LogOut, Cloud, Link2, QrCode, Share2,
   CheckCircle2, Loader2, Clock, Copy, Check, X,
   Plus, Play, Pause, FolderOpen, Search, Menu, BarChart2, Settings,
-  Sun, Moon, AlertTriangle
+  Sun, Moon, AlertTriangle, Upload
 } from 'lucide-react';
+import { createGoogleFolder } from '../services/google';
 import { ShareModal } from './ShareModal';
 import { handleShareEvent } from '../utils/shareUtils';
 import { useScanner } from '../contexts/ScannerContext';
@@ -49,6 +50,7 @@ export function Dashboard() {
     connectOneDrive,
     disconnectOneDrive,
     dismissExpiredProviderNotice,
+    markProviderExpired,
   } = useAuth();
   const { theme, setTheme, setLanguage } = useSettings();
   const { resetConsent } = useConsent();
@@ -59,11 +61,14 @@ export function Dashboard() {
     getEventScanState,
     togglePause,
     stopScanning,
+    startLocalGoogleUploadAndScan,
   } = useScanner();
 
   const [activeTab, setActiveTab] = useState<'events' | 'settings'>('events');
   const [showProviderModal, setShowProviderModal] = useState(false);
   const [selectedProvider, setSelectedProvider] = useState<CloudProvider>('dropbox');
+  const [showGoogleCreateModal, setShowGoogleCreateModal] = useState(false);
+  const [selectedLocalFiles, setSelectedLocalFiles] = useState<File[]>([]);
 
   const [cloudEvents, setCloudEvents] = useState<CloudEvent[]>([]);
   const [loadingEvents, setLoadingEvents] = useState(true);
@@ -196,6 +201,68 @@ export function Dashboard() {
         message: language === 'he' ? 'שגיאה ביצירת האירוע. נסה שוב.' : 'Error creating event. Please try again.',
         variant: 'danger',
       });
+    } finally {
+      setCreating(false);
+    }
+  };
+
+  const handleCreateGoogleEvent = async () => {
+    if (!user || !googleAccessToken || selectedLocalFiles.length === 0 || !newEventName.trim()) return;
+
+    setCreating(true);
+    try {
+      // 1. Create a dedicated folder in user's Google Drive via API with drive.file scope
+      const googleFolder = await createGoogleFolder(googleAccessToken, newEventName.trim());
+
+      // 2. Create the Cloud Event document in Firestore
+      const eventId = await createCloudEvent(
+        user.uid,
+        newEventName.trim(),
+        googleFolder.id,
+        googleFolder.name,
+        'google'
+      );
+
+      // 3. Trigger 2-worker parallel face scanning & Google Drive upload task
+      startLocalGoogleUploadAndScan(eventId, googleFolder.id, selectedLocalFiles, googleAccessToken);
+
+      // 4. Reset modal state and navigate to event page
+      setShowGoogleCreateModal(false);
+      setNewEventName('');
+      setSelectedLocalFiles([]);
+      navigate(`/dashboard/event/${eventId}`);
+    } catch (err: unknown) {
+      console.error('Failed to create Google Drive event:', err);
+      const errStr = err instanceof Error ? err.message : String(err);
+      if (
+        errStr.includes('401') ||
+        errStr.includes('403') ||
+        errStr.includes('expired_access_token') ||
+        errStr.includes('PERMISSION_DENIED') ||
+        errStr.includes('insufficient')
+      ) {
+        markProviderExpired('google');
+        const confirmed = await confirm({
+          title: language === 'he' ? 'נדרשת הרשאת Google Drive' : 'Google Drive Permission Required',
+          message: language === 'he'
+            ? 'תוקף החיבור לחשבון Google Drive פג או שחסרות הרשאות ליצירת קבצים.\nהאם ברצונך להתחבר מחדש עכשיו לקבלת ההרשאות המעודכנות?'
+            : 'Your Google Drive session has expired or lacks file creation permissions.\nWould you like to reconnect now to grant updated permissions?',
+          confirmText: language === 'he' ? 'התחבר מחדש' : 'Reconnect',
+          cancelText: language === 'he' ? 'ביטול' : 'Cancel',
+          variant: 'warning',
+        });
+        if (confirmed) {
+          connectGoogle();
+        }
+      } else {
+        await alert({
+          title: language === 'he' ? 'שגיאה ביצירת אירוע' : 'Error Creating Event',
+          message: language === 'he'
+            ? `שגיאה ביצירת התיקייה ב-Google Drive:\n${errStr}`
+            : `Error creating folder in Google Drive:\n${errStr}`,
+          variant: 'danger',
+        });
+      }
     } finally {
       setCreating(false);
     }
@@ -1072,19 +1139,14 @@ export function Dashboard() {
                     )}
                   </div>
 
-                  {/* Google Drive - "Soon" */}
-                  <div className="flex items-center justify-between p-4 rounded-xl bg-surface-container-low/40 border border-surface-border/40 opacity-70">
+                  {/* Google Drive */}
+                  <div className="flex items-center justify-between p-4 rounded-xl bg-surface-container-low border border-surface-border hover:border-copper-accent/40 transition-all">
                     <div className="flex items-center gap-3 text-start">
-                      <div className="w-10 h-10 rounded-lg bg-surface-container-high flex items-center justify-center border border-surface-border shrink-0 opacity-60">
+                      <div className="w-10 h-10 rounded-lg bg-surface-container-high flex items-center justify-center border border-surface-border shrink-0">
                         <GoogleIcon className="w-5 h-5 shrink-0" alt="Google Drive" />
                       </div>
                       <div>
-                        <div className="flex items-center gap-1.5">
-                          <p className="font-bold text-sm text-on-background m-0">Google Drive</p>
-                          <span className="px-1.5 py-0.5 rounded text-[9px] font-bold bg-copper-accent/15 text-copper-accent border border-copper-accent/20 uppercase tracking-wide">
-                            {t('settings.soon')}
-                          </span>
-                        </div>
+                        <p className="font-bold text-sm text-on-background m-0">Google Drive</p>
                         <p className="text-xs text-sage-muted m-0">
                           {isGoogleConnected || googleAccessToken ? (
                             <span className="text-emerald-400 font-semibold">{t('settings.connected')}</span>
@@ -1094,12 +1156,21 @@ export function Dashboard() {
                         </p>
                       </div>
                     </div>
-                    <button
-                      disabled
-                      className="px-4 py-2 rounded bg-surface-container-high text-sage-muted text-xs font-bold border-none cursor-not-allowed"
-                    >
-                      {t('settings.connect')}
-                    </button>
+                    {isGoogleConnected || googleAccessToken ? (
+                      <button
+                        onClick={() => handleDisconnectProvider('google')}
+                        className="px-4 py-2 rounded border border-red-500/30 bg-red-500/10 text-red-400 hover:bg-red-500/25 hover:border-red-500/50 text-xs font-bold transition-all cursor-pointer"
+                      >
+                        {t('settings.disconnect')}
+                      </button>
+                    ) : (
+                      <button
+                        onClick={connectGoogle}
+                        className="px-4 py-2 rounded bg-deep-forest hover:bg-primary text-background text-xs font-bold transition-all cursor-pointer border-none"
+                      >
+                        {t('settings.connect')}
+                      </button>
+                    )}
                   </div>
 
                   {/* OneDrive - "Soon" */}
@@ -1231,6 +1302,121 @@ export function Dashboard() {
         </div>
       )}
 
+      {/* Google Drive Event Creation Modal */}
+      {showGoogleCreateModal && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4" onClick={() => setShowGoogleCreateModal(false)}>
+          <div className="bg-surface-container border border-surface-border rounded-xl p-8 max-w-lg w-full shadow-2xl flex flex-col gap-6" onClick={(e) => e.stopPropagation()} dir={isRtl ? 'rtl' : 'ltr'}>
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2.5">
+                <div className="w-8 h-8 rounded-lg bg-surface-container-high border border-surface-border flex items-center justify-center">
+                  <GoogleIcon className="w-4 h-4 shrink-0" alt="Google Drive" />
+                </div>
+                <h3 className="font-display-lg text-xl text-on-background m-0">
+                  {language === 'he' ? 'אירוע חדש ב-Google Drive' : 'New Google Drive Event'}
+                </h3>
+              </div>
+              <button
+                onClick={() => { setShowGoogleCreateModal(false); setSelectedLocalFiles([]); setNewEventName(''); }}
+                className="p-1.5 rounded hover:bg-surface-container-high text-sage-muted hover:text-on-background transition-colors cursor-pointer border-none bg-transparent"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <p className="text-xs text-sage-muted m-0 text-start">
+              {language === 'he'
+                ? 'בחר תמונות או תיקייה מהמחשב. המערכת תקים תיקייה ב-Google Drive שלך, תעלה ותסרוק את התמונות מקומית בדפדפן.'
+                : 'Select photos or a folder from your computer. The app will create a folder in your Google Drive, upload, and scan faces locally.'}
+            </p>
+
+            <div className="bg-emerald-500/10 border border-emerald-500/20 rounded-lg p-3 text-start flex items-start gap-2.5 text-xs text-emerald-400">
+              <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0 mt-0.5" />
+              <span>
+                {language === 'he'
+                  ? 'התיקייה ב-Google Drive תוגדר אוטומטית כגלויה בקישור ("Anyone with link can view"), כדי שהאורחים יוכלו לצפות בתמונות שלהם בצורה חלקות.'
+                  : 'The Google Drive folder will automatically be set to "Anyone with the link can view", enabling seamless guest photo access.'}
+              </span>
+            </div>
+
+            {/* Select Local Files / Folder Dropzone */}
+            <div className="flex flex-col gap-2 text-start">
+              <label className="text-xs font-bold uppercase tracking-wider text-sage-muted">
+                {language === 'he' ? 'בחירת תמונות מהמחשב:' : 'Select Photos from Computer:'}
+              </label>
+              <div className="relative border-2 border-dashed border-surface-border hover:border-copper-accent/50 rounded-xl p-6 bg-surface-container-low transition-all text-center flex flex-col items-center justify-center gap-3">
+                <input
+                  type="file"
+                  multiple
+                  accept="image/*"
+                  onChange={(e) => {
+                    if (e.target.files && e.target.files.length > 0) {
+                      const filesArr = Array.from(e.target.files).filter((f) => f.type.startsWith('image/'));
+                      setSelectedLocalFiles(filesArr);
+                      if (!newEventName && filesArr.length > 0) {
+                        const folderPath = filesArr[0].webkitRelativePath;
+                        const inferredName = folderPath ? folderPath.split('/')[0] : 'אירוע Google Drive';
+                        setNewEventName(inferredName);
+                      }
+                    }
+                  }}
+                  className="absolute inset-0 opacity-0 w-full h-full cursor-pointer z-10"
+                />
+                <div className="w-12 h-12 rounded-full bg-copper-accent/10 border border-copper-accent/20 flex items-center justify-center text-copper-accent">
+                  <Upload className="w-6 h-6" />
+                </div>
+                <div>
+                  <p className="text-sm font-bold text-on-background m-0">
+                    {selectedLocalFiles.length > 0
+                      ? (language === 'he' ? `נבחרו ${selectedLocalFiles.length} תמונות` : `${selectedLocalFiles.length} photos selected`)
+                      : (language === 'he' ? 'לחץ לבחירת תמונות או גרור לכאן' : 'Click to select photos or drag & drop')}
+                  </p>
+                  <p className="text-[11px] text-sage-muted m-0 mt-1">
+                    {selectedLocalFiles.length > 0
+                      ? (language === 'he' ? 'לחץ שוב לבחירת קבצים אחרים' : 'Click to re-select files')
+                      : (language === 'he' ? 'ניתן לבחור מספר רב של תמונות (JPG, PNG, WebP)' : 'Supports multiple image files (JPG, PNG, WebP)')}
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            {/* Event Name Input */}
+            <div className="flex flex-col gap-2 text-start">
+              <label className="text-xs font-bold uppercase tracking-wider text-sage-muted">
+                {language === 'he' ? 'שם האירוע (ושם התיקייה ב-Drive):' : 'Event Name (Google Drive Folder):'}
+              </label>
+              <input
+                type="text"
+                value={newEventName}
+                onChange={(e) => setNewEventName(e.target.value)}
+                placeholder={language === 'he' ? 'למשל: חתונת יוסי ודנה 2026' : 'e.g., Yossi & Dana Wedding 2026'}
+                className="px-4 py-3 rounded bg-surface-container-low border border-surface-border focus:border-copper-accent focus:outline-none text-on-background text-sm placeholder:text-sage-muted transition-colors w-full"
+              />
+            </div>
+
+            {/* Submit / Cancel buttons */}
+            <div className="flex gap-3">
+              <button
+                onClick={handleCreateGoogleEvent}
+                disabled={creating || selectedLocalFiles.length === 0 || !newEventName.trim()}
+                className="flex-1 py-3 rounded bg-deep-forest hover:bg-primary text-background font-bold text-sm transition-all cursor-pointer active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 border-none shadow-lg"
+              >
+                {creating ? (
+                  <><Loader2 className="w-4 h-4 animate-spin" /> {language === 'he' ? 'מקים תיקייה ומתחיל...' : 'Creating folder & starting...'}</>
+                ) : (
+                  <><Plus className="w-4 h-4" /> {language === 'he' ? 'צור אירוע והעלה ל-Drive' : 'Create Event & Upload'}</>
+                )}
+              </button>
+              <button
+                onClick={() => { setShowGoogleCreateModal(false); setSelectedLocalFiles([]); setNewEventName(''); }}
+                className="px-6 py-3 rounded bg-surface-container-high hover:bg-surface-border text-on-background font-medium text-sm transition-all cursor-pointer border-none"
+              >
+                {t('common.cancel')}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* QR Code Modal */}
       {qrEvent && (
         <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4" onClick={() => setQrEvent(null)}>
@@ -1333,25 +1519,37 @@ export function Dashboard() {
                 )}
               </button>
 
-              {/* Google Drive Button - "Soon" */}
+              {/* Google Drive Button */}
               <button
-                disabled
-                className="flex items-center justify-between p-4 rounded-xl bg-surface-container-low/40 border border-surface-border/40 opacity-60 text-start w-full text-on-background cursor-not-allowed"
+                type="button"
+                onClick={() => {
+                  setSelectedProvider('google');
+                  setShowProviderModal(false);
+                  if (!googleAccessToken) {
+                    connectGoogle();
+                  } else {
+                    setNewEventName('');
+                    setSelectedLocalFiles([]);
+                    setPendingFolder(null);
+                    setShowGoogleCreateModal(true);
+                  }
+                }}
+                className="flex items-center justify-between p-4 rounded-xl bg-surface-container-low border border-surface-border hover:border-copper-accent/40 hover:bg-surface-container transition-all cursor-pointer text-start w-full text-on-background"
               >
                 <div className="flex items-center gap-3">
-                  <div className="w-8 h-8 rounded bg-surface-container-high flex items-center justify-center border border-surface-border shrink-0 opacity-60">
+                  <div className="w-8 h-8 rounded bg-surface-container-high flex items-center justify-center border border-surface-border shrink-0">
                     <GoogleIcon className="w-4 h-4 shrink-0" alt="Google Drive" />
                   </div>
                   <div>
-                    <div className="flex items-center gap-1.5">
-                      <span className="font-bold text-sm block">Google Drive</span>
-                      <span className="px-1 py-0.2 rounded text-[8px] font-bold bg-copper-accent/15 text-copper-accent border border-copper-accent/20 uppercase tracking-wide">
-                        {t('settings.soon')}
-                      </span>
-                    </div>
-                    <span className="text-[10px] text-sage-muted">{t('settings.notConnected')}</span>
+                    <span className="font-bold text-sm block">Google Drive</span>
+                    <span className="text-[10px] text-sage-muted">
+                      {isGoogleConnected || googleAccessToken ? t('settings.connected') : t('settings.notConnected')}
+                    </span>
                   </div>
                 </div>
+                {(isGoogleConnected || googleAccessToken) && (
+                  <span className="w-2 h-2 rounded-full bg-emerald-400" />
+                )}
               </button>
 
               {/* OneDrive Button - "Soon" */}
