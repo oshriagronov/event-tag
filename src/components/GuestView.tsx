@@ -109,11 +109,6 @@ function GuestPhotoImage({
     if (provider === 'google' && cleanId) {
       if (stage === 0) {
         setStage(1);
-        setSrc(`https://drive.google.com/uc?export=view&id=${cleanId}`);
-        return;
-      }
-      if (stage === 1) {
-        setStage(2);
         setSrc(`https://lh3.googleusercontent.com/d/${cleanId}`);
         return;
       }
@@ -358,9 +353,6 @@ export function GuestView({ eventId }: GuestViewProps) {
     const cleanId = fileId.replace(/=s\d+$/, '');
     let blob = await fetchImageBlobFromUrl(`https://drive.google.com/thumbnail?id=${cleanId}&sz=w1600`);
     if (!blob) {
-      blob = await fetchImageBlobFromUrl(`https://drive.google.com/uc?export=view&id=${cleanId}`);
-    }
-    if (!blob) {
       blob = await fetchImageBlobFromUrl(`https://lh3.googleusercontent.com/d/${cleanId}`);
     }
     return blob;
@@ -444,13 +436,26 @@ export function GuestView({ eventId }: GuestViewProps) {
   };
 
   // ---- Download single photo ----
-  const handleDownloadSingle = (driveFileId: string) => {
+  const handleDownloadSingle = async (driveFileId: string) => {
     const match = downloadableMatches.find((m) => m.driveFileId === driveFileId);
     const provider = event?.provider || (match?.publicUrl?.includes('dropbox') ? 'dropbox' : 'google');
 
     if (provider === 'google') {
       const id = match?.driveFileId || driveFileId;
-      window.open(`https://drive.google.com/uc?export=download&id=${id}`, '_blank', 'noopener,noreferrer');
+      const blob = await fetchGoogleDriveBlob(id);
+      if (blob && blob.size > 0) {
+        const ext = blob.type.includes('png') ? 'png' : 'jpg';
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = match?.fileName || `photo_${id}.${ext}`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        setTimeout(() => URL.revokeObjectURL(url), 1000);
+        return;
+      }
+      window.open(`https://lh3.googleusercontent.com/d/${id}`, '_blank', 'noopener,noreferrer');
     } else if (match?.publicUrl) {
       const rawUrl = convertToRawUrl(provider, match.publicUrl, 'full');
       const downloadUrl = rawUrl.includes('dropbox') ? rawUrl.replace('raw=1', 'dl=1') : rawUrl;

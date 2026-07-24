@@ -206,6 +206,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   // (not on guest pages where no user is logged in)
   useEffect(() => {
     if (!user) return;
+    if (typeof window !== 'undefined' && window.location.pathname.startsWith('/event/')) return;
     if (typeof window === 'undefined') return;
     if (window.google?.accounts?.oauth2) return; // Already loaded
     if (document.querySelector('script[src*="gsi/client"]')) return; // Already loading
@@ -402,6 +403,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const checkCloudConnections = useCallback(async (): Promise<CloudProvider[]> => {
     const expired: CloudProvider[] = [];
+    if (typeof window !== 'undefined' && window.location.pathname.startsWith('/event/')) {
+      return expired;
+    }
 
     const dbx = localStorage.getItem('dropbox_access_token') || dropboxAccessToken;
     if (dbx) {
@@ -479,6 +483,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     if (!isGoogleConnected) return;
 
     const interval = setInterval(() => {
+      if (typeof window !== 'undefined' && window.location.pathname.startsWith('/event/')) return;
       const expiresAt = localStorage.getItem('google_token_expires_at');
       const isNearExpiry = expiresAt ? Date.now() > parseInt(expiresAt, 10) - 10 * 60 * 1000 : true;
       if (isNearExpiry) {

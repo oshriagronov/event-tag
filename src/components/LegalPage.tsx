@@ -3,7 +3,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { useTranslation } from '../services/translations';
 import { Footer } from './Footer';
 import { GoogleSignInButton } from './GoogleIcon';
-import { Lock, ExternalLink, CheckCircle2, ShieldCheck, Mail, Phone, Clock, FileCheck } from 'lucide-react';
+import { Lock, ExternalLink, CheckCircle2, ShieldCheck, Mail, Clock, FileCheck } from 'lucide-react';
 
 interface LegalPageProps {
   defaultTab?: 'privacy' | 'terms' | 'accessibility';
@@ -128,15 +128,11 @@ export function LegalPage({ defaultTab = 'privacy' }: LegalPageProps) {
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-2 text-xs md:text-sm">
                   <div className="flex items-center gap-2.5 text-on-background font-bold">
                     <Mail className="w-4 h-4 text-copper-accent shrink-0" />
-                    <a href="mailto:accessibility@eventtag.ai" className="hover:underline text-copper-accent">
+                    <a href="mailto:eventtagofficial@gmail.com" className="hover:underline text-copper-accent">
                       {t('legal.accessibilityCoordinatorEmail')}
                     </a>
                   </div>
-                  <div className="flex items-center gap-2.5 text-on-background font-bold">
-                    <Phone className="w-4 h-4 text-copper-accent shrink-0" />
-                    <span>{t('legal.accessibilityCoordinatorPhone')}</span>
-                  </div>
-                  <div className="flex items-center gap-2.5 text-sage-muted col-span-1 sm:col-span-2">
+                  <div className="flex items-center gap-2.5 text-sage-muted">
                     <Clock className="w-4 h-4 text-copper-accent shrink-0" />
                     <span>{t('legal.accessibilityCoordinatorHours')}</span>
                   </div>
@@ -267,8 +263,8 @@ export function LegalPage({ defaultTab = 'privacy' }: LegalPageProps) {
                 <p className="font-label-sm text-xs text-sage-muted mb-2 uppercase tracking-wider">
                   {language === 'he' ? 'דוא"ל לתמיכה' : 'Email Support'}
                 </p>
-                <a className="font-display-lg text-lg text-copper-accent hover:underline transition-colors no-underline font-bold" href="mailto:privacy@eventtag.ai">
-                  privacy@eventtag.ai
+                <a className="font-display-lg text-lg text-copper-accent hover:underline transition-colors no-underline font-bold" href="mailto:eventtagofficial@gmail.com">
+                  eventtagofficial@gmail.com
                 </a>
               </div>
             </section>
