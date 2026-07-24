@@ -18,11 +18,13 @@ import { BoxIcon } from './BoxIcon';
 import { QRCodeSVG } from 'qrcode.react';
 import {
   Calendar, Image as ImageIcon, Trash2,
-  ArrowLeft, LogOut, Cloud, Link2, QrCode,
+  ArrowLeft, LogOut, Cloud, Link2, QrCode, Share2,
   CheckCircle2, Loader2, Clock, Copy, Check, X,
   Plus, Play, Pause, FolderOpen, Search, Menu, BarChart2, Settings,
   Sun, Moon, AlertTriangle
 } from 'lucide-react';
+import { ShareModal } from './ShareModal';
+import { handleShareEvent } from '../utils/shareUtils';
 import { useScanner } from '../contexts/ScannerContext';
 import { useTranslation } from '../services/translations';
 import { useModal } from '../contexts/ModalContext';
@@ -102,8 +104,9 @@ export function Dashboard() {
   const [pendingPhotos, setPendingPhotos] = useState<Array<{ id: string; name: string }>>([]);
   const [pendingFolder, setPendingFolder] = useState<{ id: string; name: string } | null>(null);
 
-  // QR code modal
+  // QR code & Share modals
   const [qrEvent, setQrEvent] = useState<CloudEvent | null>(null);
+  const [shareModalEvent, setShareModalEvent] = useState<CloudEvent | null>(null);
 
   // Copy feedback
   const [copiedId, setCopiedId] = useState<string | null>(null);
@@ -403,6 +406,17 @@ export function Dashboard() {
     } catch {
       prompt(language === 'he' ? 'העתק את הקישור:' : 'Copy link:', link);
     }
+  };
+
+  const handleShare = async (event: CloudEvent, e?: React.MouseEvent) => {
+    if (e) e.stopPropagation();
+    if (!event.id) return;
+    await handleShareEvent({
+      eventId: event.id,
+      eventName: event.name,
+      language,
+      onFallback: () => setShareModalEvent(event),
+    });
   };
 
   const getStatusBadge = (status: CloudEvent['status']) => {
@@ -782,6 +796,13 @@ export function Dashboard() {
                         {/* Action buttons (always visible on mobile/touch, hover on desktop) */}
                         {!isDeleting && (
                           <div className={`absolute top-4 ${isRtl ? 'left-4' : 'right-4'} flex items-center gap-1.5 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-all z-10`}>
+                            <button
+                              onClick={(e) => handleShare(event, e)}
+                              title={t('common.share')}
+                              className="p-2.5 sm:p-2 rounded-lg bg-surface-container-high/90 sm:bg-surface-container-high border border-surface-border text-sage-muted hover:text-copper-accent active:scale-95 transition-all cursor-pointer shadow-sm"
+                            >
+                              <Share2 className="w-3.5 h-3.5" />
+                            </button>
                             <button
                               onClick={(e) => handleCopyShareLink(event, e)}
                               title={language === 'he' ? 'העתק קישור שיתוף' : 'Copy share link'}
@@ -1323,12 +1344,20 @@ export function Dashboard() {
             </div>
             <div className="flex flex-col items-center gap-3 w-full">
               <p className="text-xs text-sage-muted text-center m-0 leading-relaxed">{language === 'he' ? 'סרוק את הקוד כדי לפתוח את עמוד האירוע' : 'Scan the code to open the event page'}</p>
-              <button
-                onClick={(e) => handleCopyShareLink(qrEvent, e)}
-                className="flex items-center justify-center gap-2 w-full py-2.5 rounded bg-copper-accent/10 border border-copper-accent/30 text-copper-accent hover:bg-copper-accent/20 text-sm font-bold transition-all cursor-pointer"
-              >
-                {copiedId === qrEvent.id ? <><Check className="w-3.5 h-3.5" /> {t('common.copied')}</> : <><Copy className="w-3.5 h-3.5" /> {language === 'he' ? 'העתק קישור' : 'Copy Link'}</>}
-              </button>
+              <div className="flex gap-2 w-full">
+                <button
+                  onClick={(e) => handleShare(qrEvent, e)}
+                  className="flex-1 flex items-center justify-center gap-1.5 py-2.5 rounded bg-copper-accent hover:bg-copper-accent/90 text-background text-sm font-bold transition-all cursor-pointer shadow border-none"
+                >
+                  <Share2 className="w-3.5 h-3.5" /> {t('common.share')}
+                </button>
+                <button
+                  onClick={(e) => handleCopyShareLink(qrEvent, e)}
+                  className="flex-1 flex items-center justify-center gap-1.5 py-2.5 rounded bg-surface-container-high border border-surface-border text-on-background hover:text-copper-accent text-sm font-bold transition-all cursor-pointer"
+                >
+                  {copiedId === qrEvent.id ? <><Check className="w-3.5 h-3.5 text-emerald-400" /> {t('common.copied')}</> : <><Copy className="w-3.5 h-3.5" /> {language === 'he' ? 'העתק קישור' : 'Copy Link'}</>}
+                </button>
+              </div>
             </div>
             <button
               onClick={() => setQrEvent(null)}
@@ -1507,6 +1536,14 @@ export function Dashboard() {
             </div>
           </div>
         </div>
+      )}
+      {/* Share Modal */}
+      {shareModalEvent && (
+        <ShareModal
+          isOpen={Boolean(shareModalEvent)}
+          onClose={() => setShareModalEvent(null)}
+          event={{ id: shareModalEvent.id!, name: shareModalEvent.name }}
+        />
       )}
     </div>
   );

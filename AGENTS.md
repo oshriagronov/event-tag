@@ -21,6 +21,7 @@ You are an expert Frontend Engineer and Client-Side Machine Learning specialist.
   - **Firebase Firestore:** Reactive storage of metadata, cloud file references, face descriptors, and clusters.
 - **Contexts & Modal System:**
   - **ModalContext:** Unified asynchronous modal system for confirm/alert dialogs styled like the application theme (dark backdrop blur, accessibility IS 5568 / WCAG compliant, bidi-isolated).
+  - **ShareModal & shareUtils:** Native OS Web Share API integration (`navigator.share`) with automatic fallback to a custom multi-platform share modal (WhatsApp, Telegram, Email, Facebook, X/Twitter, QR Code).
 - **Cloud Storage Integrations:**
   - **Dropbox API:** Direct Dropbox folder connection & file stream ingestion.
   - **pCloud API:** Multi-region US/EU pCloud folder connection & file stream ingestion (see `docs/PCLOUD_GUIDE.md`).

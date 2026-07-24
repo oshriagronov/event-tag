@@ -2,8 +2,10 @@ import { useState, useEffect, useCallback } from 'react';
 import { useScanner } from '../contexts/ScannerContext';
 import { 
   ArrowRight, ArrowLeft, FolderOpen, Loader2, Check, AlertCircle,
-  Pause, Play, Copy, QrCode, ExternalLink, RefreshCw, X
+  Pause, Play, Copy, QrCode, Share2, ExternalLink, RefreshCw, X
 } from 'lucide-react';
+import { ShareModal } from './ShareModal';
+import { handleShareEvent } from '../utils/shareUtils';
 import { useAuth } from '../contexts/AuthContext';
 import {
   getCloudEvent,
@@ -162,6 +164,7 @@ export function EventView({ eventId, onBack }: EventViewProps) {
   const [loading, setLoading] = useState(true);
   const [copied, setCopied] = useState(false);
   const [showQr, setShowQr] = useState(false);
+  const [showShareModal, setShowShareModal] = useState(false);
   const [visibleCount, setVisibleCount] = useState(24);
 
   const {
@@ -360,6 +363,16 @@ export function EventView({ eventId, onBack }: EventViewProps) {
     }
   };
 
+  const handleShare = async () => {
+    if (!event || !event.id) return;
+    await handleShareEvent({
+      eventId: event.id,
+      eventName: event.name,
+      language,
+      onFallback: () => setShowShareModal(true),
+    });
+  };
+
   const formatETA = (seconds: number | null) => {
     if (seconds === null) return language === 'he' ? 'מחשב זמן נותר...' : 'Calculating...';
     if (seconds === 0) return language === 'he' ? 'מסתיים כעת...' : 'Finishing...';
@@ -421,6 +434,16 @@ export function EventView({ eventId, onBack }: EventViewProps) {
               )}
             </p>
           </div>
+        </div>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={handleShare}
+            className="px-4 py-2.5 rounded-lg bg-copper-accent hover:bg-copper-accent/90 text-background font-bold text-xs shadow flex items-center gap-2 transition-all cursor-pointer border-none"
+            title={t('common.share')}
+          >
+            <Share2 className="w-4 h-4" />
+            <span>{t('common.share')}</span>
+          </button>
         </div>
       </div>
 
@@ -663,10 +686,17 @@ export function EventView({ eventId, onBack }: EventViewProps) {
                   />
                   <div className="flex items-center gap-2 shrink-0">
                     <button
-                      onClick={handleCopyLink}
-                      className="flex-1 sm:flex-initial px-5 py-3 rounded bg-deep-forest hover:bg-primary text-background font-bold text-sm shadow flex items-center justify-center gap-2 transition-colors cursor-pointer border-none"
+                      onClick={handleShare}
+                      className="flex-1 sm:flex-initial px-5 py-3 rounded bg-copper-accent hover:bg-copper-accent/90 text-background font-bold text-sm shadow flex items-center justify-center gap-2 transition-all cursor-pointer border-none"
                     >
-                      {copied ? <Check className="w-4 h-4 text-emerald-600" /> : <Copy className="w-4 h-4" />}
+                      <Share2 className="w-4 h-4" />
+                      <span>{t('common.share')}</span>
+                    </button>
+                    <button
+                      onClick={handleCopyLink}
+                      className="flex-1 sm:flex-initial px-5 py-3 rounded bg-surface-container-high hover:bg-surface-border text-on-background font-bold text-sm shadow flex items-center justify-center gap-2 transition-colors cursor-pointer border border-surface-border"
+                    >
+                      {copied ? <Check className="w-4 h-4 text-emerald-400" /> : <Copy className="w-4 h-4" />}
                       <span>{copied ? t('common.copied') : t('common.copy')}</span>
                     </button>
                     <button
@@ -788,6 +818,20 @@ export function EventView({ eventId, onBack }: EventViewProps) {
               />
             </div>
             <p className="text-xs text-sage-muted text-center m-0 leading-relaxed">{language === 'he' ? 'האורחים יכולים לסרוק את הקישור כדי להעלות סלפי' : 'Guests can scan the code to load photo lookup.'}</p>
+            <div className="flex gap-2 w-full">
+              <button
+                onClick={handleShare}
+                className="flex-1 flex items-center justify-center gap-1.5 py-2.5 rounded bg-copper-accent hover:bg-copper-accent/90 text-background text-sm font-bold transition-all cursor-pointer shadow border-none"
+              >
+                <Share2 className="w-3.5 h-3.5" /> {t('common.share')}
+              </button>
+              <button
+                onClick={handleCopyLink}
+                className="flex-1 flex items-center justify-center gap-1.5 py-2.5 rounded bg-surface-container-high border border-surface-border text-on-background hover:text-copper-accent text-sm font-bold transition-all cursor-pointer"
+              >
+                {copied ? <><Check className="w-3.5 h-3.5 text-emerald-400" /> {t('common.copied')}</> : <><Copy className="w-3.5 h-3.5" /> {t('common.copy')}</>}
+              </button>
+            </div>
             <button
               onClick={() => setShowQr(false)}
               className="text-sage-muted hover:text-on-background text-sm transition-colors cursor-pointer border-none bg-transparent outline-none"
@@ -796,6 +840,15 @@ export function EventView({ eventId, onBack }: EventViewProps) {
             </button>
           </div>
         </div>
+      )}
+
+      {/* Share Modal */}
+      {showShareModal && event?.id && (
+        <ShareModal
+          isOpen={showShareModal}
+          onClose={() => setShowShareModal(false)}
+          event={{ id: event.id, name: event.name }}
+        />
       )}
     </main>
   );

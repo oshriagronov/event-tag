@@ -78,23 +78,26 @@ src/
 │   ├── PrivacyPage.tsx         # Detailed privacy compliance page
 │   ├── SelfieCapture.tsx       # Live camera / file selfie capture tool
 │   ├── SettingsModal.tsx       # Theme & font size preferences modal
+│   ├── ShareModal.tsx          # Multi-platform share menu modal (WhatsApp, Telegram, Email, FB, X, QR)
 │   └── SkipLink.tsx            # Accessible skip-to-main-content link
 ├── contexts/
 │   ├── AuthContext.tsx         # Firebase Auth user session & cloud OAuth tokens
 │   ├── ConsentContext.tsx      # Privacy Protection Law consent state
 │   ├── ScannerContext.tsx      # Global scanning state (progress, pause, ETA)
 │   └── SettingsContext.tsx     # Visual preferences context
-└── services/
-    ├── box.ts                  # Box REST API v2.0 integration
-    ├── cloudProviders.ts       # Unified cloud provider abstraction layer
-    ├── dropbox.ts              # Dropbox Chooser & file streaming integration
-    ├── faceAlignment.ts        # Facial landmark alignment (112x112 similarity transform)
-    ├── faceMatching.ts         # Face vector distance & similarity matching
-    ├── firestore.ts            # Firestore CRUD & batched descriptor writer
-    ├── google.ts               # Google Drive API REST v3 integration
-    ├── onnxModel.ts            # ONNX Runtime Web (SFace WASM embedding extractor)
-    ├── pcloud.ts               # pCloud multi-region REST API integration
-    └── translations.ts         # Hebrew/English localization strings
+├── services/
+│   ├── box.ts                  # Box REST API v2.0 integration
+│   ├── cloudProviders.ts       # Unified cloud provider abstraction layer
+│   ├── dropbox.ts              # Dropbox Chooser & file streaming integration
+│   ├── faceAlignment.ts        # Facial landmark alignment (112x112 similarity transform)
+│   ├── faceMatching.ts         # Face vector distance & similarity matching
+│   ├── firestore.ts            # Firestore CRUD & batched descriptor writer
+│   ├── google.ts               # Google Drive API REST v3 integration
+│   ├── onnxModel.ts            # ONNX Runtime Web (SFace WASM embedding extractor)
+│   ├── pcloud.ts               # pCloud multi-region REST API integration
+│   └── translations.ts         # Hebrew/English localization strings
+└── utils/
+    └── shareUtils.ts           # Web Share API & fallback share link helpers
 ```
 
 ### Data Flow
