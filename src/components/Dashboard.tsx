@@ -22,6 +22,7 @@ import {
   Sun, Moon, AlertTriangle, Upload
 } from 'lucide-react';
 import { createGoogleFolder } from '../services/google';
+import { openGooglePicker } from '../services/googlePicker';
 import { ShareModal } from './ShareModal';
 import { handleShareEvent } from '../utils/shareUtils';
 import { useScanner } from '../contexts/ScannerContext';
@@ -265,6 +266,31 @@ export function Dashboard() {
       }
     } finally {
       setCreating(false);
+    }
+  };
+
+  const handleOpenGooglePicker = async () => {
+    if (!googleAccessToken) {
+      connectGoogle();
+      return;
+    }
+    setShowGoogleCreateModal(false);
+    try {
+      await openGooglePicker({
+        accessToken: googleAccessToken,
+        onSelect: (folderId, folderName) => {
+          handleFolderSelected({ id: folderId, name: folderName });
+        },
+      });
+    } catch (err) {
+      console.error('Failed to open Google Picker:', err);
+      await alert({
+        title: language === 'he' ? 'שגיאה בפתיחת Google Picker' : 'Error Opening Google Picker',
+        message: language === 'he'
+          ? 'שגיאה בפתיחת חלון בחירת התיקייה ב-Google Drive. אנא נסה שוב.'
+          : 'Error launching Google Drive Picker popup. Please try again.',
+        variant: 'danger',
+      });
     }
   };
 
@@ -1267,6 +1293,17 @@ export function Dashboard() {
               </div>
             </div>
 
+            {selectedProvider === 'google' && pendingFolder && (
+              <div className="bg-copper-accent/10 border border-copper-accent/30 rounded-lg p-3 text-start flex items-start gap-2.5 text-xs text-copper-accent">
+                <AlertTriangle className="w-4 h-4 text-copper-accent shrink-0 mt-0.5" />
+                <span>
+                  {language === 'he'
+                    ? 'לתשומת לבך: יש לוודא שהתיקייה ב-Google Drive מוגדרת כציבורית לצפייה ("כל מי שיש לו את הקישור"), כדי שהאורחים יוכלו לצפות בתמונות שלהם.'
+                    : 'Important: Please ensure this Google Drive folder is set to public view ("Anyone with the link can view") so guests can access their photos.'}
+                </span>
+              </div>
+            )}
+
             <div className="flex flex-col gap-2 text-start">
               <label className="text-xs font-bold uppercase tracking-wider text-sage-muted">{language === 'he' ? 'שם האירוע:' : 'Event Name:'}</label>
               <input
@@ -1391,6 +1428,18 @@ export function Dashboard() {
                 placeholder={language === 'he' ? 'למשל: חתונת יוסי ודנה 2026' : 'e.g., Yossi & Dana Wedding 2026'}
                 className="px-4 py-3 rounded bg-surface-container-low border border-surface-border focus:border-copper-accent focus:outline-none text-on-background text-sm placeholder:text-sage-muted transition-colors w-full"
               />
+            </div>
+
+            {/* Option to pick existing Drive folder via Google Picker */}
+            <div className="flex items-center justify-between text-xs text-sage-muted pt-2 border-t border-surface-border/40">
+              <span>{language === 'he' ? 'רוצה לבחור תיקייה קיימת ב-Google Drive?' : 'Want to pick an existing Drive folder?'}</span>
+              <button
+                type="button"
+                onClick={handleOpenGooglePicker}
+                className="text-copper-accent hover:underline font-bold bg-transparent border-none cursor-pointer"
+              >
+                {language === 'he' ? 'פתיחת Google Picker' : 'Open Google Picker'}
+              </button>
             </div>
 
             {/* Submit / Cancel buttons */}

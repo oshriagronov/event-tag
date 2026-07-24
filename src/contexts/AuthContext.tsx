@@ -11,7 +11,11 @@ import { checkTokenValidity, type CloudProvider } from '../services/cloudProvide
 
 declare global {
   interface Window {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    gapi?: any;
     google?: {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      picker?: any;
       accounts?: {
         oauth2?: {
           initTokenClient: (config: {
