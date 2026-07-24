@@ -74,6 +74,7 @@ Agents working on this repository **MUST** consult and apply the relevant skills
 ### 4. UI/UX & Localization
 - Interface is dark-themed, sleek, and modern.
 - **Hebrew & RTL Constraint:** The interface is localized in Hebrew (`dir="rtl"`). All labels, buttons, headers, inputs, alerts, and instructions should be in Hebrew with proper bidi isolation.
+- **Official Google Branding & Assets:** All Google sign-in buttons, Google Drive provider indicators, and Google logos across the application **MUST** use the official branding assets located in `/public/google-login/` (via `<GoogleIcon />` component or direct references to `/public/google-login/`), and never use generic or custom inline SVGs.
 
 ### 5. Documentation Maintenance & Self-Updating Context
 - **Rule:** Whenever the architecture of the project (e.g., adding/removing folders, components, contexts, services) or the core logical/data flows change, the agent **MUST** immediately update `AGENTS.md` and `README.md` to reflect the updated state. This ensures that agent instructions and project documentation are always accurate and aligned with the current codebase.

@@ -63,6 +63,7 @@ src/
 │   ├── EventView.tsx           # Event workspace, gallery, scanning progress & face clusters
 │   ├── FolderPicker.tsx        # Cloud folder selector modal
 │   ├── Footer.tsx              # Footer with legal links & compliance info
+│   ├── GoogleIcon.tsx          # Reusable official Google branding asset component
 │   ├── GuestView.tsx           # Guest selfie search, face matching & photo gallery
 │   ├── LandingPage.tsx         # Modern landing page with hero, features, FAQ & CTA
 │   ├── LegalPage.tsx           # Terms of Service, Privacy Policy & Accessibility Statement
