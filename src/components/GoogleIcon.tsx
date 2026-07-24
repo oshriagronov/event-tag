@@ -75,8 +75,8 @@ export const GoogleSignInButton: React.FC<GoogleSignInButtonProps> = ({
   ariaLabel = "Sign in with Google"
 }) => {
   const activeTheme = useCurrentTheme(themeProp);
-  const showTextStr = showText ? "Yes" : "No";
-  const assetPath = `/google-login/Android%20+%20Web/SVG/${activeTheme}/Theme=${activeTheme},%20Show%20text=${showTextStr},%20Shape=${shape},%20Platform=Android+Web.svg`;
+  const showTextStr = showText ? "yes" : "no";
+  const assetPath = `/google-login/svg/${activeTheme.toLowerCase()}-${showTextStr}-${shape.toLowerCase()}.svg`;
 
   return (
     <button
