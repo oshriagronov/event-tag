@@ -163,11 +163,11 @@ export function ScannerProvider({ children }: { children: ReactNode }) {
   const pausedEventsRef = useRef<Map<string, boolean>>(new Map());
   const cancelledEventsRef = useRef<Map<string, boolean>>(new Map());
 
-  const { googleAccessToken, onedriveAccessToken, dropboxAccessToken, markProviderExpired, refreshGoogleTokenSilently } = useAuth();
+  const { googleAccessToken, onedriveAccessToken, dropboxAccessToken, pcloudAccessToken, boxAccessToken, markProviderExpired, refreshGoogleTokenSilently } = useAuth();
   const { alert } = useModal();
 
   useEffect(() => {
-    const hasAnyToken = Boolean(googleAccessToken || onedriveAccessToken || dropboxAccessToken);
+    const hasAnyToken = Boolean(googleAccessToken || onedriveAccessToken || dropboxAccessToken || pcloudAccessToken || boxAccessToken);
     if (hasAnyToken) {
       setScanStates((prev) => {
         let changed = false;
@@ -182,7 +182,7 @@ export function ScannerProvider({ children }: { children: ReactNode }) {
         return changed ? next : prev;
       });
     }
-  }, [googleAccessToken, onedriveAccessToken, dropboxAccessToken]);
+  }, [googleAccessToken, onedriveAccessToken, dropboxAccessToken, pcloudAccessToken, boxAccessToken]);
 
   const activeScanningEventIds = Object.keys(scanStates).filter(
     (id) => scanStates[id]?.isScanning
@@ -264,7 +264,15 @@ export function ScannerProvider({ children }: { children: ReactNode }) {
     cancelledEventsRef.current.set(eventId, false);
     pausedEventsRef.current.set(eventId, false);
 
-    const alreadyProcessed = photos.filter((p) => p.processed && p.publicUrl).length;
+    const isPhotoValid = (p: CloudPhoto) =>
+      Boolean(
+        p.publicUrl &&
+          !p.publicUrl.includes('/2.0/files/') &&
+          !p.publicUrl.includes('api.box.com') &&
+          !p.publicUrl.includes('api.pcloud.com')
+      );
+
+    const alreadyProcessed = photos.filter((p) => p.processed && isPhotoValid(p)).length;
     const initialRemaining = photos.length - alreadyProcessed;
 
     const initialState: EventScanState = {
@@ -340,8 +348,14 @@ export function ScannerProvider({ children }: { children: ReactNode }) {
 
         // If the photo was already processed in a previous scan
         if (photo.processed) {
-          // If it already has a publicUrl, skip it entirely!
-          if (photo.publicUrl) {
+          const isValidPublicUrl = Boolean(
+            photo.publicUrl &&
+              !photo.publicUrl.includes('/2.0/files/') &&
+              !photo.publicUrl.includes('api.box.com') &&
+              !photo.publicUrl.includes('api.pcloud.com')
+          );
+
+          if (isValidPublicUrl) {
             progress++;
             if (progress > alreadyProcessed) {
               updateEventState({ scannedCount: progress });
@@ -349,7 +363,7 @@ export function ScannerProvider({ children }: { children: ReactNode }) {
             continue;
           }
 
-          // If it is processed but lacks publicUrl, we generate publicUrl and update Firestore
+          // If it is processed but lacks a valid publicUrl, generate publicUrl and update Firestore
           try {
             const sharedLink = await getOrCreateSharedLink(provider, accessToken, photo.driveFileId);
             const publicUrl = convertToRawUrl(provider, sharedLink);

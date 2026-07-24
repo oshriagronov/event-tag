@@ -20,6 +20,8 @@ import { useTranslation } from '../services/translations';
 import { useModal } from '../contexts/ModalContext';
 import { GoogleIcon } from './GoogleIcon';
 import { DropboxIcon } from './DropboxIcon';
+import { PCloudIcon } from './PCloudIcon';
+import { BoxIcon } from './BoxIcon';
 
 interface CloudPhotoImageProps {
   provider?: CloudProvider;
@@ -36,7 +38,7 @@ function CloudPhotoImage({ provider = 'dropbox', driveFileId, accessToken, class
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
   const [fallbackToBlob, setFallbackToBlob] = useState(false);
-  const { clearDropboxToken, clearGoogleToken, clearOneDriveToken } = useAuth();
+  const { clearDropboxToken, clearGoogleToken, clearOneDriveToken, clearPCloudToken, clearBoxToken } = useAuth();
 
   useEffect(() => {
     let active = true;
@@ -80,6 +82,10 @@ function CloudPhotoImage({ provider = 'dropbox', driveFileId, accessToken, class
                 clearGoogleToken();
               } else if (provider === 'onedrive') {
                 clearOneDriveToken();
+              } else if (provider === 'pcloud') {
+                clearPCloudToken();
+              } else if (provider === 'box') {
+                clearBoxToken();
               }
             }
           }).catch(() => {});
@@ -99,7 +105,7 @@ function CloudPhotoImage({ provider = 'dropbox', driveFileId, accessToken, class
         URL.revokeObjectURL(url);
       }
     };
-  }, [driveFileId, accessToken, provider, publicUrl, fallbackToBlob, size, clearDropboxToken, clearGoogleToken, clearOneDriveToken]);
+  }, [driveFileId, accessToken, provider, publicUrl, fallbackToBlob, size, clearDropboxToken, clearGoogleToken, clearOneDriveToken, clearPCloudToken, clearBoxToken]);
 
   if (error) {
     return (
@@ -140,10 +146,14 @@ export function EventView({ eventId, onBack }: EventViewProps) {
     dropboxAccessToken,
     googleAccessToken,
     onedriveAccessToken,
+    pcloudAccessToken,
+    boxAccessToken,
     expiredProviders,
     connectDropbox,
     connectGoogle,
     connectOneDrive,
+    connectPCloud,
+    connectBox,
   } = useAuth();
   const { t, isRtl, language } = useTranslation();
   const { confirm, alert } = useModal();
@@ -171,12 +181,14 @@ export function EventView({ eventId, onBack }: EventViewProps) {
   const thisEventEta = thisEventScanState?.etaSeconds ?? null;
   const thisEventScanError = thisEventScanState?.scanError ?? null;
   const currentProvider = event?.provider || 'dropbox';
-  const currentProviderToken = currentProvider === 'google' ? googleAccessToken : currentProvider === 'onedrive' ? onedriveAccessToken : dropboxAccessToken;
+  const currentProviderToken = currentProvider === 'google' ? googleAccessToken : currentProvider === 'onedrive' ? onedriveAccessToken : currentProvider === 'pcloud' ? pcloudAccessToken : currentProvider === 'box' ? boxAccessToken : dropboxAccessToken;
   const isCurrentProviderExpired = expiredProviders.includes(currentProvider);
 
   const handleReconnectProvider = () => {
     if (currentProvider === 'google') connectGoogle();
     else if (currentProvider === 'onedrive') connectOneDrive();
+    else if (currentProvider === 'pcloud') connectPCloud();
+    else if (currentProvider === 'box') connectBox();
     else connectDropbox();
   };
 
@@ -591,11 +603,15 @@ export function EventView({ eventId, onBack }: EventViewProps) {
                       <path d="M19.33 11.5A5 5 0 0 0 10.08 9A6.5 6.5 0 0 0 4.67 19.5H19.33A4.5 4.5 0 0 0 19.33 11.5Z" />
                       <path d="M16 11a4.5 4.5 0 0 0-8.33-2.17A5.5 5.5 0 0 0 2.5 17.5h13.83A3.5 3.5 0 0 0 16 11Z" opacity="0.8" />
                     </svg>
+                  ) : event.provider === 'pcloud' ? (
+                    <PCloudIcon className="w-5 h-5 shrink-0" />
+                  ) : event.provider === 'box' ? (
+                    <BoxIcon className="w-5 h-5 shrink-0" />
                   ) : (
                     <DropboxIcon className="w-5 h-5 shrink-0" />
                   )}
                   <span className="text-sage-muted text-xs font-body-md uppercase">
-                    {event.provider === 'google' ? 'Google Drive' : event.provider === 'onedrive' ? 'OneDrive' : 'Dropbox'}
+                    {event.provider === 'google' ? 'Google Drive' : event.provider === 'onedrive' ? 'OneDrive' : event.provider === 'pcloud' ? 'pCloud' : event.provider === 'box' ? 'Box' : 'Dropbox'}
                   </span>
                 </div>
               </div>

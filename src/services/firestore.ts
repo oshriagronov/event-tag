@@ -19,6 +19,7 @@ import {
   type Timestamp,
 } from 'firebase/firestore';
 import { firestore } from '../firebase';
+import type { CloudProvider } from './cloudProviders';
 
 // ---- Types ----
 
@@ -32,7 +33,7 @@ export interface CloudEvent {
   status: 'pending' | 'scanning' | 'ready';
   photoCount: number;
   faceCount: number;
-  provider?: 'dropbox' | 'google' | 'onedrive';
+  provider?: CloudProvider;
 }
 
 export interface CloudPhoto {
@@ -67,7 +68,7 @@ export async function createCloudEvent(
   name: string,
   driveFolderId: string,
   driveFolderName: string,
-  provider?: 'dropbox' | 'google' | 'onedrive'
+  provider?: CloudProvider
 ): Promise<string> {
   const eventData: Omit<CloudEvent, 'id'> = {
     ownerId,

@@ -22,7 +22,7 @@
 
 ## What is EventTag / GuestID?
 
-EventTag (GuestID) is a smart event photo sharing and retrieval platform designed to eliminate manual sorting and searching through thousands of event photos. Event owners connect photo folders directly from **Dropbox** (with **Google Drive** and **OneDrive** coming soon), and guests scan a share link / QR code with a single selfie to instantly locate and download all photos they appear in.
+EventTag (GuestID) is a smart event photo sharing and retrieval platform designed to eliminate manual sorting and searching through thousands of event photos. Event owners connect photo folders directly from **Dropbox**, **pCloud**, or **Box** (with **Google Drive** and **OneDrive** coming soon), and guests scan a share link / QR code with a single selfie to instantly locate and download all photos they appear in.
 
 ### 🎯 The Goal
 - **For Guests:** Instant, self-service access to all their photos from any event via a simple selfie scan.
@@ -42,7 +42,8 @@ EventTag (GuestID) is a smart event photo sharing and retrieval platform designe
 - **QR Code & Share Links** — Instant access via event QR code or custom share URL (`qrcode.react`).
 
 ### 🛠️ Event Owner Experience
-- **Multi-Cloud Storage Connection** — Connect photo libraries directly from **Dropbox** (Google Drive & OneDrive marked as "Soon").
+- **Multi-Cloud Storage Connection** — Connect photo libraries directly from **Dropbox**, **pCloud**, and **Box** (Google Drive & OneDrive marked as "Soon").
+- **Developer & Verification Guides** — Step-by-step documentation for developer setup and API verification for [pCloud](docs/PCLOUD_GUIDE.md) and [Box](docs/BOX_GUIDE.md).
 - **Automatic Face Clustering** — On-device AI groups recognized faces automatically into distinct guest profiles.
 - **Live Scanning Queue & Parallel Ingestion** — Scan multiple events concurrently with independent pause/stop controls per event, real-time ETA display, and performance warning alerts.
 - **Multi-Event Management** — Isolated dashboard for creating, sharing, and deleting multiple events.
@@ -51,6 +52,9 @@ EventTag (GuestID) is a smart event photo sharing and retrieval platform designe
 ## Architecture
 
 ```
+docs/
+├── PCLOUD_GUIDE.md             # Developer setup & verification guide for pCloud
+└── BOX_GUIDE.md                # Developer setup & verification guide for Box
 src/
 ├── App.tsx                     # Root router, providers, and layout structure
 ├── main.tsx                    # React entry point
@@ -58,8 +62,10 @@ src/
 ├── firebase.ts                 # Firebase initialization (Auth & Firestore)
 ├── components/
 │   ├── AccessibilityWidget.tsx  # IS 5568 / WCAG 2.0 AA accessibility toolbar
+│   ├── BoxIcon.tsx             # Official Box brand logo icon component
 │   ├── CookieBanner.tsx        # Amendment 13 Privacy & Cookie Consent banner
 │   ├── Dashboard.tsx           # Multi-event management & cloud provider connection
+│   ├── DropboxIcon.tsx         # Official Dropbox brand logo icon component
 │   ├── EventView.tsx           # Event workspace, gallery, scanning progress & face clusters
 │   ├── FolderPicker.tsx        # Cloud folder selector modal
 │   ├── Footer.tsx              # Footer with legal links & compliance info
@@ -67,6 +73,7 @@ src/
 │   ├── GuestView.tsx           # Guest selfie search, face matching & photo gallery
 │   ├── LandingPage.tsx         # Modern landing page with hero, features, FAQ & CTA
 │   ├── LegalPage.tsx           # Terms of Service, Privacy Policy & Accessibility Statement
+│   ├── PCloudIcon.tsx          # Official pCloud brand logo icon component
 │   ├── PreferencesModal.tsx    # Granular privacy consent settings modal
 │   ├── PrivacyBanner.tsx       # Ingest privacy assurance indicator
 │   ├── PrivacyPage.tsx         # Detailed privacy compliance page
@@ -74,11 +81,12 @@ src/
 │   ├── SettingsModal.tsx       # Theme & font size preferences modal
 │   └── SkipLink.tsx            # Accessible skip-to-main-content link
 ├── contexts/
-│   ├── AuthContext.tsx         # Firebase Auth user session context
+│   ├── AuthContext.tsx         # Firebase Auth user session & cloud OAuth tokens
 │   ├── ConsentContext.tsx      # Privacy Protection Law consent state
 │   ├── ScannerContext.tsx      # Global scanning state (progress, pause, ETA)
 │   └── SettingsContext.tsx     # Visual preferences context
 └── services/
+    ├── box.ts                  # Box REST API v2.0 integration
     ├── cloudProviders.ts       # Unified cloud provider abstraction layer
     ├── dropbox.ts              # Dropbox Chooser & file streaming integration
     ├── faceAlignment.ts        # Facial landmark alignment (112x112 similarity transform)
@@ -86,6 +94,7 @@ src/
     ├── firestore.ts            # Firestore CRUD & batched descriptor writer
     ├── google.ts               # Google Drive API REST v3 integration
     ├── onnxModel.ts            # ONNX Runtime Web (SFace WASM embedding extractor)
+    ├── pcloud.ts               # pCloud multi-region REST API integration
     └── translations.ts         # Hebrew/English localization strings
 ```
 

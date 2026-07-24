@@ -29,13 +29,14 @@ interface BreadcrumbItem {
 
 export function FolderPicker({ provider, accessToken, onSelect, onCancel }: FolderPickerProps) {
   const { t, isRtl, language } = useTranslation();
-  const { connectDropbox, connectGoogle, connectOneDrive, markProviderExpired, refreshGoogleTokenSilently } = useAuth();
+  const { connectDropbox, connectGoogle, connectOneDrive, connectPCloud, connectBox, markProviderExpired, refreshGoogleTokenSilently } = useAuth();
   const [folders, setFolders] = useState<DriveFolder[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [isExpired, setIsExpired] = useState(false);
+  const providerTitle = provider === 'dropbox' ? 'Dropbox' : provider === 'google' ? 'Google Drive' : provider === 'onedrive' ? 'OneDrive' : provider === 'pcloud' ? 'pCloud' : 'Box';
   const [breadcrumbs, setBreadcrumbs] = useState<BreadcrumbItem[]>([
-    { id: '', name: provider === 'dropbox' ? 'Dropbox' : provider === 'google' ? 'Google Drive' : 'OneDrive' },
+    { id: '', name: providerTitle },
   ]);
   const [selectedFolder, setSelectedFolder] = useState<DriveFolder | null>(null);
   const [photoCount, setPhotoCount] = useState<number | null>(null);
@@ -47,6 +48,8 @@ export function FolderPicker({ provider, accessToken, onSelect, onCancel }: Fold
     if (provider === 'dropbox') connectDropbox();
     else if (provider === 'google') connectGoogle();
     else if (provider === 'onedrive') connectOneDrive();
+    else if (provider === 'pcloud') connectPCloud();
+    else if (provider === 'box') connectBox();
   };
 
   const loadFolders = useCallback(async (parentId: string) => {
@@ -61,7 +64,7 @@ export function FolderPicker({ provider, accessToken, onSelect, onCancel }: Fold
       setFolders(result);
     } catch (err) {
       console.error('Error loading folders:', err);
-      const providerName = provider === 'dropbox' ? 'Dropbox' : provider === 'google' ? 'Google Drive' : 'OneDrive';
+      const providerName = provider === 'dropbox' ? 'Dropbox' : provider === 'google' ? 'Google Drive' : provider === 'onedrive' ? 'OneDrive' : provider === 'pcloud' ? 'pCloud' : 'Box';
       const errStr = err instanceof Error ? err.message : String(err);
       
       if (errStr.includes('401') || errStr.includes('403') || errStr.includes('expired_access_token') || errStr.includes('invalid_token') || errStr.includes('unregistered callers') || errStr.includes('PERMISSION_DENIED')) {

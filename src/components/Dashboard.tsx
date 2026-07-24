@@ -10,8 +10,11 @@ import {
   type CloudEvent,
 } from '../services/firestore';
 import { FolderPicker } from './FolderPicker';
+import type { CloudProvider } from '../services/cloudProviders';
 import { GoogleIcon } from './GoogleIcon';
 import { DropboxIcon } from './DropboxIcon';
+import { PCloudIcon } from './PCloudIcon';
+import { BoxIcon } from './BoxIcon';
 import { QRCodeSVG } from 'qrcode.react';
 import {
   Calendar, Image as ImageIcon, Trash2,
@@ -34,9 +37,13 @@ export function Dashboard() {
     dropboxAccessToken,
     googleAccessToken,
     onedriveAccessToken,
+    pcloudAccessToken,
+    boxAccessToken,
     isDropboxConnected,
     isGoogleConnected,
     isOneDriveConnected,
+    isPCloudConnected,
+    isBoxConnected,
     expiredProviders,
     signOut,
     connectDropbox,
@@ -45,6 +52,10 @@ export function Dashboard() {
     disconnectGoogle,
     connectOneDrive,
     disconnectOneDrive,
+    connectPCloud,
+    disconnectPCloud,
+    connectBox,
+    disconnectBox,
     dismissExpiredProviderNotice,
   } = useAuth();
   const { theme, setTheme, setLanguage } = useSettings();
@@ -60,7 +71,7 @@ export function Dashboard() {
 
   const [activeTab, setActiveTab] = useState<'events' | 'settings'>('events');
   const [showProviderModal, setShowProviderModal] = useState(false);
-  const [selectedProvider, setSelectedProvider] = useState<'dropbox' | 'google' | 'onedrive'>('dropbox');
+  const [selectedProvider, setSelectedProvider] = useState<CloudProvider>('dropbox');
 
   const [cloudEvents, setCloudEvents] = useState<CloudEvent[]>([]);
   const [loadingEvents, setLoadingEvents] = useState(true);
@@ -197,8 +208,8 @@ export function Dashboard() {
     }
   };
 
-  const handleDisconnectProvider = async (provider: 'dropbox' | 'google' | 'onedrive') => {
-    const providerName = provider === 'dropbox' ? 'Dropbox' : provider === 'google' ? 'Google Drive' : 'Microsoft OneDrive';
+  const handleDisconnectProvider = async (provider: CloudProvider) => {
+    const providerName = provider === 'dropbox' ? 'Dropbox' : provider === 'google' ? 'Google Drive' : provider === 'onedrive' ? 'Microsoft OneDrive' : provider === 'pcloud' ? 'pCloud' : 'Box';
     const confirmed = await confirm({
       title: language === 'he' ? `ניתוק ספק ${providerName}` : `Disconnect ${providerName}`,
       message: language === 'he'
@@ -224,6 +235,10 @@ export function Dashboard() {
         disconnectGoogle();
       } else if (provider === 'onedrive') {
         disconnectOneDrive();
+      } else if (provider === 'pcloud') {
+        disconnectPCloud();
+      } else if (provider === 'box') {
+        disconnectBox();
       }
       await alert({
         title: language === 'he' ? 'הספק נותק' : 'Provider Disconnected',
@@ -630,11 +645,13 @@ export function Dashboard() {
         <div className="px-6 md:px-12 py-10 max-w-7xl mx-auto w-full flex-grow flex flex-col gap-8 text-start">
           {/* Expired Cloud Provider Connection Banners */}
           {expiredProviders.map((provider) => {
-            const providerName = provider === 'dropbox' ? 'Dropbox' : provider === 'google' ? 'Google Drive' : 'OneDrive';
+            const providerName = provider === 'dropbox' ? 'Dropbox' : provider === 'google' ? 'Google Drive' : provider === 'onedrive' ? 'OneDrive' : provider === 'pcloud' ? 'pCloud' : 'Box';
             const handleReconnect = () => {
               if (provider === 'dropbox') connectDropbox();
               else if (provider === 'google') connectGoogle();
               else if (provider === 'onedrive') connectOneDrive();
+              else if (provider === 'pcloud') connectPCloud();
+              else if (provider === 'box') connectBox();
             };
 
             return (
@@ -876,18 +893,22 @@ export function Dashboard() {
                               {event.provider === 'google' ? (
                                 <GoogleIcon className="w-3.5 h-3.5 shrink-0" alt="Google Drive" />
                               ) : event.provider === 'onedrive' ? (
-                                  <svg viewBox="0 0 24 24" className="w-3.5 h-3.5 text-blue-400 fill-current shrink-0" xmlns="http://www.w3.org/2000/svg">
-                                    <path d="M19.33 11.5A5 5 0 0 0 10.08 9A6.5 6.5 0 0 0 4.67 19.5H19.33A4.5 4.5 0 0 0 19.33 11.5Z" />
-                                    <path d="M16 11a4.5 4.5 0 0 0-8.33-2.17A5.5 5.5 0 0 0 2.5 17.5h13.83A3.5 3.5 0 0 0 16 11Z" opacity="0.8" />
-                                  </svg>
-                                ) : (
-                                  <DropboxIcon className="w-3.5 h-3.5 shrink-0" />
-                                )}
+                                <svg viewBox="0 0 24 24" className="w-3.5 h-3.5 text-blue-400 fill-current shrink-0" xmlns="http://www.w3.org/2000/svg">
+                                  <path d="M19.33 11.5A5 5 0 0 0 10.08 9A6.5 6.5 0 0 0 4.67 19.5H19.33A4.5 4.5 0 0 0 19.33 11.5Z" />
+                                  <path d="M16 11a4.5 4.5 0 0 0-8.33-2.17A5.5 5.5 0 0 0 2.5 17.5h13.83A3.5 3.5 0 0 0 16 11Z" opacity="0.8" />
+                                </svg>
+                              ) : event.provider === 'pcloud' ? (
+                                <PCloudIcon className="w-3.5 h-3.5 shrink-0" />
+                              ) : event.provider === 'box' ? (
+                                <BoxIcon className="w-3.5 h-3.5 shrink-0" />
+                              ) : (
+                                <DropboxIcon className="w-3.5 h-3.5 shrink-0" />
+                              )}
                               </div>
                             <div className="flex flex-col text-start">
                               <span className="text-[10px] text-sage-muted uppercase tracking-wider">{language === 'he' ? 'ספק ענן' : 'Cloud Provider'}</span>
                               <span className="text-sm font-bold text-on-background capitalize">
-                                {event.provider === 'google' ? 'Google' : event.provider === 'onedrive' ? 'OneDrive' : 'Dropbox'}
+                                {event.provider === 'google' ? 'Google' : event.provider === 'onedrive' ? 'OneDrive' : event.provider === 'pcloud' ? 'pCloud' : event.provider === 'box' ? 'Box' : 'Dropbox'}
                               </span>
                             </div>
                           </div>
@@ -1112,6 +1133,79 @@ export function Dashboard() {
                       {t('settings.connect')}
                     </button>
                   </div>
+
+                  {/* pCloud - "Soon" */}
+                  <div className="flex items-center justify-between p-4 rounded-xl bg-surface-container-low/40 border border-surface-border/40 opacity-70">
+                    <div className="flex items-center gap-3 text-start">
+                      <div className="w-10 h-10 rounded-lg bg-[#139EFB]/10 flex items-center justify-center border border-[#139EFB]/30 shrink-0">
+                        <PCloudIcon className="w-5 h-5 shrink-0" />
+                      </div>
+                      <div>
+                        <div className="flex items-center gap-1.5">
+                          <p className="font-bold text-sm text-on-background m-0">pCloud</p>
+                          <span className="px-1.5 py-0.5 rounded text-[9px] font-bold bg-copper-accent/15 text-copper-accent border border-copper-accent/20 uppercase tracking-wide">
+                            {t('settings.soon')}
+                          </span>
+                        </div>
+                        <p className="text-xs text-sage-muted m-0">
+                          {isPCloudConnected || pcloudAccessToken ? (
+                            <span className="text-emerald-400 font-semibold">{t('settings.connected')}</span>
+                          ) : (
+                            t('settings.notConnected')
+                          )}
+                        </p>
+                      </div>
+                    </div>
+                    {isPCloudConnected || pcloudAccessToken ? (
+                      <button
+                        onClick={() => handleDisconnectProvider('pcloud')}
+                        className="px-4 py-2 rounded border border-red-500/30 bg-red-500/10 text-red-400 hover:bg-red-500/25 hover:border-red-500/50 text-xs font-bold transition-all cursor-pointer"
+                      >
+                        {t('settings.disconnect')}
+                      </button>
+                    ) : (
+                      <button
+                        disabled
+                        className="px-4 py-2 rounded bg-surface-container-high text-sage-muted text-xs font-bold border-none cursor-not-allowed"
+                      >
+                        {t('settings.connect')}
+                      </button>
+                    )}
+                  </div>
+
+                  {/* Box */}
+                  <div className="flex items-center justify-between p-4 rounded-xl bg-surface-container-low border border-surface-border hover:border-[#0061D5]/40 transition-all">
+                    <div className="flex items-center gap-3 text-start">
+                      <div className="w-10 h-10 rounded-lg bg-[#0061D5]/10 flex items-center justify-center border border-[#0061D5]/30 shrink-0">
+                        <BoxIcon className="w-5 h-5 shrink-0" />
+                      </div>
+                      <div>
+                        <p className="font-bold text-sm text-on-background m-0">Box</p>
+                        <p className="text-xs text-sage-muted m-0">
+                          {isBoxConnected || boxAccessToken ? (
+                            <span className="text-emerald-400 font-semibold">{t('settings.connected')}</span>
+                          ) : (
+                            t('settings.notConnected')
+                          )}
+                        </p>
+                      </div>
+                    </div>
+                    {isBoxConnected || boxAccessToken ? (
+                      <button
+                        onClick={() => handleDisconnectProvider('box')}
+                        className="px-4 py-2 rounded border border-red-500/30 bg-red-500/10 text-red-400 hover:bg-red-500/25 hover:border-red-500/50 text-xs font-bold transition-all cursor-pointer"
+                      >
+                        {t('settings.disconnect')}
+                      </button>
+                    ) : (
+                      <button
+                        onClick={connectBox}
+                        className="px-4 py-2 rounded bg-deep-forest hover:bg-primary text-background text-xs font-bold transition-all cursor-pointer border-none"
+                      >
+                        {t('settings.connect')}
+                      </button>
+                    )}
+                  </div>
                 </div>
               </div>
 
@@ -1243,7 +1337,7 @@ export function Dashboard() {
       {showFolderPicker && (
         <FolderPicker
           provider={selectedProvider}
-          accessToken={selectedProvider === 'google' ? (googleAccessToken || '') : selectedProvider === 'onedrive' ? (onedriveAccessToken || '') : (dropboxAccessToken || '')}
+          accessToken={selectedProvider === 'google' ? (googleAccessToken || '') : selectedProvider === 'onedrive' ? (onedriveAccessToken || '') : selectedProvider === 'pcloud' ? (pcloudAccessToken || '') : selectedProvider === 'box' ? (boxAccessToken || '') : (dropboxAccessToken || '')}
           onSelect={(folderId, folderName) => {
             handleFolderSelected({ id: folderId, name: folderName });
             setShowFolderPicker(false);
@@ -1271,6 +1365,7 @@ export function Dashboard() {
             <div className="flex flex-col gap-3">
               {/* Dropbox Button */}
               <button
+                type="button"
                 onClick={() => {
                   setSelectedProvider('dropbox');
                   setShowProviderModal(false);
@@ -1297,6 +1392,72 @@ export function Dashboard() {
                   </div>
                 </div>
                 {(isDropboxConnected || dropboxAccessToken) && (
+                  <span className="w-2 h-2 rounded-full bg-emerald-400" />
+                )}
+              </button>
+
+              {/* pCloud Button */}
+              <button
+                type="button"
+                onClick={() => {
+                  setSelectedProvider('pcloud');
+                  setShowProviderModal(false);
+                  if (!pcloudAccessToken) {
+                    connectPCloud();
+                  } else {
+                    setNewEventName('');
+                    setPendingPhotos([]);
+                    setPendingFolder(null);
+                    setShowFolderPicker(true);
+                  }
+                }}
+                className="flex items-center justify-between p-4 rounded-xl bg-surface-container-low border border-surface-border hover:border-copper-accent/40 hover:bg-surface-container transition-all cursor-pointer text-start w-full text-on-background"
+              >
+                <div className="flex items-center gap-3">
+                  <div className="w-8 h-8 rounded bg-[#139EFB]/10 flex items-center justify-center border border-[#139EFB]/30 shrink-0">
+                    <PCloudIcon className="w-4 h-4 shrink-0" />
+                  </div>
+                  <div>
+                    <span className="font-bold text-sm block">pCloud</span>
+                    <span className="text-[10px] text-sage-muted">
+                      {isPCloudConnected || pcloudAccessToken ? t('settings.connected') : t('settings.notConnected')}
+                    </span>
+                  </div>
+                </div>
+                {(isPCloudConnected || pcloudAccessToken) && (
+                  <span className="w-2 h-2 rounded-full bg-emerald-400" />
+                )}
+              </button>
+
+              {/* Box Button */}
+              <button
+                type="button"
+                onClick={() => {
+                  setSelectedProvider('box');
+                  setShowProviderModal(false);
+                  if (!boxAccessToken) {
+                    connectBox();
+                  } else {
+                    setNewEventName('');
+                    setPendingPhotos([]);
+                    setPendingFolder(null);
+                    setShowFolderPicker(true);
+                  }
+                }}
+                className="flex items-center justify-between p-4 rounded-xl bg-surface-container-low border border-surface-border hover:border-copper-accent/40 hover:bg-surface-container transition-all cursor-pointer text-start w-full text-on-background"
+              >
+                <div className="flex items-center gap-3">
+                  <div className="w-8 h-8 rounded bg-[#0061D5]/10 flex items-center justify-center border border-[#0061D5]/30 shrink-0">
+                    <BoxIcon className="w-4 h-4 shrink-0" />
+                  </div>
+                  <div>
+                    <span className="font-bold text-sm block">Box</span>
+                    <span className="text-[10px] text-sage-muted">
+                      {isBoxConnected || boxAccessToken ? t('settings.connected') : t('settings.notConnected')}
+                    </span>
+                  </div>
+                </div>
+                {(isBoxConnected || boxAccessToken) && (
                   <span className="w-2 h-2 rounded-full bg-emerald-400" />
                 )}
               </button>
