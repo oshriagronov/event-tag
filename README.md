@@ -3,11 +3,11 @@
 </p>
 
 <p align="center">
-  <strong>Smart Event Photo Organizer & Guest Face Finder</strong>
+  <strong>Private Selfie-Based Event Photo Sharing & Retrieval Platform</strong>
 </p>
 
 <p align="center">
-  A privacy-first web application that lets event owners organize photos from Google Drive or Dropbox and enables guests to upload a selfie to instantly find and download all their photos.
+  A privacy-first web application that lets event owners scan cloud photos and enables guests to retrieve their photos with a single selfie, making event photo sharing seamless, instant, and private.
 </p>
 
 <p align="center">
@@ -20,13 +20,13 @@
 
 
 
-## What is EventTag / GuestID?
+## What is EventTag?
 
-EventTag (GuestID) is a smart event photo sharing and retrieval platform designed to eliminate manual sorting and searching through thousands of event photos. Event owners connect photo folders directly from **Dropbox**, **pCloud**, or **Box** (with **Google Drive** and **OneDrive** coming soon), and guests scan a share link / QR code with a single selfie to instantly locate and download all photos they appear in.
+EventTag is a privacy-first event photo sharing and retrieval platform designed to make sharing photos between event owners and guests as effortless and private as possible. Event owners connect cloud photo folders directly from **Dropbox**, **pCloud**, or **Box** (with **Google Drive** and **OneDrive** coming soon) for browser-based scanning, and guests scan a share link / QR code with a selfie to instantly find and download all photos they appear in.
 
 ### 🎯 The Goal
-- **For Guests:** Instant, self-service access to all their photos from any event via a simple selfie scan.
-- **For Event Owners:** Save hours of manual filtering, sorting, and sending photos to individual guests.
+- **For Guests:** Instant, private, self-service retrieval of all their event photos via a simple selfie scan.
+- **For Event Owners:** Effortless photo sharing with guests while keeping user privacy paramount and avoiding manual photo distribution.
 
 **Privacy-First & On-Device AI:** All face detection, alignment, and 128-dimensional embedding extraction happen **100% locally in the user's browser** using WebAssembly (ONNX Runtime Web with SFace + face-api.js). Photos are ingested in-memory from cloud storage; **no photo files are ever uploaded to or saved on backend servers**. Only mathematical face vectors and metadata are stored in Firebase Firestore.
 
@@ -166,7 +166,7 @@ npm run dev
 
 ## 🚀 Deployment (Vercel)
 
-GuestID (EventTag) is optimized for zero-config deployment on **Vercel**:
+EventTag is optimized for zero-config deployment on **Vercel**:
 
 ### 1. Connect Repository
 1. Import the project repository into your [Vercel Dashboard](https://vercel.com).
@@ -195,7 +195,7 @@ In Firebase Console, Google Cloud Console, and Dropbox App Console:
 
 ## 🔒 Privacy & Security
 
-EventTag (GuestID) is built around strict data privacy and regulatory compliance:
+EventTag is built around strict data privacy and regulatory compliance:
 
 - **Zero Photo Uploads:** Photos are processed in client memory from Google Drive or Dropbox and are **never uploaded to backend servers**.
 - **Local ML Processing:** All facial recognition runs on the client device via WASM and WebGL.

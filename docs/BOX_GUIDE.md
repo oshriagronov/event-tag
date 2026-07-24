@@ -1,12 +1,12 @@
-# Box Developer & Verification Guide — GuestID (EventTag)
+# Box Developer & Verification Guide — EventTag
 
-This guide details everything a developer needs to know to set up, configure, and verify **Box** as a cloud storage provider for GuestID.
+This guide details everything a developer needs to know to set up, configure, and verify **Box** as a cloud storage provider for EventTag.
 
 ---
 
 ## 1. Overview & Architecture
 
-Box is an enterprise-grade cloud content platform. GuestID uses Box REST API v2.0 with client-side OAuth 2.0 Implicit Grant to read photos directly into browser memory for local ML face-sorting without sending image files to backend servers.
+Box is an enterprise-grade cloud content platform. EventTag uses Box REST API v2.0 with client-side OAuth 2.0 Implicit Grant to read photos directly into browser memory for local ML face-scanning and retrieval without sending image files to backend servers.
 
 - **Base API URL**: `https://api.box.com/2.0`
 - **Authentication URL**: `https://account.box.com/api/oauth2/authorize`
@@ -21,7 +21,7 @@ Box is an enterprise-grade cloud content platform. GuestID uses Box REST API v2.
 1. Log in to the [Box Developer Console](https://account.box.com/developers/console).
 2. Click **Create New App**.
 3. Select **Custom App** -> Method of Authentication: **User Authentication (OAuth 2.0)**.
-4. Set App Name: `GuestID` (or your application name).
+4. Set App Name: `EventTag` (or your application name).
 
 ### Step 2: Configure Application Settings & Scopes
 In your app's **Configuration** tab:
@@ -72,4 +72,4 @@ To allow any public Box user to connect their account without Enterprise Admin m
    - **HTTPS Security**: All OAuth redirect URIs and privacy links must use valid HTTPS.
    - **Terms & Privacy Policies**: Provide links to verified Terms of Service and Privacy Policy pages.
    - **Branding Assets**: Upload a high-resolution app icon (1024x1024 PNG) and promotional screenshots.
-   - **Security Questionnaire**: Complete Box's app security review form detailing data access. Highlight that GuestID processes all photo binaries locally in browser memory and does not upload or retain photos on external servers.
+   - **Security Questionnaire**: Complete Box's app security review form detailing data access. Highlight that EventTag processes all photo binaries locally in browser memory and does not upload or retain photos on external servers.

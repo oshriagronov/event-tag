@@ -1,12 +1,12 @@
-# pCloud Developer & Verification Guide — GuestID (EventTag)
+# pCloud Developer & Verification Guide — EventTag
 
-This guide details everything a developer needs to know to set up, configure, and verify **pCloud** as a cloud storage provider for GuestID.
+This guide details everything a developer needs to know to set up, configure, and verify **pCloud** as a cloud storage provider for EventTag.
 
 ---
 
 ## 1. Overview & Architecture
 
-pCloud provides high-performance cloud storage with regional data centers in the **United States (US)** and **Europe (EU)**. GuestID uses pCloud's client-side OAuth 2.0 Implicit Grant flow to read photos directly into browser memory for local ML face recognition.
+pCloud provides high-performance cloud storage with regional data centers in the **United States (US)** and **Europe (EU)**. EventTag uses pCloud's client-side OAuth 2.0 Implicit Grant flow to read photos directly into browser memory for local ML face recognition.
 
 - **US Base API URL**: `https://api.pcloud.com`
 - **EU Base API URL**: `https://eapi.pcloud.com`
@@ -22,7 +22,7 @@ pCloud provides high-performance cloud storage with regional data centers in the
 1. Go to the [pCloud Developer Console](https://docs.pcloud.com/) and sign in to your pCloud account.
 2. Navigate to **My Apps** -> **Create New App**.
 3. Fill in the application details:
-   - **App Name**: `GuestID` (or your event application name).
+   - **App Name**: `EventTag` (or your event application name).
    - **App Type**: Select **Full Access** or **Folder Access**.
 4. Set Redirect URIs:
    - Development: `http://localhost:5173/dashboard`
@@ -42,7 +42,7 @@ pCloud automatically returns a `locationid` parameter upon OAuth redirect comple
 - `locationid = 1` -> US Datacenter (`api.pcloud.com`)
 - `locationid = 2` -> EU Datacenter (`eapi.pcloud.com`)
 
-GuestID automatically persists `pcloud_location_id` in `localStorage` and routes all API calls dynamically to the correct regional endpoint.
+EventTag automatically persists `pcloud_location_id` in `localStorage` and routes all API calls dynamically to the correct regional endpoint.
 
 ---
 
