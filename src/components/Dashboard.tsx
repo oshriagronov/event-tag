@@ -11,6 +11,7 @@ import {
 } from '../services/firestore';
 import { FolderPicker } from './FolderPicker';
 import { GoogleIcon } from './GoogleIcon';
+import { DropboxIcon } from './DropboxIcon';
 import { QRCodeSVG } from 'qrcode.react';
 import {
   Calendar, Image as ImageIcon, Trash2,
@@ -880,14 +881,7 @@ export function Dashboard() {
                                     <path d="M16 11a4.5 4.5 0 0 0-8.33-2.17A5.5 5.5 0 0 0 2.5 17.5h13.83A3.5 3.5 0 0 0 16 11Z" opacity="0.8" />
                                   </svg>
                                 ) : (
-                                  <svg viewBox="0 0 24 24" className="w-3.5 h-3.5 text-blue-400 fill-current shrink-0" xmlns="http://www.w3.org/2000/svg">
-                                    <path d="M6 2L1 5.3L6 8.7L11 5.3L6 2Z" />
-                                    <path d="M18 2L13 5.3L18 8.7L23 5.3L18 2Z" />
-                                    <path d="M6 15.4L1 12.1L6 8.7L11 12.1L6 15.4Z" />
-                                    <path d="M18 15.4L13 12.1L18 8.7L23 12.1L18 15.4Z" />
-                                    <path d="M12 12.5L7 15.8L12 19.2L17 15.8L12 12.5Z" />
-                                    <path d="M12 20.3L7 17.1L6 17.7V19.4L12 23L18 19.4V17.7L17 17.1L12 20.3Z" />
-                                  </svg>
+                                  <DropboxIcon className="w-3.5 h-3.5 shrink-0" />
                                 )}
                               </div>
                             <div className="flex flex-col text-start">
@@ -1023,17 +1017,10 @@ export function Dashboard() {
 
                 <div className="grid grid-cols-1 gap-4">
                   {/* Dropbox */}
-                  <div className="flex items-center justify-between p-4 rounded-xl bg-surface-container-low border border-surface-border hover:border-surface-border-high transition-all">
+                  <div className="flex items-center justify-between p-4 rounded-xl bg-surface-container-low border border-surface-border hover:border-[#0061FE]/40 transition-all">
                     <div className="flex items-center gap-3 text-start">
-                      <div className="w-10 h-10 rounded-lg bg-blue-500/10 flex items-center justify-center border border-blue-500/20 shrink-0">
-                        <svg viewBox="0 0 24 24" className="w-5 h-5 text-blue-400 fill-current shrink-0" xmlns="http://www.w3.org/2000/svg">
-                          <path d="M6 2L1 5.3L6 8.7L11 5.3L6 2Z" />
-                          <path d="M18 2L13 5.3L18 8.7L23 5.3L18 2Z" />
-                          <path d="M6 15.4L1 12.1L6 8.7L11 12.1L6 15.4Z" />
-                          <path d="M18 15.4L13 12.1L18 8.7L23 12.1L18 15.4Z" />
-                          <path d="M12 12.5L7 15.8L12 19.2L17 15.8L12 12.5Z" />
-                          <path d="M12 20.3L7 17.1L6 17.7V19.4L12 23L18 19.4V17.7L17 17.1L12 20.3Z" />
-                        </svg>
+                      <div className="w-10 h-10 rounded-lg bg-[#0061FE]/10 flex items-center justify-center border border-[#0061FE]/30 shrink-0">
+                        <DropboxIcon className="w-5 h-5 shrink-0" />
                       </div>
                       <div>
                         <p className="font-bold text-sm text-on-background m-0">Dropbox</p>
@@ -1299,15 +1286,8 @@ export function Dashboard() {
                 className="flex items-center justify-between p-4 rounded-xl bg-surface-container-low border border-surface-border hover:border-copper-accent/40 hover:bg-surface-container transition-all cursor-pointer text-start w-full text-on-background"
               >
                 <div className="flex items-center gap-3">
-                  <div className="w-8 h-8 rounded bg-blue-500/10 flex items-center justify-center border border-blue-500/20 shrink-0">
-                    <svg viewBox="0 0 24 24" className="w-4 h-4 text-blue-400 fill-current shrink-0" xmlns="http://www.w3.org/2000/svg">
-                      <path d="M6 2L1 5.3L6 8.7L11 5.3L6 2Z" />
-                      <path d="M18 2L13 5.3L18 8.7L23 5.3L18 2Z" />
-                      <path d="M6 15.4L1 12.1L6 8.7L11 12.1L6 15.4Z" />
-                      <path d="M18 15.4L13 12.1L18 8.7L23 12.1L18 15.4Z" />
-                      <path d="M12 12.5L7 15.8L12 19.2L17 15.8L12 12.5Z" />
-                      <path d="M12 20.3L7 17.1L6 17.7V19.4L12 23L18 19.4V17.7L17 17.1L12 20.3Z" />
-                    </svg>
+                  <div className="w-8 h-8 rounded bg-[#0061FE]/10 flex items-center justify-center border border-[#0061FE]/30 shrink-0">
+                    <DropboxIcon className="w-4 h-4 shrink-0" />
                   </div>
                   <div>
                     <span className="font-bold text-sm block">Dropbox</span>

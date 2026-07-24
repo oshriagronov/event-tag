@@ -75,7 +75,11 @@ Agents working on this repository **MUST** consult and apply the relevant skills
 - Interface is dark-themed, sleek, and modern.
 - **Hebrew & RTL Constraint:** The interface is localized in Hebrew (`dir="rtl"`). All labels, buttons, headers, inputs, alerts, and instructions should be in Hebrew with proper bidi isolation.
 - **Official Google Branding & Assets:** All Google sign-in buttons, Google Drive provider indicators, and Google logos across the application **MUST** use the official branding assets located in `/public/google-login/` (via `<GoogleIcon />` component or direct references to `/public/google-login/`), and never use generic or custom inline SVGs.
+- **Official Dropbox Branding & Assets:** All Dropbox provider indicators, logos, and brand buttons across the application **MUST** strictly comply with [Dropbox Brand Guidelines](https://brand.dropbox.com/) (via `<DropboxIcon />` component using exact `#0061FE` Dropbox Blue color and standard un-distorted 5-rhombus glyph vector), and never use custom or modified inline SVGs.
 
 ### 5. Documentation Maintenance & Self-Updating Context
 - **Rule:** Whenever the architecture of the project (e.g., adding/removing folders, components, contexts, services) or the core logical/data flows change, the agent **MUST** immediately update `AGENTS.md` and `README.md` to reflect the updated state. This ensures that agent instructions and project documentation are always accurate and aligned with the current codebase.
 - **README Guidelines:** Keep `README.md` clean, professional, and concise. Avoid excessive or unnecessary emojis.
+
+### 6. Linting & Verification Rule
+- **Mandatory Linting & Type-Check:** Before completing any task or declaring success, the agent **MUST** run `npm run lint` and `npm run build`, and resolve all reported warnings and errors. Never leave unhandled ESLint errors, warnings, or unused imports.

@@ -19,6 +19,7 @@ import { QRCodeSVG } from 'qrcode.react';
 import { useTranslation } from '../services/translations';
 import { useModal } from '../contexts/ModalContext';
 import { GoogleIcon } from './GoogleIcon';
+import { DropboxIcon } from './DropboxIcon';
 
 interface CloudPhotoImageProps {
   provider?: CloudProvider;
@@ -591,14 +592,7 @@ export function EventView({ eventId, onBack }: EventViewProps) {
                       <path d="M16 11a4.5 4.5 0 0 0-8.33-2.17A5.5 5.5 0 0 0 2.5 17.5h13.83A3.5 3.5 0 0 0 16 11Z" opacity="0.8" />
                     </svg>
                   ) : (
-                    <svg viewBox="0 0 24 24" className="w-5 h-5 text-blue-400 fill-current shrink-0" xmlns="http://www.w3.org/2000/svg">
-                      <path d="M6 2L1 5.3L6 8.7L11 5.3L6 2Z" />
-                      <path d="M18 2L13 5.3L18 8.7L23 5.3L18 2Z" />
-                      <path d="M6 15.4L1 12.1L6 8.7L11 12.1L6 15.4Z" />
-                      <path d="M18 15.4L13 12.1L18 8.7L23 12.1L18 15.4Z" />
-                      <path d="M12 12.5L7 15.8L12 19.2L17 15.8L12 12.5Z" />
-                      <path d="M12 20.3L7 17.1L6 17.7V19.4L12 23L18 19.4V17.7L17 17.1L12 20.3Z" />
-                    </svg>
+                    <DropboxIcon className="w-5 h-5 shrink-0" />
                   )}
                   <span className="text-sage-muted text-xs font-body-md uppercase">
                     {event.provider === 'google' ? 'Google Drive' : event.provider === 'onedrive' ? 'OneDrive' : 'Dropbox'}

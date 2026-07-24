@@ -2,18 +2,11 @@ import React from 'react';
 import { useSettings } from '../contexts/SettingsContext';
 
 const useCurrentTheme = (overrideTheme?: 'Dark' | 'Light' | 'Neutral' | 'auto'): 'Dark' | 'Light' | 'Neutral' => {
+  const { theme } = useSettings();
   if (overrideTheme && overrideTheme !== 'auto') {
     return overrideTheme;
   }
-  try {
-    const { theme } = useSettings();
-    return theme === 'light' ? 'Light' : 'Dark';
-  } catch {
-    if (typeof document !== 'undefined' && document.documentElement.classList.contains('theme-light')) {
-      return 'Light';
-    }
-    return 'Dark';
-  }
+  return theme === 'light' ? 'Light' : 'Dark';
 };
 
 export interface GoogleIconProps {
