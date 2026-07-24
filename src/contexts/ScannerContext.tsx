@@ -163,11 +163,11 @@ export function ScannerProvider({ children }: { children: ReactNode }) {
   const pausedEventsRef = useRef<Map<string, boolean>>(new Map());
   const cancelledEventsRef = useRef<Map<string, boolean>>(new Map());
 
-  const { googleAccessToken, onedriveAccessToken, dropboxAccessToken, pcloudAccessToken, boxAccessToken, markProviderExpired, refreshGoogleTokenSilently } = useAuth();
+  const { googleAccessToken, onedriveAccessToken, dropboxAccessToken, markProviderExpired, refreshGoogleTokenSilently } = useAuth();
   const { alert } = useModal();
 
   useEffect(() => {
-    const hasAnyToken = Boolean(googleAccessToken || onedriveAccessToken || dropboxAccessToken || pcloudAccessToken || boxAccessToken);
+    const hasAnyToken = Boolean(googleAccessToken || onedriveAccessToken || dropboxAccessToken);
     if (hasAnyToken) {
       setScanStates((prev) => {
         let changed = false;
@@ -182,7 +182,7 @@ export function ScannerProvider({ children }: { children: ReactNode }) {
         return changed ? next : prev;
       });
     }
-  }, [googleAccessToken, onedriveAccessToken, dropboxAccessToken, pcloudAccessToken, boxAccessToken]);
+  }, [googleAccessToken, onedriveAccessToken, dropboxAccessToken]);
 
   const activeScanningEventIds = Object.keys(scanStates).filter(
     (id) => scanStates[id]?.isScanning
@@ -267,9 +267,7 @@ export function ScannerProvider({ children }: { children: ReactNode }) {
     const isPhotoValid = (p: CloudPhoto) =>
       Boolean(
         p.publicUrl &&
-          !p.publicUrl.includes('/2.0/files/') &&
-          !p.publicUrl.includes('api.box.com') &&
-          !p.publicUrl.includes('api.pcloud.com')
+          !p.publicUrl.includes('/2.0/files/')
       );
 
     const alreadyProcessed = photos.filter((p) => p.processed && isPhotoValid(p)).length;
@@ -350,9 +348,7 @@ export function ScannerProvider({ children }: { children: ReactNode }) {
         if (photo.processed) {
           const isValidPublicUrl = Boolean(
             photo.publicUrl &&
-              !photo.publicUrl.includes('/2.0/files/') &&
-              !photo.publicUrl.includes('api.box.com') &&
-              !photo.publicUrl.includes('api.pcloud.com')
+              !photo.publicUrl.includes('/2.0/files/')
           );
 
           if (isValidPublicUrl) {

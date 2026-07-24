@@ -18,27 +18,7 @@ import {
   countPhotosInFolder as googleCountPhotos,
 } from './google';
 
-import {
-  listFolders as pcloudListFolders,
-  listPhotosInFolder as pcloudListPhotos,
-  getPhotoBlob as pcloudGetPhotoBlob,
-  getPhotoThumbnailBlob as pcloudGetThumbnail,
-  getOrCreateSharedLink as pcloudGetOrCreateSharedLink,
-  checkTokenValidity as pcloudCheckToken,
-  countPhotosInFolder as pcloudCountPhotos,
-} from './pcloud';
-
-import {
-  listFolders as boxListFolders,
-  listPhotosInFolder as boxListPhotos,
-  getPhotoBlob as boxGetPhotoBlob,
-  getPhotoThumbnailBlob as boxGetThumbnail,
-  getOrCreateSharedLink as boxGetOrCreateSharedLink,
-  checkTokenValidity as boxCheckToken,
-  countPhotosInFolder as boxCountPhotos,
-} from './box';
-
-export type CloudProvider = 'dropbox' | 'google' | 'onedrive' | 'pcloud' | 'box';
+export type CloudProvider = 'dropbox' | 'google' | 'onedrive';
 
 /**
  * List folders in a parent folder depending on provider
@@ -53,12 +33,6 @@ export async function listFolders(
   }
   if (provider === 'google') {
     return googleListFolders(accessToken, parentFolderId);
-  }
-  if (provider === 'pcloud') {
-    return pcloudListFolders(accessToken, parentFolderId);
-  }
-  if (provider === 'box') {
-    return boxListFolders(accessToken, parentFolderId);
   }
   throw new Error(`Provider ${provider} not supported yet.`);
 }
@@ -77,12 +51,6 @@ export async function listPhotosInFolder(
   if (provider === 'google') {
     return googleListPhotos(accessToken, folderId);
   }
-  if (provider === 'pcloud') {
-    return pcloudListPhotos(accessToken, folderId);
-  }
-  if (provider === 'box') {
-    return boxListPhotos(accessToken, folderId);
-  }
   throw new Error(`Provider ${provider} not supported yet.`);
 }
 
@@ -99,12 +67,6 @@ export async function getPhotoBlob(
   }
   if (provider === 'google') {
     return googleGetPhotoBlob(accessToken, fileId);
-  }
-  if (provider === 'pcloud') {
-    return pcloudGetPhotoBlob(accessToken, fileId);
-  }
-  if (provider === 'box') {
-    return boxGetPhotoBlob(accessToken, fileId);
   }
   throw new Error(`Provider ${provider} not supported yet.`);
 }
@@ -124,12 +86,6 @@ export async function getPhotoThumbnailBlob(
   if (provider === 'google') {
     return googleGetThumbnail(accessToken, fileId, size);
   }
-  if (provider === 'pcloud') {
-    return pcloudGetThumbnail(accessToken, fileId, '400x400');
-  }
-  if (provider === 'box') {
-    return boxGetThumbnail(accessToken, fileId);
-  }
   throw new Error(`Provider ${provider} not supported yet.`);
 }
 
@@ -146,12 +102,6 @@ export async function getOrCreateSharedLink(
   }
   if (provider === 'google') {
     return googleGetOrCreateSharedLink(accessToken, fileId);
-  }
-  if (provider === 'pcloud') {
-    return pcloudGetOrCreateSharedLink(accessToken, fileId);
-  }
-  if (provider === 'box') {
-    return boxGetOrCreateSharedLink(accessToken, fileId);
   }
   throw new Error(`Provider ${provider} not supported yet.`);
 }
@@ -194,12 +144,6 @@ export async function checkTokenValidity(
   if (provider === 'onedrive') {
     return checkOneDriveToken(accessToken);
   }
-  if (provider === 'pcloud') {
-    return pcloudCheckToken(accessToken);
-  }
-  if (provider === 'box') {
-    return boxCheckToken(accessToken);
-  }
   return false;
 }
 
@@ -226,9 +170,6 @@ export function convertToRawUrl(
     const cleanId = fileId.replace(/=s\d+$/, '');
     return `https://drive.google.com/thumbnail?id=${cleanId}${sizeParam}`;
   }
-  if (provider === 'box') {
-    return url || '';
-  }
   return url;
 }
 
@@ -252,14 +193,5 @@ export async function countPhotosInFolder(
   if (provider === 'google') {
     return googleCountPhotos(accessToken, folderId);
   }
-  if (provider === 'pcloud') {
-    return pcloudCountPhotos(accessToken, folderId);
-  }
-  if (provider === 'box') {
-    return boxCountPhotos(accessToken, folderId);
-  }
   return 0;
 }
-
-
-

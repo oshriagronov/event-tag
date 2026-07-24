@@ -1,10 +1,10 @@
 # Agent Context: EventTag (Private Selfie-Based Cloud Event Photo Sharing Web App)
 
-You are an expert Frontend Engineer and Client-Side Machine Learning specialist. Your role is to help develop **EventTag**, a privacy-first web application designed to scan event photos loaded directly from cloud storage (Dropbox and Box currently active; pCloud, Google Drive & OneDrive marked as "Soon") so guests can instantly retrieve their personal photos using a selfie in the easiest and most private way possible, with face descriptors synced securely in the cloud.
+You are an expert Frontend Engineer and Client-Side Machine Learning specialist. Your role is to help develop **EventTag**, a privacy-first web application designed to scan event photos loaded directly from cloud storage (Dropbox currently active; Google Drive & OneDrive marked as "Soon") so guests can instantly retrieve their personal photos using a selfie in the easiest and most private way possible, with face descriptors synced securely in the cloud.
 
 
 ## Project Core Concept & Goal
-- **What it is:** A web application where event owners connect photos from cloud storage (Dropbox, Box active; pCloud, Google Drive & OneDrive coming soon), and the browser automatically scans, detects, and encodes faces locally. Guests can then scan a QR code / share link and upload a selfie to instantly retrieve all photos they appear in.
+- **What it is:** A web application where event owners connect photos from cloud storage (Dropbox active; Google Drive & OneDrive coming soon), and the browser automatically scans, detects, and encodes faces locally. Guests can then scan a QR code / share link and upload a selfie to instantly retrieve all photos they appear in.
 - **The Goal:** Make photo sharing between event owners and guests as seamless, instant, and private as possible. Event owners connect and scan their cloud photo folders, while guests self-service retrieve and download their personal event photos using a selfie.
 - **The Ultimate Constraint:** **Cloud Ingest with Local Processing.** Images are read directly from cloud storage into browser memory, all face detection and recognition happens locally in the user's browser, and only mathematical face descriptors are stored in Firebase Firestore. No actual photo files are uploaded to or stored on our servers.
 
@@ -12,7 +12,7 @@ You are an expert Frontend Engineer and Client-Side Machine Learning specialist.
 ## Tech Stack & Project Architecture
 - **Framework:** React 19 + TypeScript 6 + Vite 8.
 - **Styling & UI:** Vanilla CSS + Tailwind CSS 4 (`@tailwindcss/vite`), clean dark-themed responsive design.
-- **Icons:** Lucide React + custom official brand vectors (`GoogleIcon`, `DropboxIcon`, `PCloudIcon`, `BoxIcon`).
+- **Icons:** Lucide React + custom official brand vectors (`GoogleIcon`, `DropboxIcon`).
 - **Client-Side ML Engine:** 
   - Face detection & landmark extraction via `@vladmandic/face-api` (SSD MobileNet V1 + 68-point landmarks).
   - Face embedding extraction via **ONNX Runtime Web** executing an optimized **SFace** (MobileFaceNet backbone) model on WASM (128-dimensional L2-normalized vectors).
@@ -24,8 +24,6 @@ You are an expert Frontend Engineer and Client-Side Machine Learning specialist.
   - **ShareModal & shareUtils:** Native OS Web Share API integration (`navigator.share`) with automatic fallback to a custom multi-platform share modal (WhatsApp, Telegram, Email, Facebook, X/Twitter, QR Code).
 - **Cloud Storage Integrations:**
   - **Dropbox API:** Direct Dropbox folder connection & file stream ingestion.
-  - **pCloud API:** Multi-region US/EU pCloud folder connection & file stream ingestion (see `docs/PCLOUD_GUIDE.md`).
-  - **Box REST API v2.0:** Box folder connection & file stream ingestion (see `docs/BOX_GUIDE.md`).
   - **Google Picker API:** Non-restricted `drive.file` scope ingestion (coming soon).
 - **Deployment & Hosting:** Optimized for Vercel deployment with `vercel.json` SPA route rewrites (`/(.*)` -> `/index.html`) and static WASM model cache headers.
 - **Local Utilities & Caching:** `qrcode.react` (share link QR codes), `dexie` (client-side IndexedDB caching).
@@ -79,7 +77,6 @@ Agents working on this repository **MUST** consult and apply the relevant skills
 - **Hebrew & RTL Constraint:** The interface is localized in Hebrew (`dir="rtl"`). All labels, buttons, headers, inputs, alerts, and instructions should be in Hebrew with proper bidi isolation.
 - **Official Google Branding & Assets:** All Google sign-in buttons, Google Drive provider indicators, and Google logos across the application **MUST** use the official branding assets located in `/public/google-login/` (via `<GoogleIcon />` component or direct references to `/public/google-login/`), and never use generic or custom inline SVGs.
 - **Official Dropbox Branding & Assets:** All Dropbox provider indicators, logos, and brand buttons across the application **MUST** strictly comply with [Dropbox Brand Guidelines](https://brand.dropbox.com/) (via `<DropboxIcon />` component using exact `#0061FE` Dropbox Blue color and standard un-distorted 5-rhombus glyph vector), and never use custom or modified inline SVGs.
-- **Official Box Branding & Assets:** All Box provider indicators, logos, and brand buttons across the application **MUST** strictly comply with official [Box Branding Guidelines](https://developer.box.com/platform/appendix/branding-guidelines) using vectors located in `/public/box-brand-guidelines/` (via `<BoxIcon />` component using exact `#0061D5` Box Blue color and official un-distorted vector artwork), and never use custom or modified inline SVGs.
 
 ### 5. Documentation Maintenance & Self-Updating Context
 - **Rule:** Whenever the architecture of the project (e.g., adding/removing folders, components, contexts, services) or the core logical/data flows change, the agent **MUST** immediately update `AGENTS.md` and `README.md` to reflect the updated state. This ensures that agent instructions and project documentation are always accurate and aligned with the current codebase.

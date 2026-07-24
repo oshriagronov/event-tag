@@ -22,7 +22,7 @@
 
 ## What is EventTag?
 
-EventTag is a privacy-first event photo sharing and retrieval platform designed to make sharing photos between event owners and guests as effortless and private as possible. Event owners connect cloud photo folders directly from **Dropbox** or **Box** (with **pCloud**, **Google Drive**, and **OneDrive** coming soon) for browser-based scanning, and guests scan a share link / QR code with a selfie to instantly find and download all photos they appear in.
+EventTag is a privacy-first event photo sharing and retrieval platform designed to make sharing photos between event owners and guests as effortless and private as possible. Event owners connect cloud photo folders directly from **Dropbox** (with **Google Drive** and **OneDrive** coming soon) for browser-based scanning, and guests scan a share link / QR code with a selfie to instantly find and download all photos they appear in.
 
 ### 🎯 The Goal
 - **For Guests:** Instant, private, self-service retrieval of all their event photos via a simple selfie scan.
@@ -41,8 +41,7 @@ EventTag is a privacy-first event photo sharing and retrieval platform designed 
 - **QR Code & Share Links** — Instant access via event QR code or custom share URL (`qrcode.react`).
 
 ### 🛠️ Event Owner Experience
-- **Multi-Cloud Storage Connection** — Connect photo libraries directly from **Dropbox** and **Box** (pCloud, Google Drive & OneDrive marked as "Soon").
-- **Developer & Verification Guides** — Step-by-step documentation for developer setup and API verification for [pCloud](docs/PCLOUD_GUIDE.md) and [Box](docs/BOX_GUIDE.md).
+- **Multi-Cloud Storage Connection** — Connect photo libraries directly from **Dropbox** (Google Drive & OneDrive marked as "Soon").
 - **Automatic Face Clustering** — On-device AI groups recognized faces automatically into distinct guest profiles.
 - **Live Scanning Queue & Parallel Ingestion** — Scan multiple events concurrently with independent pause/stop controls per event, real-time ETA display, and performance warning alerts.
 - **Multi-Event Management** — Isolated dashboard for creating, sharing, and deleting multiple events.
@@ -51,9 +50,6 @@ EventTag is a privacy-first event photo sharing and retrieval platform designed 
 ## Architecture
 
 ```
-docs/
-├── PCLOUD_GUIDE.md             # Developer setup & verification guide for pCloud
-└── BOX_GUIDE.md                # Developer setup & verification guide for Box
 src/
 ├── App.tsx                     # Root router, providers, and layout structure
 ├── main.tsx                    # React entry point
@@ -61,7 +57,6 @@ src/
 ├── firebase.ts                 # Firebase initialization (Auth & Firestore)
 ├── components/
 │   ├── AccessibilityWidget.tsx  # IS 5568 / WCAG 2.0 AA accessibility toolbar
-│   ├── BoxIcon.tsx             # Official Box brand logo icon component
 │   ├── CookieBanner.tsx        # Amendment 13 Privacy & Cookie Consent banner
 │   ├── Dashboard.tsx           # Multi-event management & cloud provider connection
 │   ├── DropboxIcon.tsx         # Official Dropbox brand logo icon component
@@ -72,7 +67,6 @@ src/
 │   ├── GuestView.tsx           # Guest selfie search, face matching & photo gallery
 │   ├── LandingPage.tsx         # Modern landing page with hero, features, FAQ & CTA
 │   ├── LegalPage.tsx           # Terms of Service, Privacy Policy & Accessibility Statement
-│   ├── PCloudIcon.tsx          # Official pCloud brand logo icon component
 │   ├── PreferencesModal.tsx    # Granular privacy consent settings modal
 │   ├── PrivacyBanner.tsx       # Ingest privacy assurance indicator
 │   ├── PrivacyPage.tsx         # Detailed privacy compliance page
@@ -86,7 +80,6 @@ src/
 │   ├── ScannerContext.tsx      # Global scanning state (progress, pause, ETA)
 │   └── SettingsContext.tsx     # Visual preferences context
 ├── services/
-│   ├── box.ts                  # Box REST API v2.0 integration
 │   ├── cloudProviders.ts       # Unified cloud provider abstraction layer
 │   ├── dropbox.ts              # Dropbox Chooser & file streaming integration
 │   ├── faceAlignment.ts        # Facial landmark alignment (112x112 similarity transform)
@@ -94,7 +87,6 @@ src/
 │   ├── firestore.ts            # Firestore CRUD & batched descriptor writer
 │   ├── google.ts               # Google Drive API REST v3 integration
 │   ├── onnxModel.ts            # ONNX Runtime Web (SFace WASM embedding extractor)
-│   ├── pcloud.ts               # pCloud multi-region REST API integration
 │   └── translations.ts         # Hebrew/English localization strings
 └── utils/
     └── shareUtils.ts           # Web Share API & fallback share link helpers

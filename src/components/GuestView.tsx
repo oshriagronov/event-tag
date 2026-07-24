@@ -24,7 +24,6 @@ import {
   Frown,
   Lock,
   X,
-  ExternalLink,
 } from 'lucide-react';
 import { getCloudEvent, type CloudEvent } from '../services/firestore';
 import { convertToRawUrl, type CloudProvider } from '../services/cloudProviders';
@@ -33,7 +32,6 @@ import { SelfieCapture } from './SelfieCapture';
 import { ensureModelsLoaded } from '../services/modelLoader';
 import { warmUpONNX } from '../services/onnxModel';
 import { useConsent } from '../contexts/ConsentContext';
-import { BoxIcon } from './BoxIcon';
 
 interface GuestViewProps {
   eventId: string;
@@ -80,32 +78,6 @@ function GuestPhotoImage({
     setStage(0);
   }, [primaryUrl]);
 
-  if (provider === 'box') {
-    const boxTargetUrl = publicUrl || (driveFileId ? `https://app.box.com/file/${driveFileId}` : '');
-    return (
-      <div className={`flex flex-col items-center justify-center p-3 bg-surface-container-low border border-[#0061D5]/30 rounded-lg text-center gap-2 group hover:border-[#0061D5] transition-all h-full w-full ${className}`}>
-        <BoxIcon className="w-8 h-8 text-[#0061D5] shrink-0" />
-        <span className="text-xs font-bold text-on-background truncate max-w-full unicode-isolate">
-          {alt || 'תמונה מ-Box'}
-        </span>
-        <span className="text-[10px] text-amber-400 font-medium">
-          לא תומך בתצוגה מקדימה
-        </span>
-        {boxTargetUrl && (
-          <a
-            href={boxTargetUrl}
-            target="_blank"
-            rel="noopener noreferrer"
-            onClick={(e) => e.stopPropagation()}
-            className="inline-flex items-center gap-1 px-3 py-1.5 rounded bg-[#0061D5] hover:bg-[#0061D5]/90 text-white text-xs font-bold transition-all no-underline shadow-sm cursor-pointer"
-          >
-            <span>פתח ב-Box</span>
-            <ExternalLink className="w-3.5 h-3.5 shrink-0" />
-          </a>
-        )}
-      </div>
-    );
-  }
 
   const handleError = () => {
     if (provider === 'google' && cleanId) {
@@ -762,11 +734,6 @@ export function GuestView({ eventId }: GuestViewProps) {
                 onClick={() => {
                   if (isSelectionMode) {
                     togglePhotoSelection(match.driveFileId);
-                  } else if (event?.provider === 'box') {
-                    const targetUrl = match.publicUrl || `https://app.box.com/file/${match.driveFileId}`;
-                    if (targetUrl) {
-                      window.open(targetUrl, '_blank', 'noopener,noreferrer');
-                    }
                   } else {
                     setSelectedPhotoId(match.driveFileId);
                   }
@@ -810,7 +777,7 @@ export function GuestView({ eventId }: GuestViewProps) {
         </div>
 
         {/* Zoom Lightbox Modal */}
-        {selectedPhotoId && event?.provider !== 'box' && (
+        {selectedPhotoId && (
           <div
             className="fixed inset-0 bg-black/95 flex items-center justify-center z-50 p-4 sm:p-6 overflow-y-auto"
             onClick={() => setSelectedPhotoId(null)}
