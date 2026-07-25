@@ -317,8 +317,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       alert('שגיאה: מזהה לקוח Dropbox חסר בקובץ ההגדרות (.env)');
       return;
     }
-    localStorage.setItem('dropbox_connected', 'true');
-    setIsDropboxConnected(true);
     const redirectUri = encodeURIComponent(window.location.origin + '/dashboard');
     const authUrl = `https://www.dropbox.com/oauth2/authorize?client_id=${clientId}&response_type=token&redirect_uri=${redirectUri}`;
     window.location.href = authUrl;
@@ -345,16 +343,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       return;
     }
 
-    localStorage.setItem('google_connected', 'true');
-    setIsGoogleConnected(true);
-
     // Try Google Identity Services GIS popup client first
     if (typeof window !== 'undefined' && window.google?.accounts?.oauth2) {
       try {
         const tokenClient = window.google.accounts.oauth2.initTokenClient({
           client_id: clientId,
           scope: 'https://www.googleapis.com/auth/drive.file',
-          callback: (response: { access_token?: string; expires_in?: number }) => {
+          callback: (response: { access_token?: string; expires_in?: number; error?: string }) => {
             if (response.access_token) {
               const token = response.access_token;
               const expiresIn = response.expires_in || 3600;
@@ -401,8 +396,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       alert('שגיאה: מזהה לקוח OneDrive חסר בקובץ ההגדרות (.env)');
       return;
     }
-    localStorage.setItem('onedrive_connected', 'true');
-    setIsOneDriveConnected(true);
     const redirectUri = encodeURIComponent(window.location.origin + '/dashboard');
     const scope = encodeURIComponent('files.read');
     const authUrl = `https://login.microsoftonline.com/common/oauth2/v2.0/authorize?client_id=${clientId}&response_type=token&redirect_uri=${redirectUri}&scope=${scope}&state=provider%3Donedrive`;
