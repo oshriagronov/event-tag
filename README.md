@@ -42,7 +42,7 @@ EventTag is a privacy-first event photo sharing and retrieval platform designed 
 
 ### 🛠️ Event Owner Experience
 - **Multi-Cloud Storage Connection** — Connect photo libraries directly from **Dropbox** and **Google Drive** (OneDrive marked as "Soon").
-- **Google Drive Auto-Ingest & Upload** — Select local photos or folders to automatically generate an event folder in Google Drive using `drive.file` non-restricted scope and scan faces locally with 2-worker parallel processing.
+- **Cloud Auto-Ingest & Upload** — Select local photos or folders to automatically generate event folders in **Dropbox** or **Google Drive** with public link view permissions and scan faces locally with 2-worker parallel processing.
 - **Automatic Face Clustering** — On-device AI groups recognized faces automatically into distinct guest profiles.
 - **Live Scanning Queue & Parallel Ingestion** — Scan multiple events concurrently with independent pause/stop controls per event, real-time ETA display, and performance warning alerts.
 - **Multi-Event Management** — Isolated dashboard for creating, sharing, and deleting multiple events.

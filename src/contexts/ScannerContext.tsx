@@ -4,6 +4,7 @@ import { getPhotoBlob, checkTokenValidity, getOrCreateSharedLink, convertToRawUr
 import { getONNXSession, extractEmbedding } from '../services/onnxModel';
 import { alignFace } from '../services/faceAlignment';
 import { uploadPhotoToGoogleDrive } from '../services/google';
+import { uploadPhotoToDropbox } from '../services/dropbox';
 import {
   addCloudPhoto,
   updateCloudPhoto,
@@ -46,6 +47,12 @@ interface ScannerContextType {
   startLocalGoogleUploadAndScan: (
     eventId: string,
     googleFolderId: string,
+    files: File[],
+    accessToken: string
+  ) => Promise<void>;
+  startLocalDropboxUploadAndScan: (
+    eventId: string,
+    dropboxFolderIdOrPath: string,
     files: File[],
     accessToken: string
   ) => Promise<void>;
@@ -787,6 +794,180 @@ export function ScannerProvider({ children }: { children: ReactNode }) {
     }
   };
 
+  /**
+   * Local upload & scanning flow for Dropbox events
+   * Processes files in parallel workers (CONCURRENCY = 2)
+   */
+  const startLocalDropboxUploadAndScan = async (
+    eventId: string,
+    dropboxFolderIdOrPath: string,
+    files: File[],
+    accessToken: string
+  ) => {
+    if (isEventScanning(eventId)) {
+      await alert({
+        title: 'סריקה פעילה',
+        message: 'סריקה עבור אירוע זה כבר מתבצעת ברקע.',
+        variant: 'info',
+      });
+      return;
+    }
+
+    cancelledEventsRef.current.set(eventId, false);
+    pausedEventsRef.current.set(eventId, false);
+
+    const totalToScan = files.length;
+    const initialState: EventScanState = {
+      eventId,
+      isScanning: true,
+      isPaused: false,
+      scannedCount: 0,
+      totalToScan,
+      etaSeconds: totalToScan * 3,
+      scanError: null,
+    };
+
+    setScanStates((prev) => ({
+      ...prev,
+      [eventId]: initialState,
+    }));
+
+    await updateCloudEvent(eventId, { status: 'scanning' });
+
+    let scannedCount = 0;
+    let totalFacesFound = 0;
+    let nextFileIndex = 0;
+    let activeTime = 0;
+    const currentToken = accessToken;
+
+    const updateEventState = (updates: Partial<EventScanState>) => {
+      setScanStates((prev) => {
+        const current = prev[eventId];
+        if (!current) return prev;
+        return {
+          ...prev,
+          [eventId]: { ...current, ...updates },
+        };
+      });
+    };
+
+    const worker = async () => {
+      while (nextFileIndex < files.length) {
+        if (cancelledEventsRef.current.get(eventId)) break;
+
+        while (pausedEventsRef.current.get(eventId)) {
+          if (cancelledEventsRef.current.get(eventId)) break;
+          await new Promise((resolve) => setTimeout(resolve, 200));
+        }
+
+        if (cancelledEventsRef.current.get(eventId)) break;
+
+        const idx = nextFileIndex++;
+        if (idx >= files.length) break;
+
+        const file = files[idx];
+        const photoStart = Date.now();
+
+        try {
+          // 1. Client-side ML face detection in memory
+          const { width, height, detections } = await processPhotoLocally(file);
+
+          if (cancelledEventsRef.current.get(eventId)) break;
+
+          // 2. Direct upload to Dropbox target folder
+          const dropboxFile = await uploadPhotoToDropbox(currentToken, dropboxFolderIdOrPath, file);
+
+          if (cancelledEventsRef.current.get(eventId)) break;
+
+          // 3. Construct public shared link / raw CDN URL
+          let publicUrl = '';
+          try {
+            const sharedLink = await getOrCreateSharedLink('dropbox', currentToken, dropboxFile.id);
+            publicUrl = convertToRawUrl('dropbox', sharedLink);
+          } catch (linkErr) {
+            console.warn(`Failed to create shared link for uploaded Dropbox file ${file.name}:`, linkErr);
+          }
+
+          // 4. Write photo document to Firestore
+          const photoId = await addCloudPhoto(eventId, {
+            driveFileId: dropboxFile.id,
+            fileName: file.name,
+            width,
+            height,
+            processed: true,
+            publicUrl,
+          });
+
+          // 5. Save face descriptors
+          if (detections.length > 0) {
+            const faces: CloudFaceEntry[] = detections.map((det) => ({
+              photoId,
+              driveFileId: dropboxFile.id,
+              embedding: det.embedding,
+              box: det.box,
+            }));
+            await appendFaceDescriptors(eventId, faces);
+            totalFacesFound += detections.length;
+          }
+
+          scannedCount++;
+          const duration = (Date.now() - photoStart) / 1000;
+          activeTime += duration;
+          const avgPerPhoto = activeTime / scannedCount;
+          const remaining = totalToScan - scannedCount;
+          const remainingWorkers = Math.min(2, remaining);
+          const etaSeconds = remainingWorkers > 0 ? Math.round((remaining * avgPerPhoto) / remainingWorkers) : 0;
+
+          updateEventState({
+            scannedCount,
+            etaSeconds,
+          });
+        } catch (err: unknown) {
+          console.error(`Failed to process & upload file ${file.name} to Dropbox:`, err);
+          const errStr = err instanceof Error ? err.message : String(err);
+
+          if (
+            errStr.includes('401') ||
+            errStr.includes('403') ||
+            errStr.includes('expired_access_token') ||
+            errStr.includes('invalid_token') ||
+            errStr.includes('PERMISSION_DENIED')
+          ) {
+            markProviderExpired('dropbox');
+            updateEventState({ scanError: 'auth_expired', isPaused: true });
+            pausedEventsRef.current.set(eventId, true);
+            break;
+          }
+        }
+      }
+    };
+
+    try {
+      // Run 2 parallel workers for upload & face scanning
+      const CONCURRENCY = 2;
+      const workers = Array.from({ length: Math.min(CONCURRENCY, files.length) }, () => worker());
+      await Promise.all(workers);
+
+      if (!cancelledEventsRef.current.get(eventId)) {
+        await updateCloudEvent(eventId, {
+          status: 'ready',
+          photoCount: scannedCount,
+          faceCount: totalFacesFound,
+        });
+      }
+    } catch (err) {
+      console.error(`Scanning error for local Dropbox upload event ${eventId}:`, err);
+    } finally {
+      setScanStates((prev) => {
+        const next = { ...prev };
+        delete next[eventId];
+        return next;
+      });
+      pausedEventsRef.current.delete(eventId);
+      cancelledEventsRef.current.delete(eventId);
+    }
+  };
+
   return (
     <ScannerContext.Provider
       value={{
@@ -802,6 +983,7 @@ export function ScannerProvider({ children }: { children: ReactNode }) {
         getEventScanState,
         startCloudScanning,
         startLocalGoogleUploadAndScan,
+        startLocalDropboxUploadAndScan,
         togglePause,
         stopScanning,
       }}

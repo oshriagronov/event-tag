@@ -164,6 +164,16 @@ export async function listPhotosInFolder(
 }
 
 /**
+ * Helper to encode Dropbox-API-Arg header values so they contain only ISO-8859-1 (ASCII) code points.
+ * Non-ASCII characters (e.g. Hebrew event names or non-Latin filenames) are escaped as \uXXXX.
+ */
+function encodeDropboxArg(arg: object): string {
+  return JSON.stringify(arg).replace(/[\u007f-\uffff]/g, (c) => {
+    return '\\u' + ('0000' + c.charCodeAt(0).toString(16)).slice(-4);
+  });
+}
+
+/**
  * Download a photo as a Blob for face processing
  */
 export async function getPhotoBlob(
@@ -175,7 +185,7 @@ export async function getPhotoBlob(
     method: 'POST',
     headers: {
       Authorization: `Bearer ${accessToken}`,
-      'Dropbox-API-Arg': JSON.stringify({ path: fileId }),
+      'Dropbox-API-Arg': encodeDropboxArg({ path: fileId }),
     },
   }, timeoutMs);
 
@@ -233,7 +243,7 @@ export async function getPhotoThumbnailBlob(
     method: 'POST',
     headers: {
       Authorization: `Bearer ${accessToken}`,
-      'Dropbox-API-Arg': JSON.stringify({
+      'Dropbox-API-Arg': encodeDropboxArg({
         path: fileId,
         format: 'jpeg',
         size,
@@ -346,4 +356,126 @@ export function convertToRawDropboxUrl(url: string): string {
       .replace('&dl=0', '&raw=1');
   }
 }
+
+/**
+ * Make a Dropbox folder publicly viewable by generating a public shared link
+ */
+export async function makeFolderPublic(
+  accessToken: string,
+  folderPathOrId: string
+): Promise<boolean> {
+  try {
+    await getOrCreateSharedLink(accessToken, folderPathOrId);
+    return true;
+  } catch (err) {
+    console.warn('Failed to set public permission on Dropbox folder:', err);
+    return false;
+  }
+}
+
+/**
+ * Create a new folder in user's Dropbox and set it to public view
+ */
+export async function createDropboxFolder(
+  accessToken: string,
+  folderName: string
+): Promise<DropboxFolder> {
+  const cleanName = folderName.trim();
+  const folderPath = `/${cleanName.replace(/^\/+/, '')}`;
+
+  const res = await fetchWithTimeout(`${API_BASE}/files/create_folder_v2`, {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${accessToken}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      path: folderPath,
+      autorename: true,
+    }),
+  });
+
+  if (!res.ok) {
+    const error = await res.text();
+    if (
+      res.status === 401 ||
+      res.status === 403 ||
+      error.includes('expired') ||
+      error.includes('invalid_access_token') ||
+      error.includes('PERMISSION_DENIED')
+    ) {
+      throw new Error(`Dropbox API error: 401 - expired_access_token - ${error}`);
+    }
+    throw new Error(`Failed to create folder in Dropbox (${res.status}): ${error}`);
+  }
+
+  const data = await res.json();
+  const metadata = data.metadata || {};
+  const createdPath = String(metadata.path_display || metadata.path_lower || folderPath);
+  const createdId = String(metadata.id || createdPath);
+
+  // Automatically make folder publicly viewable ("anyone with link can view")
+  await makeFolderPublic(accessToken, createdPath);
+
+  return {
+    id: createdId,
+    name: String(metadata.name || cleanName),
+    path: createdPath,
+  };
+}
+
+/**
+ * Upload a local image file directly to a Dropbox folder
+ */
+export async function uploadPhotoToDropbox(
+  accessToken: string,
+  folderPathOrId: string,
+  file: File
+): Promise<DropboxFile> {
+  const targetFolder = folderPathOrId.endsWith('/') ? folderPathOrId.slice(0, -1) : folderPathOrId;
+  const filePath = `${targetFolder}/${file.name}`;
+
+  const res = await fetchWithTimeout(
+    `${CONTENT_BASE}/files/upload`,
+    {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+        'Dropbox-API-Arg': encodeDropboxArg({
+          path: filePath,
+          mode: 'add',
+          autorename: true,
+          mute: false,
+        }),
+        'Content-Type': 'application/octet-stream',
+      },
+      body: file,
+    },
+    60000
+  );
+
+  if (!res.ok) {
+    const error = await res.text();
+    if (
+      res.status === 401 ||
+      res.status === 403 ||
+      error.includes('expired') ||
+      error.includes('invalid_access_token') ||
+      error.includes('PERMISSION_DENIED')
+    ) {
+      throw new Error(`Dropbox API error: 401 - expired_access_token - ${error}`);
+    }
+    throw new Error(`Failed to upload photo to Dropbox (${res.status}): ${error}`);
+  }
+
+  const data = await res.json();
+  return {
+    id: String(data.id || data.path_display || filePath),
+    name: String(data.name || file.name),
+    path: String(data.path_display || data.path_lower || filePath),
+    size: Number(data.size || file.size),
+    modifiedTime: String(data.client_modified || new Date().toISOString()),
+  };
+}
+
 

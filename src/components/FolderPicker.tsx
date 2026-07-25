@@ -206,14 +206,6 @@ export function FolderPicker({ provider, accessToken, onSelect, onCancel }: Fold
           ))}
         </div>
 
-        {/* Cloud provider sharing notice */}
-        <div className="px-6 py-2 bg-amber-500/10 border-b border-amber-500/20 text-start">
-          <p className="text-[11px] text-amber-300/90 m-0 font-medium leading-relaxed">
-            {t('folderPicker.tip', {
-              provider: provider === 'dropbox' ? 'Dropbox' : provider === 'google' ? 'Google Drive' : 'OneDrive',
-            })}
-          </p>
-        </div>
 
         {/* Content */}
         <div className="flex-1 overflow-y-auto p-4 min-h-[300px]">

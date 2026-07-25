@@ -5,7 +5,10 @@ import {
   getPhotoThumbnailBlob as dbxGetThumbnail,
   getOrCreateSharedLink as dbxGetOrCreateLink,
   checkTokenValidity as dbxCheckToken,
-  convertToRawDropboxUrl
+  convertToRawDropboxUrl,
+  createDropboxFolder,
+  makeFolderPublic as dbxMakeFolderPublic,
+  uploadPhotoToDropbox,
 } from './dropbox';
 
 import {
@@ -195,3 +198,5 @@ export async function countPhotosInFolder(
   }
   return 0;
 }
+
+export { createDropboxFolder, dbxMakeFolderPublic as makeDropboxFolderPublic, uploadPhotoToDropbox };

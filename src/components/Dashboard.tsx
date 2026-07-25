@@ -22,6 +22,7 @@ import {
   Sun, Moon, AlertTriangle, Upload, Sparkles
 } from 'lucide-react';
 import { createGoogleFolder } from '../services/google';
+import { createDropboxFolder } from '../services/dropbox';
 import { openGooglePicker } from '../services/googlePicker';
 import { ShareModal } from './ShareModal';
 import { handleShareEvent } from '../utils/shareUtils';
@@ -63,12 +64,14 @@ export function Dashboard() {
     togglePause,
     stopScanning,
     startLocalGoogleUploadAndScan,
+    startLocalDropboxUploadAndScan,
   } = useScanner();
 
   const [activeTab, setActiveTab] = useState<'events' | 'settings'>('events');
   const [showProviderModal, setShowProviderModal] = useState(false);
-  const [selectedProvider, setSelectedProvider] = useState<CloudProvider>('dropbox');
+  const [selectedProvider, setSelectedProvider] = useState<CloudProvider>('google');
   const [showGoogleCreateModal, setShowGoogleCreateModal] = useState(false);
+  const [showDropboxCreateModal, setShowDropboxCreateModal] = useState(false);
   const [selectedLocalFiles, setSelectedLocalFiles] = useState<File[]>([]);
 
   const [cloudEvents, setCloudEvents] = useState<CloudEvent[]>([]);
@@ -261,6 +264,68 @@ export function Dashboard() {
           message: language === 'he'
             ? `שגיאה ביצירת התיקייה ב-Google Drive:\n${errStr}`
             : `Error creating folder in Google Drive:\n${errStr}`,
+          variant: 'danger',
+        });
+      }
+    } finally {
+      setCreating(false);
+    }
+  };
+
+  const handleCreateDropboxEvent = async () => {
+    if (!user || !dropboxAccessToken || selectedLocalFiles.length === 0 || !newEventName.trim()) return;
+
+    setCreating(true);
+    try {
+      // 1. Create a dedicated folder in user's Dropbox via API
+      const dropboxFolder = await createDropboxFolder(dropboxAccessToken, newEventName.trim());
+
+      // 2. Create the Cloud Event document in Firestore
+      const eventId = await createCloudEvent(
+        user.uid,
+        newEventName.trim(),
+        dropboxFolder.path,
+        dropboxFolder.name,
+        'dropbox'
+      );
+
+      // 3. Trigger 2-worker parallel face scanning & Dropbox upload task
+      startLocalDropboxUploadAndScan(eventId, dropboxFolder.path, selectedLocalFiles, dropboxAccessToken);
+
+      // 4. Reset modal state and navigate to event page
+      setShowDropboxCreateModal(false);
+      setNewEventName('');
+      setSelectedLocalFiles([]);
+      navigate(`/dashboard/event/${eventId}`);
+    } catch (err: unknown) {
+      console.error('Failed to create Dropbox event:', err);
+      const errStr = err instanceof Error ? err.message : String(err);
+      if (
+        errStr.includes('401') ||
+        errStr.includes('403') ||
+        errStr.includes('expired_access_token') ||
+        errStr.includes('PERMISSION_DENIED') ||
+        errStr.includes('invalid_access_token')
+      ) {
+        markProviderExpired('dropbox');
+        const confirmed = await confirm({
+          title: language === 'he' ? 'נדרשת הרשאת Dropbox' : 'Dropbox Permission Required',
+          message: language === 'he'
+            ? 'תוקף החיבור לחשבון Dropbox פג או שחסרות הרשאות ליצירת קבצים.\nהאם ברצונך להתחבר מחדש עכשיו לקבלת ההרשאות המעודכנות?'
+            : 'Your Dropbox session has expired or lacks file creation permissions.\nWould you like to reconnect now to grant updated permissions?',
+          confirmText: language === 'he' ? 'התחבר מחדש' : 'Reconnect',
+          cancelText: language === 'he' ? 'ביטול' : 'Cancel',
+          variant: 'warning',
+        });
+        if (confirmed) {
+          connectDropbox();
+        }
+      } else {
+        await alert({
+          title: language === 'he' ? 'שגיאה ביצירת אירוע' : 'Error Creating Event',
+          message: language === 'he'
+            ? `שגיאה ביצירת התיקייה ב-Dropbox:\n${errStr}`
+            : `Error creating folder in Dropbox:\n${errStr}`,
           variant: 'danger',
         });
       }
@@ -1131,6 +1196,45 @@ export function Dashboard() {
                 </div>
 
                 <div className="grid grid-cols-1 gap-4">
+                  {/* Google Drive */}
+                  <div className="flex items-center justify-between p-4 rounded-xl bg-surface-container-low border border-surface-border hover:border-copper-accent/40 transition-all">
+                    <div className="flex items-center gap-3 text-start">
+                      <div className="w-10 h-10 rounded-lg bg-surface-container-high flex items-center justify-center border border-surface-border shrink-0">
+                        <GoogleIcon className="w-5 h-5 shrink-0" alt="Google Drive" />
+                      </div>
+                      <div>
+                        <div className="flex items-center gap-2">
+                          <p className="font-bold text-sm text-on-background m-0">Google Drive</p>
+                          <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-500/15 text-emerald-400 border border-emerald-500/30 tracking-wide">
+                            {t('settings.recommended')}
+                          </span>
+                        </div>
+                        <p className="text-xs text-sage-muted m-0">
+                          {isGoogleConnected || googleAccessToken ? (
+                            <span className="text-emerald-400 font-semibold">{t('settings.connected')}</span>
+                          ) : (
+                            t('settings.notConnected')
+                          )}
+                        </p>
+                      </div>
+                    </div>
+                    {isGoogleConnected || googleAccessToken ? (
+                      <button
+                        onClick={() => handleDisconnectProvider('google')}
+                        className="px-4 py-2 rounded border border-red-500/30 bg-red-500/10 text-red-400 hover:bg-red-500/25 hover:border-red-500/50 text-xs font-bold transition-all cursor-pointer"
+                      >
+                        {t('settings.disconnect')}
+                      </button>
+                    ) : (
+                      <button
+                        onClick={connectGoogle}
+                        className="px-4 py-2 rounded bg-deep-forest hover:bg-primary text-background text-xs font-bold transition-all cursor-pointer border-none"
+                      >
+                        {t('settings.connect')}
+                      </button>
+                    )}
+                  </div>
+
                   {/* Dropbox */}
                   <div className="flex items-center justify-between p-4 rounded-xl bg-surface-container-low border border-surface-border hover:border-[#0061FE]/40 transition-all">
                     <div className="flex items-center gap-3 text-start">
@@ -1158,40 +1262,6 @@ export function Dashboard() {
                     ) : (
                       <button
                         onClick={connectDropbox}
-                        className="px-4 py-2 rounded bg-deep-forest hover:bg-primary text-background text-xs font-bold transition-all cursor-pointer border-none"
-                      >
-                        {t('settings.connect')}
-                      </button>
-                    )}
-                  </div>
-
-                  {/* Google Drive */}
-                  <div className="flex items-center justify-between p-4 rounded-xl bg-surface-container-low border border-surface-border hover:border-copper-accent/40 transition-all">
-                    <div className="flex items-center gap-3 text-start">
-                      <div className="w-10 h-10 rounded-lg bg-surface-container-high flex items-center justify-center border border-surface-border shrink-0">
-                        <GoogleIcon className="w-5 h-5 shrink-0" alt="Google Drive" />
-                      </div>
-                      <div>
-                        <p className="font-bold text-sm text-on-background m-0">Google Drive</p>
-                        <p className="text-xs text-sage-muted m-0">
-                          {isGoogleConnected || googleAccessToken ? (
-                            <span className="text-emerald-400 font-semibold">{t('settings.connected')}</span>
-                          ) : (
-                            t('settings.notConnected')
-                          )}
-                        </p>
-                      </div>
-                    </div>
-                    {isGoogleConnected || googleAccessToken ? (
-                      <button
-                        onClick={() => handleDisconnectProvider('google')}
-                        className="px-4 py-2 rounded border border-red-500/30 bg-red-500/10 text-red-400 hover:bg-red-500/25 hover:border-red-500/50 text-xs font-bold transition-all cursor-pointer"
-                      >
-                        {t('settings.disconnect')}
-                      </button>
-                    ) : (
-                      <button
-                        onClick={connectGoogle}
                         className="px-4 py-2 rounded bg-deep-forest hover:bg-primary text-background text-xs font-bold transition-all cursor-pointer border-none"
                       >
                         {t('settings.connect')}
@@ -1293,24 +1363,22 @@ export function Dashboard() {
               </div>
             </div>
 
-            {selectedProvider === 'google' && pendingFolder && (
-              <div className="bg-amber-500/15 dark:bg-amber-500/20 border-2 border-amber-500/50 dark:border-amber-400/50 rounded-xl p-4 text-start flex items-start gap-3 shadow-md">
-                <div className="p-2 rounded-lg bg-amber-500/25 text-amber-700 dark:text-amber-300 shrink-0 mt-0.5 shadow-sm">
-                  <AlertTriangle className="w-5 h-5" />
-                </div>
-                <div className="flex flex-col gap-1">
-                  <span className="font-bold text-xs uppercase tracking-wider text-amber-800 dark:text-amber-300 flex items-center gap-1.5">
-                    <Sparkles className="w-3.5 h-3.5 text-amber-600 dark:text-amber-400" />
-                    {language === 'he' ? 'חשוב: הרשאת שיתוף תיקייה' : 'IMPORTANT: FOLDER SHARING PERMISSION'}
-                  </span>
-                  <p className="text-xs font-semibold text-amber-950 dark:text-amber-100 leading-relaxed m-0">
-                    {language === 'he'
-                      ? 'לתשומת לבך: יש לוודא שהתיקייה ב-Google Drive מוגדרת כציבורית לצפייה ("כל מי שיש לו את הקישור"), כדי שהאורחים יוכלו לצפות בתמונות שלהם.'
-                      : 'Important: Please ensure this Google Drive folder is set to public view ("Anyone with the link can view") so guests can access their photos.'}
-                  </p>
-                </div>
+            <div className="bg-amber-500/15 dark:bg-amber-500/20 border-2 border-amber-500/50 dark:border-amber-400/50 rounded-xl p-4 text-start flex items-start gap-3 shadow-md">
+              <div className="p-2 rounded-lg bg-amber-500/25 text-amber-700 dark:text-amber-300 shrink-0 mt-0.5 shadow-sm">
+                <AlertTriangle className="w-5 h-5" />
               </div>
-            )}
+              <div className="flex flex-col gap-1">
+                <span className="font-bold text-xs uppercase tracking-wider text-amber-800 dark:text-amber-300 flex items-center gap-1.5">
+                  <Sparkles className="w-3.5 h-3.5 text-amber-600 dark:text-amber-400" />
+                  {language === 'he' ? 'חשוב: הרשאת שיתוף תיקייה' : 'IMPORTANT: FOLDER SHARING PERMISSION'}
+                </span>
+                <p className="text-xs font-semibold text-amber-950 dark:text-amber-100 leading-relaxed m-0">
+                  {language === 'he'
+                    ? `לתשומת לבך: יש לוודא שהתיקייה ב-${selectedProvider === 'google' ? 'Google Drive' : selectedProvider === 'onedrive' ? 'OneDrive' : 'Dropbox'} מוגדרת כציבורית לצפייה ("כל מי שיש לו את הקישור"), כדי שהאורחים יוכלו לצפות בתמונות שלהם.`
+                    : `Important: Please ensure this ${selectedProvider === 'google' ? 'Google Drive' : selectedProvider === 'onedrive' ? 'OneDrive' : 'Dropbox'} folder is set to public view ("Anyone with the link can view") so guests can access their photos.`}
+                </p>
+              </div>
+            </div>
 
             <div className="flex flex-col gap-2 text-start">
               <label className="text-xs font-bold uppercase tracking-wider text-sage-muted">{language === 'he' ? 'שם האירוע:' : 'Event Name:'}</label>
@@ -1373,6 +1441,7 @@ export function Dashboard() {
                 ? 'בחר תמונות או תיקייה מהמחשב. המערכת תקים תיקייה ב-Google Drive שלך, תעלה ותסרוק את התמונות מקומית בדפדפן.'
                 : 'Select photos or a folder from your computer. The app will create a folder in your Google Drive, upload, and scan faces locally.'}
             </p>
+
 
 
             {/* Select Local Files / Folder Dropzone */}
@@ -1466,6 +1535,129 @@ export function Dashboard() {
         </div>
       )}
 
+      {/* Dropbox Event Creation Modal */}
+      {showDropboxCreateModal && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4" onClick={() => setShowDropboxCreateModal(false)}>
+          <div className="bg-surface-container border border-surface-border rounded-xl p-8 max-w-lg w-full shadow-2xl flex flex-col gap-6" onClick={(e) => e.stopPropagation()} dir={isRtl ? 'rtl' : 'ltr'}>
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2.5">
+                <div className="w-8 h-8 rounded-lg bg-[#0061FE]/10 border border-[#0061FE]/30 flex items-center justify-center">
+                  <DropboxIcon className="w-4 h-4 shrink-0" />
+                </div>
+                <h3 className="font-display-lg text-xl text-on-background m-0">
+                  {language === 'he' ? 'אירוע חדש ב-Dropbox' : 'New Dropbox Event'}
+                </h3>
+              </div>
+              <button
+                onClick={() => { setShowDropboxCreateModal(false); setSelectedLocalFiles([]); setNewEventName(''); }}
+                className="p-1.5 rounded hover:bg-surface-container-high text-sage-muted hover:text-on-background transition-colors cursor-pointer border-none bg-transparent"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <p className="text-xs text-sage-muted m-0 text-start">
+              {language === 'he'
+                ? 'בחר תמונות או תיקייה מהמחשב. המערכת תקים תיקייה ב-Dropbox שלך, תעלה ותסרוק את התמונות מקומית בדפדפן.'
+                : 'Select photos or a folder from your computer. The app will create a folder in your Dropbox, upload, and scan faces locally.'}
+            </p>
+
+
+            {/* Select Local Files / Folder Dropzone */}
+            <div className="flex flex-col gap-2 text-start">
+              <label className="text-xs font-bold uppercase tracking-wider text-sage-muted">
+                {language === 'he' ? 'בחירת תמונות מהמחשב:' : 'Select Photos from Computer:'}
+              </label>
+              <div className="relative border-2 border-dashed border-surface-border hover:border-copper-accent/50 rounded-xl p-6 bg-surface-container-low transition-all text-center flex flex-col items-center justify-center gap-3">
+                <input
+                  type="file"
+                  multiple
+                  accept="image/*"
+                  onChange={(e) => {
+                    if (e.target.files && e.target.files.length > 0) {
+                      const filesArr = Array.from(e.target.files).filter((f) => f.type.startsWith('image/'));
+                      setSelectedLocalFiles(filesArr);
+                      if (!newEventName && filesArr.length > 0) {
+                        const folderPath = filesArr[0].webkitRelativePath;
+                        const inferredName = folderPath ? folderPath.split('/')[0] : 'אירוע Dropbox';
+                        setNewEventName(inferredName);
+                      }
+                    }
+                  }}
+                  className="absolute inset-0 opacity-0 w-full h-full cursor-pointer z-10"
+                />
+                <div className="w-12 h-12 rounded-full bg-copper-accent/10 border border-copper-accent/20 flex items-center justify-center text-copper-accent">
+                  <Upload className="w-6 h-6" />
+                </div>
+                <div>
+                  <p className="text-sm font-bold text-on-background m-0">
+                    {selectedLocalFiles.length > 0
+                      ? (language === 'he' ? `נבחרו ${selectedLocalFiles.length} תמונות` : `${selectedLocalFiles.length} photos selected`)
+                      : (language === 'he' ? 'לחץ לבחירת תמונות או גרור לכאן' : 'Click to select photos or drag & drop')}
+                  </p>
+                  <p className="text-[11px] text-sage-muted m-0 mt-1">
+                    {selectedLocalFiles.length > 0
+                      ? (language === 'he' ? 'לחץ שוב לבחירת קבצים אחרים' : 'Click to re-select files')
+                      : (language === 'he' ? 'ניתן לבחור מספר רב של תמונות (JPG, PNG, WebP)' : 'Supports multiple image files (JPG, PNG, WebP)')}
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            {/* Event Name Input */}
+            <div className="flex flex-col gap-2 text-start">
+              <label className="text-xs font-bold uppercase tracking-wider text-sage-muted">
+                {language === 'he' ? 'שם האירוע (ושם התיקייה ב-Dropbox):' : 'Event Name (Dropbox Folder):'}
+              </label>
+              <input
+                type="text"
+                value={newEventName}
+                onChange={(e) => setNewEventName(e.target.value)}
+                placeholder={language === 'he' ? 'למשל: חתונת יוסי ודנה 2026' : 'e.g., Yossi & Dana Wedding 2026'}
+                className="px-4 py-3 rounded bg-surface-container-low border border-surface-border focus:border-copper-accent focus:outline-none text-on-background text-sm placeholder:text-sage-muted transition-colors w-full"
+              />
+            </div>
+
+            {/* Option to pick existing Dropbox folder */}
+            <div className="flex items-center justify-between text-xs text-sage-muted pt-2 border-t border-surface-border/40">
+              <span>{language === 'he' ? 'רוצה לבחור תיקייה קיימת ב-Dropbox?' : 'Want to pick an existing Dropbox folder?'}</span>
+              <button
+                type="button"
+                onClick={() => {
+                  setSelectedProvider('dropbox');
+                  setShowDropboxCreateModal(false);
+                  setShowFolderPicker(true);
+                }}
+                className="text-copper-accent hover:underline font-bold bg-transparent border-none cursor-pointer"
+              >
+                {language === 'he' ? 'סייר התיקיות של Dropbox' : 'Open Dropbox Folder Picker'}
+              </button>
+            </div>
+
+            {/* Submit / Cancel buttons */}
+            <div className="flex gap-3">
+              <button
+                onClick={handleCreateDropboxEvent}
+                disabled={creating || selectedLocalFiles.length === 0 || !newEventName.trim()}
+                className="flex-1 py-3 rounded bg-deep-forest hover:bg-primary text-background font-bold text-sm transition-all cursor-pointer active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 border-none shadow-lg"
+              >
+                {creating ? (
+                  <><Loader2 className="w-4 h-4 animate-spin" /> {language === 'he' ? 'מקים תיקייה ומתחיל...' : 'Creating folder & starting...'}</>
+                ) : (
+                  <><Plus className="w-4 h-4" /> {language === 'he' ? 'צור אירוע והעלה ל-Dropbox' : 'Create Event & Upload'}</>
+                )}
+              </button>
+              <button
+                onClick={() => { setShowDropboxCreateModal(false); setSelectedLocalFiles([]); setNewEventName(''); }}
+                className="px-6 py-3 rounded bg-surface-container-high hover:bg-surface-border text-on-background font-medium text-sm transition-all cursor-pointer border-none"
+              >
+                {t('common.cancel')}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* QR Code Modal */}
       {qrEvent && (
         <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4" onClick={() => setQrEvent(null)}>
@@ -1535,39 +1727,6 @@ export function Dashboard() {
             <p className="text-xs text-sage-muted m-0 text-start">{t('settings.selectProviderDesc')}</p>
 
             <div className="flex flex-col gap-3">
-              {/* Dropbox Button */}
-              <button
-                type="button"
-                onClick={() => {
-                  setSelectedProvider('dropbox');
-                  setShowProviderModal(false);
-                  if (!dropboxAccessToken) {
-                    connectDropbox();
-                  } else {
-                    setNewEventName('');
-                    setPendingPhotos([]);
-                    setPendingFolder(null);
-                    setShowFolderPicker(true);
-                  }
-                }}
-                className="flex items-center justify-between p-4 rounded-xl bg-surface-container-low border border-surface-border hover:border-copper-accent/40 hover:bg-surface-container transition-all cursor-pointer text-start w-full text-on-background"
-              >
-                <div className="flex items-center gap-3">
-                  <div className="w-8 h-8 rounded bg-[#0061FE]/10 flex items-center justify-center border border-[#0061FE]/30 shrink-0">
-                    <DropboxIcon className="w-4 h-4 shrink-0" />
-                  </div>
-                  <div>
-                    <span className="font-bold text-sm block">Dropbox</span>
-                    <span className="text-[10px] text-sage-muted">
-                      {isDropboxConnected || dropboxAccessToken ? t('settings.connected') : t('settings.notConnected')}
-                    </span>
-                  </div>
-                </div>
-                {(isDropboxConnected || dropboxAccessToken) && (
-                  <span className="w-2 h-2 rounded-full bg-emerald-400" />
-                )}
-              </button>
-
               {/* Google Drive Button */}
               <button
                 type="button"
@@ -1590,13 +1749,51 @@ export function Dashboard() {
                     <GoogleIcon className="w-4 h-4 shrink-0" alt="Google Drive" />
                   </div>
                   <div>
-                    <span className="font-bold text-sm block">Google Drive</span>
+                    <div className="flex items-center gap-2">
+                      <span className="font-bold text-sm block">Google Drive</span>
+                      <span className="px-1.5 py-0.2 rounded text-[9px] font-bold bg-emerald-500/15 text-emerald-400 border border-emerald-500/30 tracking-wide">
+                        {t('settings.recommended')}
+                      </span>
+                    </div>
                     <span className="text-[10px] text-sage-muted">
                       {isGoogleConnected || googleAccessToken ? t('settings.connected') : t('settings.notConnected')}
                     </span>
                   </div>
                 </div>
                 {(isGoogleConnected || googleAccessToken) && (
+                  <span className="w-2 h-2 rounded-full bg-emerald-400" />
+                )}
+              </button>
+
+              {/* Dropbox Button */}
+              <button
+                type="button"
+                onClick={() => {
+                  setSelectedProvider('dropbox');
+                  setShowProviderModal(false);
+                  if (!dropboxAccessToken) {
+                    connectDropbox();
+                  } else {
+                    setNewEventName('');
+                    setSelectedLocalFiles([]);
+                    setPendingFolder(null);
+                    setShowDropboxCreateModal(true);
+                  }
+                }}
+                className="flex items-center justify-between p-4 rounded-xl bg-surface-container-low border border-surface-border hover:border-copper-accent/40 hover:bg-surface-container transition-all cursor-pointer text-start w-full text-on-background"
+              >
+                <div className="flex items-center gap-3">
+                  <div className="w-8 h-8 rounded bg-[#0061FE]/10 flex items-center justify-center border border-[#0061FE]/30 shrink-0">
+                    <DropboxIcon className="w-4 h-4 shrink-0" />
+                  </div>
+                  <div>
+                    <span className="font-bold text-sm block">Dropbox</span>
+                    <span className="text-[10px] text-sage-muted">
+                      {isDropboxConnected || dropboxAccessToken ? t('settings.connected') : t('settings.notConnected')}
+                    </span>
+                  </div>
+                </div>
+                {(isDropboxConnected || dropboxAccessToken) && (
                   <span className="w-2 h-2 rounded-full bg-emerald-400" />
                 )}
               </button>
