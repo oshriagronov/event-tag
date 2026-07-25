@@ -139,7 +139,7 @@ export function LandingPage() {
           </ul>
 
           {/* Trailing Action */}
-          <div className="flex items-center gap-3 md:gap-4">
+          <div className="hidden md:flex items-center gap-3 md:gap-4">
             {user ? (
               <Link
                 to="/dashboard"

@@ -51,7 +51,7 @@ export function LegalPage({ defaultTab = 'privacy' }: LegalPageProps) {
           </nav>
           
           {/* Trailing Action */}
-          <div className="flex items-center gap-4">
+          <div className="hidden md:flex items-center gap-4">
             {user ? (
               <Link to="/dashboard" className="bg-deep-forest text-surface-container-lowest font-label-sm text-xs font-bold uppercase tracking-wider px-6 py-2.5 rounded hover:bg-primary transition-all shadow-sm no-underline cursor-pointer">
                 {t('dashboard.myDashboard')}

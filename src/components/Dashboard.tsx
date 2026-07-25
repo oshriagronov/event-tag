@@ -19,7 +19,7 @@ import {
   ArrowLeft, LogOut, Cloud, Link2, QrCode, Share2,
   CheckCircle2, Loader2, Clock, Copy, Check, X,
   Plus, Play, Pause, FolderOpen, Search, Menu, BarChart2, Settings,
-  Sun, Moon, AlertTriangle, Upload
+  Sun, Moon, AlertTriangle, Upload, Sparkles
 } from 'lucide-react';
 import { createGoogleFolder } from '../services/google';
 import { openGooglePicker } from '../services/googlePicker';
@@ -1294,13 +1294,21 @@ export function Dashboard() {
             </div>
 
             {selectedProvider === 'google' && pendingFolder && (
-              <div className="bg-copper-accent/10 border border-copper-accent/30 rounded-lg p-3 text-start flex items-start gap-2.5 text-xs text-copper-accent">
-                <AlertTriangle className="w-4 h-4 text-copper-accent shrink-0 mt-0.5" />
-                <span>
-                  {language === 'he'
-                    ? 'לתשומת לבך: יש לוודא שהתיקייה ב-Google Drive מוגדרת כציבורית לצפייה ("כל מי שיש לו את הקישור"), כדי שהאורחים יוכלו לצפות בתמונות שלהם.'
-                    : 'Important: Please ensure this Google Drive folder is set to public view ("Anyone with the link can view") so guests can access their photos.'}
-                </span>
+              <div className="bg-amber-500/15 dark:bg-amber-500/20 border-2 border-amber-500/50 dark:border-amber-400/50 rounded-xl p-4 text-start flex items-start gap-3 shadow-md">
+                <div className="p-2 rounded-lg bg-amber-500/25 text-amber-700 dark:text-amber-300 shrink-0 mt-0.5 shadow-sm">
+                  <AlertTriangle className="w-5 h-5" />
+                </div>
+                <div className="flex flex-col gap-1">
+                  <span className="font-bold text-xs uppercase tracking-wider text-amber-800 dark:text-amber-300 flex items-center gap-1.5">
+                    <Sparkles className="w-3.5 h-3.5 text-amber-600 dark:text-amber-400" />
+                    {language === 'he' ? 'חשוב: הרשאת שיתוף תיקייה' : 'IMPORTANT: FOLDER SHARING PERMISSION'}
+                  </span>
+                  <p className="text-xs font-semibold text-amber-950 dark:text-amber-100 leading-relaxed m-0">
+                    {language === 'he'
+                      ? 'לתשומת לבך: יש לוודא שהתיקייה ב-Google Drive מוגדרת כציבורית לצפייה ("כל מי שיש לו את הקישור"), כדי שהאורחים יוכלו לצפות בתמונות שלהם.'
+                      : 'Important: Please ensure this Google Drive folder is set to public view ("Anyone with the link can view") so guests can access their photos.'}
+                  </p>
+                </div>
               </div>
             )}
 
@@ -1366,14 +1374,6 @@ export function Dashboard() {
                 : 'Select photos or a folder from your computer. The app will create a folder in your Google Drive, upload, and scan faces locally.'}
             </p>
 
-            <div className="bg-emerald-500/10 border border-emerald-500/20 rounded-lg p-3 text-start flex items-start gap-2.5 text-xs text-emerald-400">
-              <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0 mt-0.5" />
-              <span>
-                {language === 'he'
-                  ? 'התיקייה ב-Google Drive תוגדר אוטומטית כגלויה בקישור ("Anyone with link can view"), כדי שהאורחים יוכלו לצפות בתמונות שלהם בצורה חלקות.'
-                  : 'The Google Drive folder will automatically be set to "Anyone with the link can view", enabling seamless guest photo access.'}
-              </span>
-            </div>
 
             {/* Select Local Files / Folder Dropzone */}
             <div className="flex flex-col gap-2 text-start">
