@@ -6,6 +6,7 @@ html {
 }
 
 :root {
+  --navbar-height: 72px;
   --background: #fbf9f4;
   --on-background: #1b1c19;
   --primary: #051a17;

@@ -87,6 +87,28 @@ export function AccessibilityWidget() {
   const [isOpen, setIsOpen] = useState(false);
   const [prefs, setPrefs] = useState<A11yPrefs>(loadStoredPrefs);
   const [announcement, setAnnouncement] = useState('');
+  const [topOffset, setTopOffset] = useState(72);
+
+  // Dynamic navbar measurement across pages
+  useEffect(() => {
+    if (!isOpen) return;
+
+    const measureNavbar = () => {
+      const navEl = document.querySelector('header, nav');
+      if (navEl) {
+        const rect = navEl.getBoundingClientRect();
+        if (rect.top <= 20 && rect.bottom > 0) {
+          setTopOffset(Math.round(rect.bottom));
+          return;
+        }
+      }
+      setTopOffset(72);
+    };
+
+    measureNavbar();
+    window.addEventListener('resize', measureNavbar);
+    return () => window.removeEventListener('resize', measureNavbar);
+  }, [isOpen]);
 
   // Synchronize state with document.documentElement & localStorage
   const updatePrefs = useCallback((updater: (prev: A11yPrefs) => A11yPrefs, announceMsg?: string) => {
@@ -145,23 +167,27 @@ export function AccessibilityWidget() {
 
       {/* Popover Widget Panel */}
       {isOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6 bg-black/40 backdrop-blur-xs transition-opacity animate-in fade-in duration-200">
+        <div
+          className="fixed inset-x-0 bottom-0 z-[60] flex items-start sm:items-center justify-center p-3 sm:p-6 bg-black/40 backdrop-blur-xs transition-opacity animate-in fade-in duration-200"
+          style={{ top: `${topOffset}px` }}
+        >
           <div
             id="a11y-widget-panel"
             role="dialog"
             aria-modal="true"
             aria-labelledby="a11y-panel-title"
             dir={isRtl ? 'rtl' : 'ltr'}
-            className="relative w-full max-w-3xl bg-surface-container border border-surface-border rounded-2xl shadow-2xl p-6 sm:p-8 flex flex-col gap-6 text-start max-h-[90vh] overflow-y-auto"
+            className="relative w-full max-w-3xl bg-surface-container border border-surface-border rounded-2xl shadow-2xl flex flex-col text-start overflow-hidden"
+            style={{ maxHeight: `calc(100vh - ${topOffset}px - 1.5rem)` }}
           >
-            {/* Panel Header */}
-            <div className="flex items-center justify-between border-b border-surface-border/60 pb-4">
-              <div className="flex items-center gap-3">
-                <div className="p-2.5 rounded-xl bg-copper-accent/15 text-copper-accent">
+            {/* Panel Header — sticky, always reachable */}
+            <div className="sticky top-0 z-10 bg-surface-container flex items-center justify-between border-b border-surface-border/60 px-6 sm:px-8 pt-6 sm:pt-8 pb-4 shrink-0">
+              <div className="flex items-center gap-3 min-w-0">
+                <div className="p-2.5 rounded-xl bg-copper-accent/15 text-copper-accent shrink-0">
                   <Eye className="w-6 h-6" />
                 </div>
-                <div>
-                  <h2 id="a11y-panel-title" className="font-display-lg text-xl sm:text-2xl text-on-background font-bold m-0">
+                <div className="min-w-0">
+                  <h2 id="a11y-panel-title" className="font-display-lg text-xl sm:text-2xl text-on-background font-bold m-0 truncate">
                     {t('a11y.widgetTitle')}
                   </h2>
                   <p className="font-body-md text-xs text-sage-muted m-0 mt-0.5">
@@ -171,12 +197,15 @@ export function AccessibilityWidget() {
               </div>
               <button
                 onClick={() => setIsOpen(false)}
-                className="p-2 rounded-lg text-sage-muted hover:text-on-background hover:bg-surface-container-high transition-colors cursor-pointer border-none bg-transparent"
+                className="p-2 rounded-lg text-sage-muted hover:text-on-background hover:bg-surface-container-high transition-colors cursor-pointer border-none bg-transparent shrink-0 ms-2"
                 aria-label={t('a11y.closeWidget')}
               >
                 <X className="w-5 h-5" />
               </button>
             </div>
+
+            {/* Scrollable content area */}
+            <div className="overflow-y-auto flex-1 px-6 sm:px-8 pt-6 pb-6 sm:pb-8 flex flex-col gap-6">
 
             {/* Controls Grid */}
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
@@ -371,6 +400,7 @@ export function AccessibilityWidget() {
                 {t('a11y.reset')}
               </button>
             </div>
+            </div>{/* end scrollable content area */}
           </div>
         </div>
       )}
