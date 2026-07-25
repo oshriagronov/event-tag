@@ -11,6 +11,8 @@
   },
   "dependencies": {
     "@tailwindcss/vite": "^4.3.2",
+    "@vercel/analytics": "^2.0.1",
+    "@vercel/speed-insights": "^2.0.0",
     "@vladmandic/face-api": "^1.7.15",
     "dexie": "^4.4.4",
     "dexie-react-hooks": "^4.4.0",

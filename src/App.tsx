@@ -60,6 +60,7 @@ function GuestViewWrapper() {
 
 import { SkipLink } from './components/SkipLink';
 import { AccessibilityWidget } from './components/AccessibilityWidget';
+import { VercelTrackers } from './components/VercelTrackers';
 import { useLocation } from 'react-router-dom';
 
 function ScrollToTop() {
@@ -80,6 +81,7 @@ function AppRoutes() {
       <CookieBanner />
       <PreferencesModal />
       <AccessibilityWidget />
+      <VercelTrackers />
       <Routes>
         {/* Public routes */}
         <Route path="/" element={<LandingPage />} />

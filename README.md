@@ -74,7 +74,8 @@ src/
 │   ├── SelfieCapture.tsx       # Live camera / file selfie capture tool
 │   ├── SettingsModal.tsx       # Theme & font size preferences modal
 │   ├── ShareModal.tsx          # Multi-platform share menu modal (WhatsApp, Telegram, Email, FB, X, QR)
-│   └── SkipLink.tsx            # Accessible skip-to-main-content link
+│   ├── SkipLink.tsx            # Accessible skip-to-main-content link
+│   └── VercelTrackers.tsx      # Consent-gated Vercel Analytics & Speed Insights component
 ├── contexts/
 │   ├── AuthContext.tsx         # Firebase Auth user session & cloud OAuth tokens
 │   ├── ConsentContext.tsx      # Privacy Protection Law consent state
