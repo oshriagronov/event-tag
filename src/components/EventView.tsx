@@ -63,7 +63,7 @@ function CloudPhotoImage({ provider = 'dropbox', driveFileId, accessToken, class
       setLoading(true);
       setError(false);
       try {
-        const blob = await getPhotoThumbnailBlob(provider, accessToken, driveFileId, 'w256h256');
+        const blob = await getPhotoThumbnailBlob(provider, accessToken, driveFileId, size === 'full' ? 'w1024h768' : 'w256h256');
         if (active) {
           url = URL.createObjectURL(blob);
           setSrc(url);
@@ -156,6 +156,7 @@ export function EventView({ eventId, onBack }: EventViewProps) {
   const [showQr, setShowQr] = useState(false);
   const [showShareModal, setShowShareModal] = useState(false);
   const [visibleCount, setVisibleCount] = useState(24);
+  const [selectedPhoto, setSelectedPhoto] = useState<CloudPhoto | null>(null);
 
   const {
     isScanning,
@@ -414,24 +415,7 @@ export function EventView({ eventId, onBack }: EventViewProps) {
             <h2 className="font-display-lg text-2xl md:text-3xl text-on-background m-0 leading-tight">
               {event.name}
             </h2>
-            <p className="font-body-md text-sage-muted text-xs md:text-sm m-0 mt-1">
-              {language === 'he' ? (
-                `תיקייה ב-${event.provider === 'google' ? 'Google Drive' : event.provider === 'onedrive' ? 'OneDrive' : 'Dropbox'}: ${event.driveFolderName}`
-              ) : (
-                `${event.provider === 'google' ? 'Google Drive' : event.provider === 'onedrive' ? 'OneDrive' : 'Dropbox'} Folder: ${event.driveFolderName}`
-              )}
-            </p>
           </div>
-        </div>
-        <div className="flex items-center gap-2">
-          <button
-            onClick={handleShare}
-            className="px-4 py-2.5 rounded-lg bg-copper-accent hover:bg-copper-accent/90 text-background font-bold text-xs shadow flex items-center gap-2 transition-all cursor-pointer border-none"
-            title={t('common.share')}
-          >
-            <Share2 className="w-4 h-4" />
-            <span>{t('common.share')}</span>
-          </button>
         </div>
       </div>
 
@@ -731,9 +715,12 @@ export function EventView({ eventId, onBack }: EventViewProps) {
             ) : (
               <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4">
                 {photos.slice(0, visibleCount).map((photo) => (
-                  <div
+                  <button
+                    type="button"
                     key={photo.id}
-                    className="relative aspect-square border border-surface-border rounded overflow-hidden shadow bg-surface-container-low group"
+                    onClick={() => setSelectedPhoto(photo)}
+                    className="relative aspect-square border border-surface-border rounded overflow-hidden shadow bg-surface-container-low group cursor-pointer hover:border-copper-accent/60 transition-all p-0 text-start outline-none"
+                    title={photo.fileName}
                   >
                     <CloudPhotoImage
                       provider={event?.provider || 'dropbox'}
@@ -743,7 +730,7 @@ export function EventView({ eventId, onBack }: EventViewProps) {
                       alt={photo.fileName}
                       className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
                     />
-                  </div>
+                  </button>
                 ))}
               </div>
             )}
@@ -833,6 +820,47 @@ export function EventView({ eventId, onBack }: EventViewProps) {
           onClose={() => setShowShareModal(false)}
           event={{ id: event.id, name: event.name }}
         />
+      )}
+
+      {/* Photo Preview Lightbox Modal */}
+      {selectedPhoto && (
+        <div
+          className="fixed inset-0 bg-black/90 backdrop-blur-sm flex items-center justify-center z-50 p-4 sm:p-6 overflow-y-auto"
+          onClick={() => setSelectedPhoto(null)}
+        >
+          <div
+            className="relative max-w-4xl w-full max-h-[90vh] flex flex-col gap-4 bg-surface-container-low/95 backdrop-blur-xl border border-surface-border rounded-xl p-4 sm:p-6 shadow-2xl overflow-hidden"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Header bar with photo file name and close button */}
+            <div className="flex items-center justify-between pb-3 border-b border-surface-border/50 shrink-0">
+              <span className="text-sm font-bold text-on-background truncate max-w-[80%]" title={selectedPhoto.fileName}>
+                {selectedPhoto.fileName}
+              </span>
+              <button
+                type="button"
+                onClick={() => setSelectedPhoto(null)}
+                className="p-2 rounded-lg bg-surface-container border border-surface-border text-on-background hover:bg-surface-container-high hover:text-copper-accent transition-all cursor-pointer"
+                aria-label={t('common.close')}
+              >
+                <X className="w-5 h-5 shrink-0" />
+              </button>
+            </div>
+
+            {/* Image Container */}
+            <div className="flex-1 min-h-0 flex items-center justify-center overflow-hidden py-2">
+              <CloudPhotoImage
+                provider={event?.provider || 'dropbox'}
+                driveFileId={selectedPhoto.driveFileId}
+                accessToken={currentProviderToken || ''}
+                publicUrl={selectedPhoto.publicUrl}
+                alt={selectedPhoto.fileName}
+                size="full"
+                className="w-full max-h-[72vh] object-contain rounded border border-surface-border shadow-md"
+              />
+            </div>
+          </div>
+        </div>
       )}
     </main>
   );
