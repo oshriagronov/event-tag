@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
+import { useSettings } from '../contexts/SettingsContext';
 import { useTranslation } from '../services/translations';
 import { Footer } from './Footer';
 import { GoogleSignInButton } from './GoogleIcon';
@@ -21,10 +22,13 @@ import {
 
 export function LandingPage() {
   const { user, loading, signIn } = useAuth();
+  const { theme } = useSettings();
   const navigate = useNavigate();
   const { t, isRtl, language } = useTranslation();
   const [openFaq, setOpenFaq] = useState<number | null>(null);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+
+  const dashboardImg = theme === 'light' ? '/dashboard-light.jpg' : '/dashboard-dark.jpg';
 
   // Redirect to dashboard if already logged in
   useEffect(() => {
@@ -274,7 +278,7 @@ export function LandingPage() {
           <div className="absolute bottom-10 right-10 w-[400px] h-[400px] bg-gradient-to-bl from-copper-accent/5 to-transparent rounded-full blur-3xl pointer-events-none" />
 
           {/* Centered Main Content */}
-          <div className="max-w-4xl mx-auto w-full relative z-20 flex flex-col items-center text-center">
+          <div className="max-w-5xl mx-auto w-full relative z-20 flex flex-col items-center text-center">
             {/* AI Badge */}
             <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-surface-container/80 backdrop-blur-md border border-surface-border/60 text-copper-accent text-xs font-semibold uppercase tracking-wider mb-8 shadow-sm">
               <Sparkles className="w-3.5 h-3.5" />
@@ -315,6 +319,38 @@ export function LandingPage() {
                 <span>{t('landing.openSourceBtn')}</span>
                 <span aria-hidden="true" className="group-hover:translate-x-0.5 rtl:group-hover:-translate-x-0.5 transition-transform">›</span>
               </a>
+            </div>
+
+            {/* Dashboard Screenshot Preview Showcase */}
+            <div className="mt-14 sm:mt-16 w-full max-w-5xl mx-auto relative group">
+              {/* Outer Glow / Ambient Backdrop */}
+              <div className="absolute -inset-1 bg-gradient-to-r from-copper-accent/20 via-primary-container/20 to-copper-accent/20 rounded-2xl blur-xl opacity-60 group-hover:opacity-100 transition-opacity duration-500 pointer-events-none" />
+
+              {/* Window Frame Container */}
+              <div className="relative rounded-2xl bg-surface-container-low border border-surface-border/60 shadow-2xl overflow-hidden text-start" dir="ltr">
+                {/* Window Header / macOS Controls */}
+                <div className="flex items-center justify-between px-4 py-3 bg-surface-container-high/90 border-b border-surface-border/40 select-none">
+                  <div className="flex items-center gap-2">
+                    <span className="w-3 h-3 rounded-full bg-[#FF5F56] border border-[#E0443E]/40 block" />
+                    <span className="w-3 h-3 rounded-full bg-[#FFBD2E] border border-[#DEA123]/40 block" />
+                    <span className="w-3 h-3 rounded-full bg-[#27C93F] border border-[#1AAB29]/40 block" />
+                  </div>
+                  <div className="text-[11px] font-mono text-sage-muted/70 tracking-wider">
+                    EventTag Dashboard
+                  </div>
+                  <div className="w-12" />
+                </div>
+
+                {/* Dashboard Image */}
+                <div className="relative overflow-hidden bg-background">
+                  <img
+                    src={dashboardImg}
+                    alt="EventTag Dashboard Overview - Manage private cloud event photo galleries"
+                    className="w-full h-auto block object-cover shadow-inner transform group-hover:scale-[1.003] transition-transform duration-500"
+                    loading="eager"
+                  />
+                </div>
+              </div>
             </div>
           </div>
         </section>
