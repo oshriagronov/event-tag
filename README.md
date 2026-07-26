@@ -7,7 +7,7 @@
 </p>
 
 <p align="center">
-  A privacy-first web application that lets event owners scan cloud photos and enables guests to retrieve their photos with a single selfie, making event photo sharing seamless, instant, and private.
+  A privacy-first web application that lets event organizers scan cloud photos and enables guests to retrieve their photos with a single selfie, making event photo sharing seamless, instant, and private.
 </p>
 
 <p align="center">
@@ -22,11 +22,11 @@
 
 ## What is EventTag?
 
-EventTag is a privacy-first event photo sharing and retrieval platform designed to make sharing photos between event owners and guests as effortless and private as possible. Event owners connect cloud photo folders directly from **Dropbox** or **Google Drive** (with **OneDrive** coming soon) for browser-based scanning, and guests scan a share link / QR code with a selfie to instantly find and download all photos they appear in.
+EventTag is a privacy-first event photo sharing and retrieval platform designed to make sharing photos between event organizers and guests as effortless and private as possible. Event organizers connect cloud photo folders directly from **Dropbox** or **Google Drive** (with **OneDrive** coming soon) for browser-based scanning, and guests scan a share link / QR code with a selfie to instantly find and download all photos they appear in.
 
 ### 🎯 The Goal
 - **For Guests:** Instant, private, self-service retrieval of all their event photos via a simple selfie scan.
-- **For Event Owners:** Effortless photo sharing with guests while keeping user privacy paramount and avoiding manual photo distribution.
+- **For Event Organizers:** Effortless photo sharing with guests while keeping user privacy paramount and avoiding manual photo distribution.
 
 **Privacy-First & On-Device AI:** All face detection, alignment, and 128-dimensional embedding extraction happen **100% locally in the user's browser** using WebAssembly (ONNX Runtime Web with SFace + face-api.js). Photos are ingested in-memory from cloud storage or local disk; **no photo files are ever uploaded to or saved on backend servers**. Only mathematical face vectors and metadata are stored in Firebase Firestore.
 

@@ -19,7 +19,7 @@ import {
   ArrowLeft, LogOut, Cloud, Link2, QrCode, Share2,
   CheckCircle2, Loader2, Clock, Copy, Check, X,
   Plus, Play, Pause, FolderOpen, Search, Menu, BarChart2, Settings,
-  Sun, Moon, AlertTriangle, Upload, Sparkles
+  Sun, Moon, AlertTriangle, Upload, Sparkles, LayoutGrid, List, Filter, ChevronDown, MoreHorizontal
 } from 'lucide-react';
 import { createGoogleFolder } from '../services/google';
 import { createDropboxFolder } from '../services/dropbox';
@@ -78,9 +78,21 @@ export function Dashboard() {
   const [loadingEvents, setLoadingEvents] = useState(true);
   const [deletingEventIds, setDeletingEventIds] = useState<Set<string>>(new Set());
   const [searchQuery, setSearchQuery] = useState('');
+  const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
+  const [statusFilter, setStatusFilter] = useState<'all' | 'ready' | 'scanning' | 'pending'>('all');
+  const [providerFilter, setProviderFilter] = useState<'all' | 'google' | 'dropbox' | 'onedrive'>('all');
+  const [showFilterDropdown, setShowFilterDropdown] = useState(false);
+  const [visibleCount, setVisibleCount] = useState<number>(6);
+  const [openMenuEventId, setOpenMenuEventId] = useState<string | null>(null);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [showMobileSearch, setShowMobileSearch] = useState(false);
   const mobileSearchInputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    const handleClickOutside = () => setOpenMenuEventId(null);
+    window.addEventListener('click', handleClickOutside);
+    return () => window.removeEventListener('click', handleClickOutside);
+  }, []);
 
   useEffect(() => {
     if (showMobileSearch && mobileSearchInputRef.current) {
@@ -588,14 +600,28 @@ export function Dashboard() {
 
   const filteredEvents = cloudEvents.filter(event => {
     const query = searchQuery.trim().toLowerCase();
-    if (!query) return true;
-    
-    const nameMatches = event.name?.toLowerCase().includes(query);
-    const folderMatches = event.driveFolderName?.toLowerCase().includes(query);
-    const codeMatches = event.id?.toLowerCase().includes(query);
-    const providerMatches = event.provider?.toLowerCase().includes(query);
-    
-    return nameMatches || folderMatches || codeMatches || providerMatches;
+    if (query) {
+      const nameMatches = event.name?.toLowerCase().includes(query);
+      const folderMatches = event.driveFolderName?.toLowerCase().includes(query);
+      const codeMatches = event.id?.toLowerCase().includes(query);
+      const providerMatches = event.provider?.toLowerCase().includes(query);
+      if (!nameMatches && !folderMatches && !codeMatches && !providerMatches) {
+        return false;
+      }
+    }
+
+    if (statusFilter !== 'all') {
+      const isThisEventScanning = isEventScanning(event.id!);
+      const effectiveStatus = isThisEventScanning ? 'scanning' : (event.status || 'pending');
+      if (effectiveStatus !== statusFilter) return false;
+    }
+
+    if (providerFilter !== 'all') {
+      const prov = event.provider || 'dropbox';
+      if (prov !== providerFilter) return false;
+    }
+
+    return true;
   });
 
   const sidebarContent = (
@@ -639,6 +665,25 @@ export function Dashboard() {
           <span className="font-label-sm text-xs uppercase tracking-wider">{t('settings.title')}</span>
         </button>
       </nav>
+
+      {/* CTA Button in Sidebar */}
+      <div className="px-5 mt-auto">
+        <button
+          onClick={async () => {
+            setMobileMenuOpen(false);
+            const canProceed = await checkParallelScanWarning();
+            if (!canProceed) return;
+            setNewEventName('');
+            setPendingPhotos([]);
+            setPendingFolder(null);
+            setShowProviderModal(true);
+          }}
+          className="w-full bg-deep-forest text-surface-container-lowest font-label-sm text-xs font-bold uppercase tracking-wider py-3.5 px-4 rounded-xl flex items-center justify-center gap-2 hover:bg-primary-container transition-colors shadow-sm cursor-pointer border-none active:scale-95 text-background"
+        >
+          <Plus className="w-4 h-4" />
+          <span>{t('dashboard.newEventBtn')}</span>
+        </button>
+      </div>
     </div>
   );
 
@@ -688,7 +733,7 @@ export function Dashboard() {
         isRtl ? 'md:mr-64' : 'md:ml-64'
       }`}>
         {/* Top Header Bar */}
-        <header className="sticky top-0 z-30 bg-background/90 backdrop-blur-md px-6 md:px-12 py-5 flex items-center justify-between border-b border-surface-border/30 w-full min-h-[72px]">
+        <header className="sticky top-0 z-30 bg-background/90 backdrop-blur-md px-6 md:px-12 py-6 flex items-center justify-between border-b border-sage-muted/10 w-full min-h-[72px] text-start">
           {activeTab === 'events' && showMobileSearch ? (
             /* Mobile Search Bar Overlay */
             <div className="flex items-center gap-2 w-full text-start animate-in fade-in duration-200" dir={isRtl ? 'rtl' : 'ltr'}>
@@ -697,13 +742,13 @@ export function Dashboard() {
                   setShowMobileSearch(false);
                   setSearchQuery('');
                 }}
-                className="p-2 rounded text-sage-muted hover:text-on-background transition-colors cursor-pointer"
+                className="p-2 rounded-lg text-sage-muted hover:text-on-background hover:bg-surface-container transition-colors cursor-pointer border-none bg-transparent"
                 title={language === 'he' ? 'חזור' : 'Back'}
               >
                 <ArrowLeft className={`w-5 h-5 ${isRtl ? 'rotate-180' : ''}`} />
               </button>
               <div className="flex-1 flex items-center bg-surface-container rounded-full px-4 py-2 border border-surface-border focus-within:border-sage-muted/50 transition-colors text-start relative">
-                <Search className={`text-sage-muted shrink-0 w-4 h-4 ${isRtl ? 'ml-2' : 'mr-2'}`} />
+                <Search className={`text-sage-muted shrink-0 w-4.5 h-4.5 ${isRtl ? 'ml-2' : 'mr-2'}`} />
                 <input
                   ref={mobileSearchInputRef}
                   type="text"
@@ -726,20 +771,21 @@ export function Dashboard() {
               </div>
             </div>
           ) : (
-            /* Standard Header (with Search button on mobile & Desktop Search) */
+            /* Standard Header (Matching Stitch Assets) */
             <>
               {/* Mobile Menu Toggle */}
               <button 
                 onClick={() => setMobileMenuOpen(true)}
-                className="md:hidden text-on-background p-2 rounded hover:bg-surface-container transition-colors"
+                className="md:hidden text-on-background p-2 rounded-lg hover:bg-surface-container transition-colors border-none bg-transparent cursor-pointer"
+                title={language === 'he' ? 'תפריט' : 'Menu'}
               >
-                <Menu className="w-5 h-5" />
+                <Menu className="w-5 h-5 text-on-background" />
               </button>
 
-              {/* Desktop Search bar */}
+              {/* Desktop Search bar (Subtle) */}
               {activeTab === 'events' ? (
-                <div className="hidden sm:flex items-center bg-surface-container rounded-full px-4 py-2 border border-surface-border focus-within:border-sage-muted/50 transition-colors w-64 lg:w-96 text-start relative">
-                  <Search className={`text-sage-muted shrink-0 w-4 h-4 ${isRtl ? 'ml-2' : 'mr-2'}`} />
+                <div className="hidden sm:flex items-center bg-surface-container rounded-full px-4 py-2 border border-surface-border focus-within:border-sage-muted/50 transition-colors w-64 lg:w-96 text-start relative shadow-sm">
+                  <Search className={`text-sage-muted shrink-0 w-4.5 h-4.5 ${isRtl ? 'ml-2' : 'mr-2'}`} />
                   <input 
                     type="text" 
                     value={searchQuery}
@@ -750,7 +796,7 @@ export function Dashboard() {
                   {searchQuery && (
                     <button
                       onClick={() => setSearchQuery('')}
-                      className={`absolute p-1 rounded-full text-sage-muted hover:text-on-background hover:bg-surface-container-high transition-all cursor-pointer ${
+                      className={`absolute p-1 rounded-full text-sage-muted hover:text-on-background hover:bg-surface-container-high transition-all cursor-pointer border-none bg-transparent ${
                         isRtl ? 'left-3' : 'right-3'
                       }`}
                       title={language === 'he' ? 'נקה חיפוש' : 'Clear search'}
@@ -760,17 +806,17 @@ export function Dashboard() {
                   )}
                 </div>
               ) : (
-                /* Spacer if not events tab and not on mobile */
+                /* Spacer if not events tab and on desktop */
                 <div className="hidden sm:block w-64 lg:w-96" />
               )}
 
-              {/* User Profile & Mobile Search Toggle */}
-              <div className={`flex items-center gap-2 sm:gap-4 ${isRtl ? 'mr-auto' : 'ml-auto'}`}>
-                {/* Mobile Search Toggle (only on events tab, hidden on sm and larger) */}
+              {/* User Profile & Actions */}
+              <div className={`flex items-center gap-3 sm:gap-4 ${isRtl ? 'mr-auto' : 'ml-auto'}`}>
+                {/* Mobile Search Toggle (only on events tab on small screens) */}
                 {activeTab === 'events' && (
                   <button
                     onClick={() => setShowMobileSearch(true)}
-                    className="sm:hidden text-on-background p-2 rounded hover:bg-surface-container transition-colors cursor-pointer"
+                    className="sm:hidden text-on-background p-2 rounded-lg hover:bg-surface-container transition-colors cursor-pointer border-none bg-transparent"
                     title={language === 'he' ? 'חיפוש' : 'Search'}
                   >
                     <Search className="w-5 h-5 text-sage-muted" />
@@ -778,16 +824,26 @@ export function Dashboard() {
                 )}
                 
                 {user && (
-                  <div className="flex items-center gap-3 text-start bg-surface-container-low px-4 py-2 rounded-xl border border-surface-border/50">
-                    {user.photoURL && (
-                      <img src={user.photoURL} alt="" className="w-8 h-8 rounded-full border border-surface-border shadow" />
-                    )}
-                    <div className="flex flex-col text-start">
-                      <p className="font-title-md text-xs font-bold text-on-background m-0 line-clamp-1">{user.displayName}</p>
+                  <div className="flex items-center gap-3.5 text-start">
+                    {/* Display name & Event Organizer role text */}
+                    <div className="text-end hidden md:flex flex-col">
+                      <p className="font-title-md text-sm font-bold text-on-background m-0">{user.displayName || 'Organizer'}</p>
+                      <p className="font-label-sm text-[10px] text-sage-muted uppercase tracking-wider font-bold m-0">{language === 'he' ? 'מארגן האירוע' : 'Event Organizer'}</p>
                     </div>
+
+                    {/* Avatar Badge */}
+                    <div className="w-10 h-10 rounded-full border border-sage-muted/30 overflow-hidden shadow-sm flex items-center justify-center shrink-0 bg-surface-container-high">
+                      {user.photoURL ? (
+                        <img src={user.photoURL} alt="" className="w-full h-full object-cover" />
+                      ) : (
+                        <span className="font-bold text-sm text-copper-accent">{(user.displayName || 'U')[0].toUpperCase()}</span>
+                      )}
+                    </div>
+
+                    {/* Sign Out Button */}
                     <button
                       onClick={signOut}
-                      className="p-1.5 rounded-lg hover:bg-surface-container text-sage-muted hover:text-red-400 transition-all cursor-pointer border-none bg-transparent"
+                      className="p-2 rounded-lg hover:bg-surface-container text-sage-muted hover:text-red-400 transition-all cursor-pointer border-none bg-transparent ms-1"
                       title={language === 'he' ? 'התנתק' : 'Sign Out'}
                     >
                       <LogOut className="w-4 h-4" />
@@ -851,34 +907,118 @@ export function Dashboard() {
 
           {activeTab === 'events' ? (
             <>
-              <div className="flex flex-col md:flex-row md:items-end justify-between gap-4">
+              <div className="flex flex-col md:flex-row md:items-end justify-between mb-2 gap-4">
                 <div>
-                  <h2 className="font-display-lg text-3xl md:text-4xl text-on-background m-0 mb-2">{language === 'he' ? 'האירועים שלי' : 'My Events'}</h2>
-                  <p className="font-body-md text-sage-muted m-0">{language === 'he' ? 'נהל את גלריות התמונות וסנכרון הפנים שלך.' : 'Manage your photography galleries and face synchronization.'}</p>
+                  <h2 className="font-display-lg text-3xl md:text-4xl text-on-background m-0 mb-2 font-bold">{language === 'he' ? 'האירועים שלי' : 'My Events'}</h2>
+                  <p className="font-body-md text-sage-muted m-0">{language === 'he' ? 'נהל את אוספי האירועים שלך' : 'Manage your events collections'}</p>
                 </div>
                 
-                {/* Choose photos backup button */}
-                <div className="flex items-center gap-3">
-                  <button
-                    onClick={async () => {
-                      const canProceed = await checkParallelScanWarning();
-                      if (!canProceed) return;
-                      setNewEventName('');
-                      setPendingPhotos([]);
-                      setPendingFolder(null);
-                      setShowProviderModal(true);
-                    }}
-                    className="px-5 py-2.5 rounded border border-surface-border text-on-background hover:bg-surface-container font-label-sm text-xs uppercase tracking-wider flex items-center gap-2 transition-all cursor-pointer"
-                  >
-                    <Plus className="w-4 h-4" />
-                    <span>{language === 'he' ? 'צור אירוע' : 'Create Event'}</span>
-                  </button>
+                {/* Filters & View switcher */}
+                <div className="flex items-center gap-3 self-start md:self-auto relative">
+                  {/* Filter Dropdown Toggle */}
+                  <div className="relative">
+                    <button
+                      onClick={() => setShowFilterDropdown(!showFilterDropdown)}
+                      className={`px-4 py-2 rounded-full border text-xs font-bold uppercase tracking-wider transition-all flex items-center gap-2 cursor-pointer ${
+                        statusFilter !== 'all' || providerFilter !== 'all'
+                          ? 'bg-copper-accent/15 border-copper-accent text-copper-accent shadow-sm'
+                          : 'border-surface-border/70 text-on-background hover:bg-surface-container bg-surface-container-low'
+                      }`}
+                    >
+                      <Filter className="w-4 h-4 text-copper-accent" />
+                      <span>{t('dashboard.filterBtn')}</span>
+                      {(statusFilter !== 'all' || providerFilter !== 'all') && (
+                        <span className="w-2 h-2 rounded-full bg-copper-accent animate-pulse" />
+                      )}
+                      <ChevronDown className={`w-3.5 h-3.5 transition-transform ${showFilterDropdown ? 'rotate-180' : ''}`} />
+                    </button>
+
+                    {/* Filter Popover Dropdown */}
+                    {showFilterDropdown && (
+                      <div className={`absolute top-full mt-2 z-40 w-64 bg-surface-container border border-surface-border rounded-xl shadow-2xl p-4 flex flex-col gap-4 text-start animate-in fade-in duration-150 ${
+                        isRtl ? 'right-0' : 'left-0 md:left-auto md:right-0'
+                      }`}>
+                        {/* Status Filter Section */}
+                        <div className="flex flex-col gap-1.5">
+                          <label className="text-[11px] font-bold text-sage-muted uppercase tracking-wider">{t('dashboard.filterByStatus')}</label>
+                          <div className="flex flex-wrap gap-1.5">
+                            {(['all', 'ready', 'scanning', 'pending'] as const).map((st) => (
+                              <button
+                                key={st}
+                                onClick={() => { setStatusFilter(st); setShowFilterDropdown(false); }}
+                                className={`px-2.5 py-1 rounded-lg text-xs font-medium cursor-pointer transition-all border-none ${
+                                  statusFilter === st
+                                    ? 'bg-copper-accent text-background font-bold shadow'
+                                    : 'bg-surface-container-low text-sage-muted hover:text-on-background hover:bg-surface-container-high'
+                                }`}
+                              >
+                                {st === 'all' ? t('dashboard.filterAll') : st === 'ready' ? (language === 'he' ? 'מוכן' : 'Ready') : st === 'scanning' ? (language === 'he' ? 'סורק' : 'Scanning') : (language === 'he' ? 'ממתין' : 'Pending')}
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+
+                        {/* Provider Filter Section */}
+                        <div className="flex flex-col gap-1.5 border-t border-surface-border/40 pt-3">
+                          <label className="text-[11px] font-bold text-sage-muted uppercase tracking-wider">{t('dashboard.filterByProvider')}</label>
+                          <div className="flex flex-wrap gap-1.5">
+                            {(['all', 'google', 'dropbox', 'onedrive'] as const).map((pr) => (
+                              <button
+                                key={pr}
+                                onClick={() => { setProviderFilter(pr); setShowFilterDropdown(false); }}
+                                className={`px-2.5 py-1 rounded-lg text-xs font-medium cursor-pointer transition-all border-none ${
+                                  providerFilter === pr
+                                    ? 'bg-copper-accent text-background font-bold shadow'
+                                    : 'bg-surface-container-low text-sage-muted hover:text-on-background hover:bg-surface-container-high'
+                                }`}
+                              >
+                                {pr === 'all' ? t('dashboard.filterAll') : pr === 'google' ? 'Google' : pr === 'dropbox' ? 'Dropbox' : 'OneDrive'}
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+
+                        {(statusFilter !== 'all' || providerFilter !== 'all') && (
+                          <button
+                            onClick={() => { setStatusFilter('all'); setProviderFilter('all'); setShowFilterDropdown(false); }}
+                            className="text-xs text-copper-accent hover:underline font-bold self-end border-none bg-transparent cursor-pointer pt-1"
+                          >
+                            {t('dashboard.clearSearch')}
+                          </button>
+                        )}
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Grid / List view mode switcher */}
+                  <div className="flex bg-surface-container-low rounded-full p-1 border border-surface-border/50">
+                    <button
+                      onClick={() => setViewMode('grid')}
+                      className={`p-1.5 rounded-full transition-all cursor-pointer border-none ${
+                        viewMode === 'grid'
+                          ? 'bg-surface-container-highest shadow text-on-background'
+                          : 'text-sage-muted hover:text-on-background'
+                      }`}
+                      title={t('dashboard.gridView')}
+                    >
+                      <LayoutGrid className="w-4 h-4" />
+                    </button>
+                    <button
+                      onClick={() => setViewMode('list')}
+                      className={`p-1.5 rounded-full transition-all cursor-pointer border-none ${
+                        viewMode === 'list'
+                          ? 'bg-surface-container-highest shadow text-on-background'
+                          : 'text-sage-muted hover:text-on-background'
+                      }`}
+                      title={t('dashboard.listView')}
+                    >
+                      <List className="w-4 h-4" />
+                    </button>
+                  </div>
                 </div>
               </div>
 
-              <div className="botanical-divider" />
-
-              {/* Grid list of events */}
+              {/* Grid / List view of events */}
               {loadingEvents ? (
                 <div className="text-center py-20 text-sage-muted flex flex-col items-center gap-4">
                   <Loader2 className="w-8 h-8 animate-spin text-copper-accent" />
@@ -898,7 +1038,7 @@ export function Dashboard() {
                   </div>
                 </div>
               ) : filteredEvents.length === 0 ? (
-                /* No Matches for Search */
+                /* No Matches for Search or Filters */
                 <div className="border border-dashed border-surface-border rounded-xl p-16 text-center flex flex-col items-center justify-center gap-6 bg-surface-container/20 animate-in fade-in duration-200">
                   <div className="w-12 h-12 rounded-full bg-surface-container-high border border-surface-border flex items-center justify-center text-sage-muted shadow">
                     <Search className="w-6 h-6 text-sage-muted" />
@@ -911,7 +1051,7 @@ export function Dashboard() {
                       {t('dashboard.noMatchingEventsDesc')}
                     </p>
                     <button
-                      onClick={() => setSearchQuery('')}
+                      onClick={() => { setSearchQuery(''); setStatusFilter('all'); setProviderFilter('all'); }}
                       className="mt-6 px-5 py-2 rounded-lg bg-surface-container-high border border-surface-border text-on-background hover:bg-surface-container transition-all cursor-pointer font-bold text-xs"
                     >
                       {t('dashboard.clearSearch')}
@@ -919,183 +1059,356 @@ export function Dashboard() {
                   </div>
                 </div>
               ) : (
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                  {filteredEvents.map((event) => {
-                    const isThisEventScanning = isEventScanning(event.id!);
-                    const eventScanState = getEventScanState(event.id!);
-                    const isEventPaused = eventScanState?.isPaused ?? false;
-                    const eventScannedCount = eventScanState?.scannedCount ?? 0;
-                    const eventTotalToScan = eventScanState?.totalToScan || event.photoCount || 0;
-                    const eventEta = eventScanState?.etaSeconds ?? null;
-                    const isDeleting = event.id ? deletingEventIds.has(event.id) : false;
+                <div className="flex flex-col gap-6">
+                  {/* Events Container (Grid View vs List View) */}
+                  {viewMode === 'grid' ? (
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                      {filteredEvents.slice(0, visibleCount).map((event) => {
+                        const isThisEventScanning = isEventScanning(event.id!);
+                        const eventScanState = getEventScanState(event.id!);
+                        const isEventPaused = eventScanState?.isPaused ?? false;
+                        const eventScannedCount = eventScanState?.scannedCount ?? 0;
+                        const eventTotalToScan = eventScanState?.totalToScan || event.photoCount || 0;
+                        const eventEta = eventScanState?.etaSeconds ?? null;
+                        const isDeleting = event.id ? deletingEventIds.has(event.id) : false;
 
-                    return (
-                      <div
-                        key={event.id}
-                        onClick={isDeleting ? undefined : () => navigate(`/dashboard/event/${event.id}`)}
-                        className={`group relative border border-surface-border/60 ${isDeleting ? 'opacity-75 overflow-hidden' : 'hover:border-copper-accent/35 cursor-pointer hover:shadow-2xl hover:-translate-y-0.5'} bg-surface-container rounded-xl p-6 transition-all duration-300 flex flex-col gap-6 shadow text-start`}
-                      >
-                        {/* Action buttons (always visible on mobile/touch, hover on desktop) */}
-                        {!isDeleting && (
-                          <div className={`absolute top-4 ${isRtl ? 'left-4' : 'right-4'} flex items-center gap-1.5 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-all z-10`}>
-                            <button
-                              onClick={(e) => handleShare(event, e)}
-                              title={t('common.share')}
-                              className="p-2.5 sm:p-2 rounded-lg bg-surface-container-high/90 sm:bg-surface-container-high border border-surface-border text-sage-muted hover:text-copper-accent active:scale-95 transition-all cursor-pointer shadow-sm"
-                            >
-                              <Share2 className="w-3.5 h-3.5" />
-                            </button>
-                            <button
-                              onClick={(e) => handleCopyShareLink(event, e)}
-                              title={language === 'he' ? 'העתק קישור שיתוף' : 'Copy share link'}
-                              className="p-2.5 sm:p-2 rounded-lg bg-surface-container-high/90 sm:bg-surface-container-high border border-surface-border text-sage-muted hover:text-copper-accent active:scale-95 transition-all cursor-pointer shadow-sm"
-                            >
-                              {copiedId === event.id ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Link2 className="w-3.5 h-3.5" />}
-                            </button>
-                            <button
-                              onClick={(e) => { e.stopPropagation(); setQrEvent(event); }}
-                              title={language === 'he' ? 'הצג QR קוד' : 'Show QR code'}
-                              className="p-2.5 sm:p-2 rounded-lg bg-surface-container-high/90 sm:bg-surface-container-high border border-surface-border text-sage-muted hover:text-copper-accent active:scale-95 transition-all cursor-pointer shadow-sm"
-                            >
-                              <QrCode className="w-3.5 h-3.5" />
-                            </button>
-                            <button
-                              onClick={(e) => handleDeleteCloudEvent(event, e)}
-                              title={language === 'he' ? 'מחק אירוע' : 'Delete event'}
-                              className="p-2.5 sm:p-2 rounded-lg bg-surface-container-high/90 sm:bg-surface-container-high border border-surface-border text-sage-muted hover:text-red-400 active:scale-95 transition-all cursor-pointer shadow-sm"
-                            >
-                              <Trash2 className="w-3.5 h-3.5" />
-                            </button>
-                          </div>
-                        )}
+                        return (
+                          <div
+                            key={event.id}
+                            onClick={isDeleting ? undefined : () => navigate(`/dashboard/event/${event.id}`)}
+                            className={`group relative bg-surface-container rounded-2xl p-6 border border-surface-border hover:border-copper-accent/40 ${
+                              isDeleting ? 'opacity-75 overflow-hidden' : 'cursor-pointer hover:shadow-2xl hover:-translate-y-0.5'
+                            } transition-all duration-300 flex flex-col justify-between h-full text-start shadow-sm`}
+                          >
+                            {/* Top Row: Pill Badge + Three Dots Menu */}
+                            <div className="flex items-center justify-between gap-2 mb-4">
+                              <div className="bg-surface-container-high px-3 py-1 rounded-full border border-surface-border flex items-center gap-2">
+                                {isThisEventScanning ? (
+                                  <>
+                                    <span className="w-2 h-2 rounded-full bg-copper-accent animate-pulse" />
+                                    <span className="font-label-sm text-[10px] text-copper-accent font-bold uppercase tracking-wider">
+                                      {language === 'he' ? 'סורק כעת' : 'ACTIVE PROCESSING'}
+                                    </span>
+                                  </>
+                                ) : event.status === 'ready' ? (
+                                  <>
+                                    <span className="w-2 h-2 rounded-full bg-emerald-500" />
+                                    <span className="font-label-sm text-[10px] text-emerald-600 dark:text-emerald-400 font-bold uppercase tracking-wider">
+                                      {language === 'he' ? 'מוכן' : 'READY'}
+                                    </span>
+                                  </>
+                                ) : (
+                                  <>
+                                    <span className="w-2 h-2 rounded-full bg-sage-muted" />
+                                    <span className="font-label-sm text-[10px] text-sage-muted font-bold uppercase tracking-wider">
+                                      {language === 'he' ? 'ממתין' : 'PENDING'}
+                                    </span>
+                                  </>
+                                )}
+                              </div>
 
-                        <div className="flex flex-col gap-2 text-start">
-                          <div className="flex items-center">
-                            {isThisEventScanning ? (
-                              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider bg-copper-accent/15 text-copper-accent border border-copper-accent/20 animate-pulse">
-                                <Loader2 className="w-2.5 h-2.5 animate-spin" /> {language === 'he' ? 'סורק כעת' : 'Scanning now'}
-                              </span>
-                            ) : (
-                              getStatusBadge(event.status)
+                              {/* Three Dots Button */}
+                              {!isDeleting && (
+                                <div className="relative">
+                                  <button
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      setOpenMenuEventId(openMenuEventId === event.id ? null : event.id!);
+                                    }}
+                                    className="p-1.5 rounded-lg text-sage-muted hover:text-on-background hover:bg-surface-container-high transition-colors cursor-pointer border-none bg-transparent"
+                                    title={language === 'he' ? 'פעולות נוספות' : 'More options'}
+                                  >
+                                    <MoreHorizontal className="w-5 h-5" />
+                                  </button>
+
+                                  {/* Popover Dropdown for Three Dots */}
+                                  {openMenuEventId === event.id && (
+                                    <div
+                                      className={`absolute top-10 ${isRtl ? 'left-0' : 'right-0'} z-30 w-52 bg-surface-container-high border border-surface-border rounded-xl shadow-2xl p-1.5 flex flex-col gap-1 text-start animate-in fade-in duration-150`}
+                                      onClick={(e) => e.stopPropagation()}
+                                    >
+                                      <button
+                                        onClick={(e) => { setOpenMenuEventId(null); handleCopyShareLink(event, e); }}
+                                        className="w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-xs text-sage-muted hover:text-on-background hover:bg-surface-container transition-colors cursor-pointer border-none bg-transparent text-start font-medium"
+                                      >
+                                        {copiedId === event.id ? <Check className="w-4 h-4 text-emerald-500" /> : <Link2 className="w-4 h-4 text-copper-accent" />}
+                                        <span>{language === 'he' ? 'העתק קישור שיתוף' : 'Copy share link'}</span>
+                                      </button>
+                                      <button
+                                        onClick={(e) => { e.stopPropagation(); setOpenMenuEventId(null); setQrEvent(event); }}
+                                        className="w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-xs text-sage-muted hover:text-on-background hover:bg-surface-container transition-colors cursor-pointer border-none bg-transparent text-start font-medium"
+                                      >
+                                        <QrCode className="w-4 h-4 text-copper-accent" />
+                                        <span>{language === 'he' ? 'הצג QR קוד' : 'Show QR code'}</span>
+                                      </button>
+                                      <div className="my-1 border-t border-surface-border" />
+                                      <button
+                                        onClick={(e) => { setOpenMenuEventId(null); handleDeleteCloudEvent(event, e); }}
+                                        className="w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-xs text-red-500 dark:text-red-400 hover:bg-red-500/10 transition-colors cursor-pointer border-none bg-transparent text-start font-medium"
+                                      >
+                                        <Trash2 className="w-4 h-4 text-red-500 dark:text-red-400" />
+                                        <span>{language === 'he' ? 'מחק אירוע' : 'Delete event'}</span>
+                                      </button>
+                                    </div>
+                                  )}
+                                </div>
+                              )}
+                            </div>
+
+                            {/* Middle Section: Date & Title */}
+                            <div className="flex flex-col text-start mb-4">
+                              <p className="font-label-sm text-xs text-sage-muted font-bold tracking-wider mb-1 m-0">
+                                {event.createdAt && typeof event.createdAt === 'object' && 'toDate' in event.createdAt
+                                  ? event.createdAt.toDate().toLocaleDateString(language === 'he' ? 'he-IL' : 'en-US').replace(/\//g, '.')
+                                  : '17.07.2026'}
+                              </p>
+                              <h3 className="font-display-lg text-2xl font-bold text-on-background group-hover:text-copper-accent transition-colors line-clamp-1 m-0">
+                                {event.name}
+                              </h3>
+                            </div>
+
+                            {/* Active Scanning Bar if scanning */}
+                            {isThisEventScanning && (
+                              <div className="flex flex-col gap-2 w-full text-start mb-4" onClick={(e) => e.stopPropagation()}>
+                                <div className="flex items-center justify-between text-xs">
+                                  <span className="text-sage-muted font-medium truncate">
+                                    {isEventPaused ? t('dashboard.statusPaused') : formatETA(eventEta)}
+                                  </span>
+                                  <div className="flex items-center gap-1.5 shrink-0">
+                                    <button
+                                      onClick={async (e) => {
+                                        e.stopPropagation();
+                                        if (isEventPaused) {
+                                          const canProceed = await checkParallelScanWarning();
+                                          if (!canProceed) return;
+                                        }
+                                        togglePause(event.id!);
+                                      }}
+                                      className={`p-1.5 rounded transition-all cursor-pointer border bg-transparent ${
+                                        isEventPaused
+                                          ? 'border-copper-accent/30 text-copper-accent bg-copper-accent/10'
+                                          : 'border-surface-border text-sage-muted hover:bg-surface-container-high'
+                                      }`}
+                                      title={isEventPaused ? t('eventView.isResumed') : t('eventView.isPaused')}
+                                    >
+                                      {isEventPaused ? <Play className="w-3.5 h-3.5" /> : <Pause className="w-3.5 h-3.5" />}
+                                    </button>
+                                    <button
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        stopScanning(event.id!);
+                                      }}
+                                      className="p-1.5 rounded transition-all cursor-pointer border border-surface-border text-sage-muted hover:text-red-400 hover:bg-surface-container-high bg-transparent"
+                                      title={t('dashboard.stopScanBtn')}
+                                    >
+                                      <X className="w-3.5 h-3.5" />
+                                    </button>
+                                    <span className="font-mono font-bold text-on-background">
+                                      {eventScannedCount} / {eventTotalToScan}
+                                    </span>
+                                  </div>
+                                </div>
+                                <div className="w-full bg-surface-container-low rounded-full h-1.5 overflow-hidden border border-surface-border">
+                                  <div
+                                    className="bg-copper-accent h-1.5 rounded-full transition-all duration-300 ease-out"
+                                    style={{
+                                      width: `${eventTotalToScan > 0 ? (eventScannedCount / eventTotalToScan) * 100 : 0}%`,
+                                    }}
+                                  />
+                                </div>
+                              </div>
+                            )}
+
+                            {/* Bento Grid: Photos Uploaded & Cloud Provider */}
+                            <div className="grid grid-cols-2 gap-4 mb-6">
+                              {/* Box 1: Photos */}
+                              <div className="bg-surface-container-high/60 backdrop-blur-sm p-4 rounded-xl border border-surface-border flex flex-col text-start justify-between min-h-[96px]">
+                                <ImageIcon className="w-5 h-5 text-sage-muted mb-2 shrink-0" />
+                                <div className="flex flex-col text-start">
+                                  <span className="font-title-md text-xl font-bold text-on-background leading-tight">
+                                    {isThisEventScanning ? eventScannedCount : (event.photoCount || 0).toLocaleString()}
+                                  </span>
+                                  <span className="font-label-sm text-[10px] text-sage-muted font-bold uppercase tracking-wider mt-1">
+                                    {language === 'he' ? 'תמונות שנטענו' : 'PHOTOS UPLOADED'}
+                                  </span>
+                                </div>
+                              </div>
+
+                              {/* Box 2: Cloud Provider */}
+                              <div className="bg-surface-container-high/60 backdrop-blur-sm p-4 rounded-xl border border-surface-border flex flex-col text-start justify-between min-h-[96px] min-w-0">
+                                <div className="mb-2 shrink-0 flex items-center">
+                                  {event.provider === 'google' ? (
+                                    <GoogleIcon className="w-5 h-5 shrink-0" alt="Google Drive" />
+                                  ) : event.provider === 'onedrive' ? (
+                                    <svg viewBox="0 0 24 24" className="w-5 h-5 text-blue-500 fill-current shrink-0" xmlns="http://www.w3.org/2000/svg">
+                                      <path d="M19.33 11.5A5 5 0 0 0 10.08 9A6.5 6.5 0 0 0 4.67 19.5H19.33A4.5 4.5 0 0 0 19.33 11.5Z" />
+                                      <path d="M16 11a4.5 4.5 0 0 0-8.33-2.17A5.5 5.5 0 0 0 2.5 17.5h13.83A3.5 3.5 0 0 0 16 11Z" opacity="0.8" />
+                                    </svg>
+                                  ) : (
+                                    <DropboxIcon className="w-5 h-5 shrink-0" />
+                                  )}
+                                </div>
+                                <div className="flex flex-col text-start min-w-0">
+                                  <span className="font-title-md text-base font-bold text-on-background capitalize truncate leading-tight">
+                                    {event.provider === 'google' ? 'Google Drive' : event.provider === 'onedrive' ? 'OneDrive' : 'Dropbox'}
+                                  </span>
+                                  <span className="font-label-sm text-[10px] text-sage-muted font-bold uppercase tracking-wider mt-1 truncate">
+                                    {language === 'he' ? 'ספק ענן' : 'CLOUD PROVIDER'}
+                                  </span>
+                                </div>
+                              </div>
+                            </div>
+
+                            {/* Bottom Row: OPEN EVENT Button + Dedicated Share Icon Button */}
+                            <div className="flex items-center gap-3 mt-auto">
+                              <button
+                                onClick={() => navigate(`/dashboard/event/${event.id}`)}
+                                className="flex-1 bg-deep-forest text-white dark:bg-[#e1e8e5] dark:text-[#111413] hover:opacity-90 font-label-sm text-xs font-bold uppercase tracking-wider py-3.5 px-4 rounded-xl flex items-center justify-center transition-all shadow-sm cursor-pointer border-none"
+                              >
+                                <span>{language === 'he' ? 'פתח אירוע' : 'OPEN EVENT'}</span>
+                              </button>
+                              <button
+                                onClick={(e) => handleShare(event, e)}
+                                title={t('common.share')}
+                                className="p-3 rounded-xl border border-surface-border text-sage-muted hover:text-copper-accent hover:border-copper-accent/50 hover:bg-surface-container-high transition-colors shrink-0 bg-transparent flex items-center justify-center cursor-pointer shadow-sm"
+                              >
+                                <Share2 className="w-4 h-4" />
+                              </button>
+                            </div>
+
+                            {/* Deleting overlay */}
+                            {isDeleting && (
+                              <div className="absolute inset-0 bg-surface-container/90 backdrop-blur-sm rounded-2xl z-20 flex flex-col items-center justify-center gap-3 p-4 text-center">
+                                <div className="p-3 rounded-full bg-red-500/10 border border-red-500/20 text-red-400">
+                                  <Loader2 className="w-6 h-6 animate-spin" />
+                                </div>
+                                <div className="flex flex-col gap-1">
+                                  <span className="text-sm font-bold text-on-background">
+                                    {language === 'he' ? 'מוחק אירוע...' : 'Deleting event...'}
+                                  </span>
+                                  <span className="text-xs text-sage-muted">
+                                    {language === 'he' ? 'מוחק נתונים ממסד הנתונים' : 'Removing data from database'}
+                                  </span>
+                                </div>
+                              </div>
                             )}
                           </div>
-                          <h3 className="font-display-lg text-xl text-on-background group-hover:text-copper-accent transition-colors line-clamp-1 m-0 mt-1">
-                            {event.name}
-                          </h3>
-                          <div className="flex items-center gap-1.5 text-xs text-sage-muted">
-                            <Calendar className="w-3.5 h-3.5 shrink-0" />
-                            <span>{event.createdAt && typeof event.createdAt === 'object' && 'toDate' in event.createdAt ? event.createdAt.toDate().toLocaleDateString(language === 'he' ? 'he-IL' : 'en-US') : (language === 'he' ? 'ממתין' : 'Pending')}</span>
-                          </div>
-                        </div>
+                        );
+                      })}
+                    </div>
+                  ) : (
+                    /* List View Layout */
+                    <div className="flex flex-col gap-3">
+                      {filteredEvents.slice(0, visibleCount).map((event) => {
+                        const isThisEventScanning = isEventScanning(event.id!);
+                        const eventScanState = getEventScanState(event.id!);
+                        const eventScannedCount = eventScanState?.scannedCount ?? 0;
+                        const isDeleting = event.id ? deletingEventIds.has(event.id) : false;
 
-                        {isThisEventScanning && (
-                          <div className="flex flex-col gap-2 w-full text-start" onClick={(e) => e.stopPropagation()}>
-                            <div className="flex items-center justify-between text-xs">
-                              <span className="text-sage-muted font-medium truncate">
-                                {isEventPaused ? t('dashboard.statusPaused') : formatETA(eventEta)}
-                              </span>
-                              <div className="flex items-center gap-1.5 shrink-0">
-                                <button
-                                  onClick={async (e) => {
-                                      e.stopPropagation();
-                                      if (isEventPaused) {
-                                        const canProceed = await checkParallelScanWarning();
-                                        if (!canProceed) return;
-                                      }
-                                      togglePause(event.id!);
-                                    }}
-                                  className={`p-1.5 rounded transition-all cursor-pointer border bg-transparent ${
-                                      isEventPaused
-                                        ? 'border-copper-accent/30 text-copper-accent bg-copper-accent/10'
-                                        : 'border-surface-border text-sage-muted hover:bg-surface-container-high'
-                                    }`}
-                                  title={isEventPaused ? t('eventView.isResumed') : t('eventView.isPaused')}
-                                >
-                                  {isEventPaused ? <Play className="w-3.5 h-3.5" /> : <Pause className="w-3.5 h-3.5" />}
-                                </button>
-                                <button
-                                  onClick={(e) => {
-                                      e.stopPropagation();
-                                      stopScanning(event.id!);
-                                    }}
-                                  className="p-1.5 rounded transition-all cursor-pointer border border-surface-border text-sage-muted hover:text-red-400 hover:bg-surface-container-high bg-transparent"
-                                  title={t('dashboard.stopScanBtn')}
-                                >
-                                  <X className="w-3.5 h-3.5" />
-                                </button>
-                                <span className="font-mono font-bold text-on-background">
-                                  {eventScannedCount} / {eventTotalToScan}
-                                </span>
+                        return (
+                          <div
+                            key={event.id}
+                            onClick={isDeleting ? undefined : () => navigate(`/dashboard/event/${event.id}`)}
+                            className={`group relative border border-surface-border/60 ${isDeleting ? 'opacity-75 overflow-hidden' : 'hover:border-copper-accent/35 cursor-pointer hover:shadow-xl'} bg-surface-container rounded-xl p-5 transition-all duration-200 flex flex-col md:flex-row items-start md:items-center justify-between gap-4 shadow text-start`}
+                          >
+                            <div className="flex items-center gap-4 flex-1 min-w-0">
+                              <div className="p-3 rounded-xl bg-surface-container-low border border-surface-border/50 shrink-0">
+                                {event.provider === 'google' ? (
+                                  <GoogleIcon className="w-5 h-5 shrink-0" alt="Google Drive" />
+                                ) : event.provider === 'onedrive' ? (
+                                  <svg viewBox="0 0 24 24" className="w-5 h-5 text-blue-400 fill-current shrink-0" xmlns="http://www.w3.org/2000/svg">
+                                    <path d="M19.33 11.5A5 5 0 0 0 10.08 9A6.5 6.5 0 0 0 4.67 19.5H19.33A4.5 4.5 0 0 0 19.33 11.5Z" />
+                                    <path d="M16 11a4.5 4.5 0 0 0-8.33-2.17A5.5 5.5 0 0 0 2.5 17.5h13.83A3.5 3.5 0 0 0 16 11Z" opacity="0.8" />
+                                  </svg>
+                                ) : (
+                                  <DropboxIcon className="w-5 h-5 shrink-0" />
+                                )}
+                              </div>
+                              <div className="flex flex-col gap-1 min-w-0 flex-1 text-start">
+                                <div className="flex items-center gap-2">
+                                  <h3 className="font-display-lg text-lg text-on-background group-hover:text-copper-accent transition-colors truncate m-0 font-bold">
+                                    {event.name}
+                                  </h3>
+                                  {isThisEventScanning ? (
+                                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider bg-copper-accent/15 text-copper-accent border border-copper-accent/20 animate-pulse shrink-0">
+                                      <Loader2 className="w-2.5 h-2.5 animate-spin" /> {language === 'he' ? 'סורק' : 'Scanning'}
+                                    </span>
+                                  ) : (
+                                    getStatusBadge(event.status)
+                                  )}
+                                </div>
+                                <div className="flex items-center gap-4 text-xs text-sage-muted flex-wrap">
+                                  <span className="flex items-center gap-1">
+                                    <Calendar className="w-3.5 h-3.5" />
+                                    <span>{event.createdAt && typeof event.createdAt === 'object' && 'toDate' in event.createdAt ? event.createdAt.toDate().toLocaleDateString(language === 'he' ? 'he-IL' : 'en-US').replace(/\//g, '.') : (language === 'he' ? 'ממתין' : 'Pending')}</span>
+                                  </span>
+                                  <span className="flex items-center gap-1">
+                                    <ImageIcon className="w-3.5 h-3.5" />
+                                    <span>{isThisEventScanning ? eventScannedCount : event.photoCount} {language === 'he' ? 'תמונות' : 'photos'}</span>
+                                  </span>
+                                </div>
                               </div>
                             </div>
-                            <div className="w-full bg-surface-container-low rounded-full h-1.5 overflow-hidden border border-surface-border">
-                              <div
-                                className="bg-copper-accent h-1.5 rounded-full transition-all duration-300 ease-out"
-                                style={{
-                                  width: `${eventTotalToScan > 0 ? (eventScannedCount / eventTotalToScan) * 100 : 0}%`,
-                                }}
-                              />
-                            </div>
-                          </div>
-                        )}
 
-                        <div className="grid grid-cols-2 gap-4 border-t border-surface-border pt-4 mt-auto">
-                          <div className="flex items-center gap-2">
-                            <div className="p-2 rounded bg-surface-container-low text-sage-muted border border-surface-border/50">
-                              <ImageIcon className="w-3.5 h-3.5" />
-                            </div>
-                            <div className="flex flex-col text-start">
-                              <span className="text-[10px] text-sage-muted uppercase tracking-wider">{language === 'he' ? 'תמונות' : 'Photos'}</span>
-                              <span className="text-sm font-bold text-on-background">
-                                {isThisEventScanning ? eventScannedCount : event.photoCount}
-                              </span>
+                            {/* Actions & Link in List View */}
+                            <div className="flex items-center gap-2 self-end md:self-auto shrink-0 z-10" onClick={(e) => e.stopPropagation()}>
+                              <button
+                                onClick={(e) => handleShare(event, e)}
+                                title={t('common.share')}
+                                className="p-2 rounded-lg bg-surface-container-high border border-surface-border text-sage-muted hover:text-copper-accent transition-all cursor-pointer shadow-sm"
+                              >
+                                <Share2 className="w-3.5 h-3.5" />
+                              </button>
+                              <button
+                                onClick={(e) => handleCopyShareLink(event, e)}
+                                title={language === 'he' ? 'העתק קישור שיתוף' : 'Copy share link'}
+                                className="p-2 rounded-lg bg-surface-container-high border border-surface-border text-sage-muted hover:text-copper-accent transition-all cursor-pointer shadow-sm"
+                              >
+                                {copiedId === event.id ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Link2 className="w-3.5 h-3.5" />}
+                              </button>
+                              <button
+                                onClick={(e) => { e.stopPropagation(); setQrEvent(event); }}
+                                title={language === 'he' ? 'הצג QR קוד' : 'Show QR code'}
+                                className="p-2 rounded-lg bg-surface-container-high border border-surface-border text-sage-muted hover:text-copper-accent transition-all cursor-pointer shadow-sm"
+                              >
+                                <QrCode className="w-3.5 h-3.5" />
+                              </button>
+                              <button
+                                onClick={(e) => handleDeleteCloudEvent(event, e)}
+                                title={language === 'he' ? 'מחק אירוע' : 'Delete event'}
+                                className="p-2 rounded-lg bg-surface-container-high border border-surface-border text-sage-muted hover:text-red-400 transition-all cursor-pointer shadow-sm"
+                              >
+                                <Trash2 className="w-3.5 h-3.5" />
+                              </button>
+                              <button
+                                onClick={() => navigate(`/dashboard/event/${event.id}`)}
+                                className="px-3 py-1.5 rounded-lg bg-surface-container-high border border-surface-border text-copper-accent hover:bg-surface-container-highest transition-all cursor-pointer font-bold text-xs flex items-center gap-1 ms-2"
+                              >
+                                <span>{language === 'he' ? 'פתח' : 'Open'}</span>
+                                <ArrowLeft className={`w-3.5 h-3.5 ${isRtl ? '' : 'rotate-180'}`} />
+                              </button>
                             </div>
                           </div>
-                          <div className="flex items-center gap-2">
-                            <div className="p-2 rounded bg-surface-container-low border border-surface-border/50 shrink-0 flex items-center justify-center">
-                              {event.provider === 'google' ? (
-                                <GoogleIcon className="w-3.5 h-3.5 shrink-0" alt="Google Drive" />
-                              ) : event.provider === 'onedrive' ? (
-                                <svg viewBox="0 0 24 24" className="w-3.5 h-3.5 text-blue-400 fill-current shrink-0" xmlns="http://www.w3.org/2000/svg">
-                                  <path d="M19.33 11.5A5 5 0 0 0 10.08 9A6.5 6.5 0 0 0 4.67 19.5H19.33A4.5 4.5 0 0 0 19.33 11.5Z" />
-                                  <path d="M16 11a4.5 4.5 0 0 0-8.33-2.17A5.5 5.5 0 0 0 2.5 17.5h13.83A3.5 3.5 0 0 0 16 11Z" opacity="0.8" />
-                                </svg>
-                              ) : (
-                                <DropboxIcon className="w-3.5 h-3.5 shrink-0" />
-                              )}
-                              </div>
-                            <div className="flex flex-col text-start">
-                              <span className="text-[10px] text-sage-muted uppercase tracking-wider">{language === 'he' ? 'ספק ענן' : 'Cloud Provider'}</span>
-                              <span className="text-sm font-bold text-on-background capitalize">
-                                {event.provider === 'google' ? 'Google' : event.provider === 'onedrive' ? 'OneDrive' : 'Dropbox'}
-                              </span>
-                            </div>
-                          </div>
-                        </div>
+                        );
+                      })}
+                    </div>
+                  )}
 
-                        <div className="flex items-center gap-1 text-[10px] uppercase tracking-widest font-bold text-copper-accent mt-1 self-start group-hover:underline">
-                          <span>{language === 'he' ? 'פתח אירוע' : 'Open Event'}</span>
-                          <ArrowLeft className={`w-3.5 h-3.5 transform group-hover:-translate-x-1 transition-transform ${isRtl ? '' : 'rotate-180'}`} />
-                        </div>
-
-                        {isDeleting && (
-                          <div className="absolute inset-0 bg-surface-container/90 backdrop-blur-sm rounded-xl z-20 flex flex-col items-center justify-center gap-3 p-4 text-center">
-                            <div className="p-3 rounded-full bg-red-500/10 border border-red-500/20 text-red-400">
-                              <Loader2 className="w-6 h-6 animate-spin" />
-                            </div>
-                            <div className="flex flex-col gap-1">
-                              <span className="text-sm font-bold text-on-background">
-                                {language === 'he' ? 'מוחק אירוע...' : 'Deleting event...'}
-                              </span>
-                              <span className="text-xs text-sage-muted">
-                                {language === 'he' ? 'מוחק נתונים ממסד הנתונים' : 'Removing data from database'}
-                              </span>
-                            </div>
-                          </div>
-                        )}
-                      </div>
-                    );
-                  })}
+                  {/* Load More Button */}
+                  {filteredEvents.length > visibleCount && (
+                    <div className="flex flex-col items-center justify-center gap-3 pt-6">
+                      <button
+                        onClick={() => setVisibleCount((prev) => prev + 6)}
+                        className="px-6 py-3 rounded-xl bg-surface-container-high hover:bg-surface-container border border-surface-border/80 text-on-background font-bold text-xs uppercase tracking-wider transition-all cursor-pointer shadow hover:border-copper-accent/40 active:scale-95 flex items-center gap-2"
+                      >
+                        <span>{t('dashboard.loadMoreEvents')}</span>
+                        <ChevronDown className="w-4 h-4 text-copper-accent" />
+                      </button>
+                      <span className="text-xs text-sage-muted">
+                        {t('dashboard.showingEventsCount', { shown: Math.min(visibleCount, filteredEvents.length), total: filteredEvents.length })}
+                      </span>
+                    </div>
+                  )}
                 </div>
               )}
             </>
@@ -1110,8 +1423,6 @@ export function Dashboard() {
                     : 'Manage application settings, cloud provider links, and account privacy.'}
                 </p>
               </div>
-
-              <div className="botanical-divider" />
 
               {/* Accessibility Settings card */}
               <div className="bg-surface-container border border-surface-border rounded-xl p-6 flex flex-col gap-6">

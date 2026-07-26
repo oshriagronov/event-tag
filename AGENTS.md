@@ -4,8 +4,8 @@ You are an expert Frontend Engineer and Client-Side Machine Learning specialist.
 
 
 ## Project Core Concept & Goal
-- **What it is:** A web application where event owners connect photos from cloud storage (Dropbox & Google Drive active; OneDrive coming soon), and the browser automatically scans, detects, and encodes faces locally. Guests can then scan a QR code / share link and upload a selfie to instantly retrieve all photos they appear in.
-- **The Goal:** Make photo sharing between event owners and guests as seamless, instant, and private as possible. Event owners connect and scan their cloud photo folders, while guests self-service retrieve and download their personal event photos using a selfie.
+- **What it is:** A web application where event organizers connect photos from cloud storage (Dropbox & Google Drive active; OneDrive coming soon), and the browser automatically scans, detects, and encodes faces locally. Guests can then scan a QR code / share link and upload a selfie to instantly retrieve all photos they appear in.
+- **The Goal:** Make photo sharing between event organizers and guests as seamless, instant, and private as possible. Event organizers connect and scan their cloud photo folders, while guests self-service retrieve and download their personal event photos using a selfie.
 - **The Ultimate Constraint:** **Cloud Ingest with Local Processing.** Images are read directly from cloud storage or local disk into browser memory, all face detection and recognition happens locally in the user's browser, and only mathematical face descriptors are stored in Firebase Firestore. No actual photo files are uploaded to or stored on our servers.
 
 
