@@ -160,8 +160,9 @@ body {
   @apply bg-surface-container-low/80 backdrop-blur-md;
 }
 
-.pattern-dots {
-  background-image: radial-gradient(var(--color-sage-muted) 1px, transparent 1px);
+.pattern-dots,
+.bg-pattern {
+  background-image: radial-gradient(rgba(143, 168, 155, 0.05) 1px, transparent 1px);
   background-size: 24px 24px;
 }
 

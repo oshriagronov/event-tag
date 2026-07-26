@@ -9,7 +9,6 @@ import { useState, useEffect, useCallback } from 'react';
 import { useTranslation } from '../services/translations';
 import { useModal } from '../contexts/ModalContext';
 import {
-  Camera,
   Check,
   CheckSquare,
   Download,
@@ -22,6 +21,7 @@ import {
   Frown,
   Lock,
   X,
+  Sparkles,
 } from 'lucide-react';
 import { getCloudEvent, type CloudEvent } from '../services/firestore';
 import { convertToRawUrl, type CloudProvider } from '../services/cloudProviders';
@@ -459,18 +459,12 @@ export function GuestView({ eventId }: GuestViewProps) {
   // ---- Render helpers ----
 
   const renderHeader = () => (
-    <header className="sticky top-0 z-50 bg-background/90 backdrop-blur-md border-b border-surface-border/40">
-      <div className="max-w-lg mx-auto px-6 py-3.5 flex items-center gap-3.5">
-        <div className="w-12 h-12 rounded-xl bg-white p-1 flex items-center justify-center shadow-md shrink-0 border border-surface-border/30 overflow-hidden">
-          <img src="/logo.png" alt="EventTag Logo" className="w-full h-full object-contain rounded-lg" />
-        </div>
-        <div className="min-w-0 text-start">
-          <h1 className="font-display-lg text-xl text-on-background m-0 leading-tight">
+    <header className="w-full top-0 z-50 py-6 border-b border-sage-muted/10">
+      <div className="flex justify-between items-center w-full px-4 sm:px-8 max-w-7xl mx-auto">
+        <div className="flex items-center">
+          <span className="font-display-lg text-3xl md:text-4xl font-bold text-on-surface tracking-tight">
             EventTag
-          </h1>
-          {event && (
-            <p className="font-body-md text-xs text-sage-muted truncate m-0 uppercase tracking-wider mt-0.5">{event.name}</p>
-          )}
+          </span>
         </div>
       </div>
     </header>
@@ -479,7 +473,7 @@ export function GuestView({ eventId }: GuestViewProps) {
   // ---- Loading event state ----
   if (viewState === 'loading-event') {
     return (
-      <div className="min-h-screen bg-background text-on-background flex flex-col text-start" dir={isRtl ? 'rtl' : 'ltr'}>
+      <div className="min-h-screen bg-background text-on-background flex flex-col text-start pattern-dots" dir={isRtl ? 'rtl' : 'ltr'}>
         {renderHeader()}
         <div className="flex-1 flex flex-col items-center justify-center gap-4 p-6">
           <Loader2 className="w-8 h-8 text-copper-accent animate-spin" />
@@ -492,20 +486,20 @@ export function GuestView({ eventId }: GuestViewProps) {
   // ---- Error state ----
   if (viewState === 'error') {
     return (
-      <div className="min-h-screen bg-background text-on-background flex flex-col text-start" dir={isRtl ? 'rtl' : 'ltr'}>
+      <div className="min-h-screen bg-background text-on-background flex flex-col text-start pattern-dots" dir={isRtl ? 'rtl' : 'ltr'}>
         {renderHeader()}
-        <div className="flex-1 flex flex-col items-center justify-center gap-5 p-6">
-          <div className="w-14 h-14 rounded bg-surface-container border border-surface-border flex items-center justify-center text-red-400">
-            <AlertCircle className="w-7 h-7" />
+        <div className="flex-1 flex flex-col items-center justify-center gap-6 p-6 max-w-md mx-auto text-center">
+          <div className="w-16 h-16 rounded-2xl bg-surface-container-high border border-sage-muted/20 flex items-center justify-center text-red-400 shadow">
+            <AlertCircle className="w-8 h-8" />
           </div>
-          <div className="text-center max-w-xs">
-            <h2 className="font-title-md text-base font-bold text-on-background mb-2 m-0">{t('common.error')}</h2>
+          <div className="space-y-2">
+            <h2 className="font-display-lg text-2xl sm:text-3xl text-on-surface font-medium m-0">{t('common.error')}</h2>
             <p className="font-body-md text-sage-muted text-sm leading-relaxed m-0">{errorMessage}</p>
           </div>
           <button
             type="button"
             onClick={() => window.location.reload()}
-            className="px-6 py-2.5 rounded bg-surface-container border border-surface-border text-on-background hover:bg-surface-container-high font-bold text-xs uppercase tracking-wider transition-all cursor-pointer"
+            className="px-6 py-3 rounded-xl bg-surface-container-high border border-sage-muted/20 text-on-surface hover:border-copper-accent/40 font-bold text-xs uppercase tracking-wider transition-all cursor-pointer shadow-sm active:scale-95"
           >
             {language === 'he' ? 'נסה שוב' : 'Try again'}
           </button>
@@ -517,32 +511,50 @@ export function GuestView({ eventId }: GuestViewProps) {
   // ---- Selfie input state ----
   if (viewState === 'selfie-input') {
     return (
-      <div className="min-h-screen bg-background text-on-background flex flex-col text-start" dir={isRtl ? 'rtl' : 'ltr'}>
+      <div className="min-h-screen bg-background text-on-background flex flex-col text-start selection:bg-copper-accent/20 selection:text-deep-forest pattern-dots" dir={isRtl ? 'rtl' : 'ltr'}>
         {renderHeader()}
-        <div className="flex-1 flex flex-col p-6 max-w-lg mx-auto w-full">
-          {/* Event info card */}
-          <div className="mb-6 p-5 rounded bg-surface-container border border-surface-border text-start">
-            <h2 className="font-display-lg text-xl text-on-background m-0">{event?.name}</h2>
+        
+        <main className="flex-grow flex flex-col items-center justify-center px-4 sm:px-8 py-8 sm:py-16 max-w-3xl mx-auto w-full gap-8">
+          {/* Event Header */}
+          <div className="w-full text-center space-y-3">
+            <h1 className="font-display-lg text-3xl sm:text-4xl md:text-5xl text-on-surface font-medium m-0 leading-tight">
+              {event?.name}
+            </h1>
+            {/* Note: NO photo count mention as explicitly requested */}
           </div>
 
-          {/* Instruction */}
-          <div className="mb-6 text-center">
-            <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded bg-primary/10 border border-primary/20 text-primary text-xs font-semibold uppercase tracking-wider">
-              <Camera className="w-3.5 h-3.5 shrink-0" />
-              <span>{t('guestView.selfieInstruction')}</span>
-            </div>
+          {/* Prompt Badge - Dark Refined Style */}
+          <div className="inline-flex items-center justify-center gap-2.5 bg-surface-container-high px-6 py-3 rounded-full border border-sage-muted/10 shadow-sm">
+            <Sparkles className="w-4 h-4 text-copper-accent shrink-0" />
+            <p className="font-label-sm text-xs sm:text-sm text-on-surface uppercase tracking-wider font-semibold m-0">
+              {t('guestView.selfieInstruction')}
+            </p>
           </div>
 
           {/* Selfie capture */}
           <SelfieCapture onCapture={handleSelfieCapture} />
+        </main>
 
-          {/* Privacy note */}
-          <p className="mt-6 font-body-md text-[11px] text-sage-muted text-center leading-relaxed m-0 bg-surface-container/20 p-3 rounded border border-surface-border/50">
-            {language === 'he' 
-              ? 'פרטיות מובטחת: תמונת הסלפי שלך מעובדת מקומית בדפדפן ואינה נשמרת בשרתים כלל.' 
-              : 'Privacy assured: your selfie is processed locally and never stored on any server.'}
-          </p>
-        </div>
+        {/* Footer / Privacy Banner */}
+        <footer className="w-full mt-auto py-10 border-t border-sage-muted/10">
+          <div className="w-full px-4 max-w-xl mx-auto flex flex-col items-center text-center gap-3">
+            <div className="bg-surface-container-high/60 backdrop-blur-sm px-4 py-2 rounded-lg border border-sage-muted/10 flex items-center gap-2.5">
+              <Lock className="w-4 h-4 text-copper-accent shrink-0" />
+              <span className="font-label-sm text-xs uppercase tracking-widest font-bold text-on-surface">
+                {language === 'he' ? 'פרטיות מובטחת' : 'Privacy First'}
+              </span>
+            </div>
+            <p className="text-sage-muted font-body-md text-xs sm:text-sm max-w-md leading-relaxed m-0">
+              {language === 'he' 
+                ? 'תמונת הסלפי שלך מעובדת מקומית במכשירך בלבד כדי ליצור זיהוי ביומטרי מאובטח ואינה נשמרת בשרתים כלל.' 
+                : 'Your photo is processed locally on your device to create a secure biometric match and is never saved on our servers.'}
+            </p>
+            <div className="w-32 h-px bg-gradient-to-r from-transparent via-sage-muted/30 to-transparent my-1" />
+            <p className="text-on-surface-variant font-label-sm text-[10px] uppercase tracking-widest m-0">
+              © {new Date().getFullYear()} EventTag.
+            </p>
+          </div>
+        </footer>
       </div>
     );
   }
@@ -550,17 +562,20 @@ export function GuestView({ eventId }: GuestViewProps) {
   // ---- Matching state ----
   if (viewState === 'matching') {
     return (
-      <div className="min-h-screen bg-background text-on-background flex flex-col text-start" dir={isRtl ? 'rtl' : 'ltr'}>
+      <div className="min-h-screen bg-background text-on-background flex flex-col text-start pattern-dots" dir={isRtl ? 'rtl' : 'ltr'}>
         {renderHeader()}
-        <div className="flex-1 flex flex-col items-center justify-center gap-5 p-6">
-          <div className="relative w-16 h-16">
-            <div className="absolute inset-0 rounded-full bg-copper-accent/25 animate-ping" />
-            <div className="relative w-16 h-16 rounded bg-surface-container border border-surface-border flex items-center justify-center text-copper-accent shadow">
-              <Search className="w-7 h-7" />
+        <div className="flex-1 flex flex-col items-center justify-center gap-6 p-6 max-w-md mx-auto text-center">
+          <div className="relative w-20 h-20 flex items-center justify-center">
+            <div className="absolute inset-0 rounded-2xl bg-copper-accent/20 animate-ping" />
+            <div className="relative w-20 h-20 rounded-2xl bg-surface-container-high border border-sage-muted/20 flex items-center justify-center text-copper-accent shadow-lg">
+              <Search className="w-8 h-8" />
             </div>
           </div>
-          <div className="text-center">
-            <h2 className="font-title-md text-base font-bold text-on-background mb-1 m-0">{t('guestView.searchingTitle')}</h2>
+          <div className="space-y-2">
+            <h2 className="font-display-lg text-2xl sm:text-3xl text-on-surface font-medium m-0">{t('guestView.searchingTitle')}</h2>
+            <p className="font-body-md text-sage-muted text-sm m-0 leading-relaxed">
+              {language === 'he' ? 'סורק ומאתר את התמונות שלך באירוע...' : 'Scanning and matching your event photos...'}
+            </p>
           </div>
         </div>
       </div>
@@ -570,14 +585,14 @@ export function GuestView({ eventId }: GuestViewProps) {
   // ---- No matches state ----
   if (viewState === 'no-matches') {
     return (
-      <div className="min-h-screen bg-background text-on-background flex flex-col text-start" dir={isRtl ? 'rtl' : 'ltr'}>
+      <div className="min-h-screen bg-background text-on-background flex flex-col text-start pattern-dots" dir={isRtl ? 'rtl' : 'ltr'}>
         {renderHeader()}
-        <div className="flex-1 flex flex-col items-center justify-center gap-5 p-6">
-          <div className="w-14 h-14 rounded bg-surface-container border border-surface-border flex items-center justify-center text-sage-muted shadow">
-            <Frown className="w-7 h-7" />
+        <div className="flex-1 flex flex-col items-center justify-center gap-6 p-6 max-w-md mx-auto text-center">
+          <div className="w-16 h-16 rounded-2xl bg-surface-container-high border border-sage-muted/20 flex items-center justify-center text-sage-muted shadow">
+            <Frown className="w-8 h-8" />
           </div>
-          <div className="text-center max-w-xs">
-            <h2 className="font-title-md text-base font-bold text-on-background mb-2 m-0">{t('guestView.noPhotosTitle')}</h2>
+          <div className="space-y-2">
+            <h2 className="font-display-lg text-2xl sm:text-3xl text-on-surface font-medium m-0">{t('guestView.noPhotosTitle')}</h2>
             <p className="font-body-md text-sage-muted text-sm leading-relaxed m-0">
               {t('guestView.noPhotosDesc')}
             </p>
@@ -585,7 +600,7 @@ export function GuestView({ eventId }: GuestViewProps) {
           <button
             type="button"
             onClick={handleRetake}
-            className="mt-2 flex items-center gap-2 px-6 py-3 rounded bg-copper-accent hover:bg-copper-accent/90 text-background font-bold text-xs uppercase tracking-wider shadow transition-all cursor-pointer border-none"
+            className="mt-2 flex items-center gap-2 px-6 py-3.5 rounded-xl bg-copper-accent hover:bg-copper-accent/90 text-background font-bold text-xs uppercase tracking-wider shadow-lg transition-all cursor-pointer border-none active:scale-95"
           >
             <RotateCcw className="w-4 h-4 shrink-0" />
             {language === 'he' ? 'צלם סלפי אחר' : 'Try Another Selfie'}
@@ -597,121 +612,123 @@ export function GuestView({ eventId }: GuestViewProps) {
 
   // ---- Results state ----
   return (
-    <div className="min-h-screen bg-background text-on-background flex flex-col text-start" dir={isRtl ? 'rtl' : 'ltr'}>
+    <div className="min-h-screen bg-background text-on-background flex flex-col text-start pattern-dots" dir={isRtl ? 'rtl' : 'ltr'}>
       {renderHeader()}
 
-      <main id="main-content" tabIndex={-1} className="flex-1 flex flex-col p-6 max-w-2xl mx-auto w-full gap-6 focus:outline-none">
-        {/* Results banner */}
-        <div className="flex flex-col gap-4">
-          <div className="flex items-center gap-3 p-4 rounded bg-surface-container border border-surface-border text-start">
-            <div className="w-9 h-9 rounded bg-primary/10 border border-primary/20 flex items-center justify-center text-primary shrink-0">
-              <PartyPopper className="w-5 h-5" />
-            </div>
-            <div>
-              <h2 className="font-title-md text-base font-bold text-on-background m-0">
-                {t('guestView.foundMatches', { count: matchCount })}
-              </h2>
-              <p className="font-body-md text-xs text-sage-muted m-0 mt-0.5">
-                {language === 'he'
-                  ? '💡 חסרות תמונות? מומלץ ללחוץ "החלף סלפי" ולנסות 2-3 תמונות מזוויות ותאורות שונות.'
-                  : '💡 Missing photos? Tap "Change Selfie" and try 2-3 photos with different angles or lighting.'}
-              </p>
-            </div>
+      <main id="main-content" tabIndex={-1} className="flex-1 flex flex-col p-4 sm:p-8 max-w-5xl mx-auto w-full gap-8 focus:outline-none">
+        {/* Results Banner */}
+        <div className="flex flex-col items-center text-center gap-3">
+          <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-surface-container-high border border-sage-muted/10 shadow-sm">
+            <PartyPopper className="w-4 h-4 text-copper-accent shrink-0" />
+            <span className="font-label-sm text-xs uppercase tracking-wider font-semibold text-on-surface">
+              {t('guestView.foundMatches', { count: matchCount })}
+            </span>
           </div>
 
-          <div className="flex flex-wrap gap-3 items-center justify-between">
-            <div className="flex flex-wrap items-center gap-3">
-              {/* Primary Download Button */}
-              {downloadableMatches.length > 0 && (
-                <button
-                  type="button"
-                  onClick={handleDownload}
-                  disabled={downloadingAll || (isSelectionMode && selectedPhotoIds.length === 0)}
-                  className="flex items-center gap-2 px-5 py-3 rounded bg-deep-forest hover:bg-primary text-background font-bold text-xs uppercase tracking-wider transition-all shadow cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed border-none"
-                >
-                  {downloadingAll ? (
-                    <>
-                      <Loader2 className="w-4 h-4 animate-spin shrink-0" />
-                      <span>
-                        {language === 'he' ? `מוריד... (${downloadProgress}%)` : `Downloading... (${downloadProgress}%)`}
-                      </span>
-                    </>
-                  ) : (
-                    <>
-                      <DownloadCloud className="w-4 h-4 shrink-0" />
-                      <span>
-                        {isSelectionMode
-                          ? t('guestView.downloadSelectedBtn', { count: selectedPhotoIds.length })
-                          : t('guestView.downloadZipBtn', { count: downloadableMatches.length })}
-                      </span>
-                    </>
-                  )}
-                </button>
-              )}
+          <h1 className="font-display-lg text-3xl sm:text-4xl md:text-5xl text-on-surface font-medium m-0">
+            {language === 'he' ? 'התמונות שלך מהאירוע' : 'Your Event Photos'}
+          </h1>
 
-              {/* Select Photos Toggle Button */}
-              {downloadableMatches.length > 0 && (
-                <button
-                  type="button"
-                  onClick={toggleSelectionMode}
-                  className={`flex items-center gap-2 px-4 py-3 rounded text-xs font-bold uppercase tracking-wider transition-all shadow cursor-pointer border ${
-                    isSelectionMode
-                      ? 'bg-copper-accent text-background border-copper-accent'
-                      : 'bg-surface-container border-surface-border text-on-background hover:bg-surface-container-high'
-                  }`}
-                >
-                  <CheckSquare className="w-4 h-4 shrink-0" />
-                  <span>
-                    {isSelectionMode ? t('guestView.cancelSelection') : t('guestView.selectPhotos')}
-                  </span>
-                </button>
-              )}
+          <p className="font-body-md text-xs sm:text-sm text-sage-muted max-w-lg m-0 leading-relaxed">
+            {language === 'he'
+              ? '💡 חסרות תמונות? מומלץ ללחוץ "החלף סלפי" ולנסות 2-3 תמונות מזוויות ותאורות שונות.'
+              : '💡 Missing photos? Tap "Change Selfie" and try 2-3 photos with different angles or lighting.'}
+          </p>
+        </div>
 
-              {/* Quick Select All / Clear Selection */}
-              {isSelectionMode && (
-                <button
-                  type="button"
-                  onClick={selectedPhotoIds.length === downloadableMatches.length ? handleDeselectAll : handleSelectAll}
-                  className="flex items-center gap-1.5 px-3 py-2.5 rounded bg-surface-container/60 hover:bg-surface-container border border-surface-border text-sage-muted hover:text-on-background text-xs font-semibold transition-all cursor-pointer"
-                >
-                  <span>
-                    {selectedPhotoIds.length === downloadableMatches.length
-                      ? t('guestView.deselectAll')
-                      : t('guestView.selectAll')}
-                  </span>
-                </button>
-              )}
-            </div>
-
-            <div className="flex items-center gap-3 ms-auto">
-              {hiddenPhotoIds.length > 0 && (
-                <button
-                  type="button"
-                  onClick={handleRestoreHidden}
-                  className="flex items-center gap-2 px-4 py-2.5 rounded bg-surface-container border border-surface-border text-on-background hover:bg-surface-container-high text-xs font-semibold transition-all cursor-pointer"
-                >
-                  <span>{t('guestView.restoreRemoved', { count: hiddenPhotoIds.length })}</span>
-                </button>
-              )}
-
+        {/* Toolbar */}
+        <div className="flex flex-wrap items-center justify-between gap-3 p-4 sm:p-5 rounded-xl bg-surface-container border border-sage-muted/20 shadow-sm">
+          <div className="flex flex-wrap items-center gap-3">
+            {/* Download Button */}
+            {downloadableMatches.length > 0 && (
               <button
                 type="button"
-                onClick={handleRetake}
-                className="flex items-center gap-1.5 text-copper-accent hover:underline text-xs uppercase tracking-wider cursor-pointer font-bold border-none bg-transparent outline-none"
+                onClick={handleDownload}
+                disabled={downloadingAll || (isSelectionMode && selectedPhotoIds.length === 0)}
+                className="flex items-center gap-2.5 px-6 py-3 rounded-xl bg-copper-accent hover:bg-copper-accent/90 text-background font-bold text-xs uppercase tracking-wider transition-all shadow-md cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed border-none active:scale-95"
               >
-                <RotateCcw className="w-3.5 h-3.5 shrink-0" />
-                <span>{t('guestView.changeSelfie')}</span>
+                {downloadingAll ? (
+                  <>
+                    <Loader2 className="w-4 h-4 animate-spin shrink-0" />
+                    <span>
+                      {language === 'he' ? `מוריד... (${downloadProgress}%)` : `Downloading... (${downloadProgress}%)`}
+                    </span>
+                  </>
+                ) : (
+                  <>
+                    <DownloadCloud className="w-4 h-4 shrink-0" />
+                    <span>
+                      {isSelectionMode
+                        ? t('guestView.downloadSelectedBtn', { count: selectedPhotoIds.length })
+                        : t('guestView.downloadZipBtn', { count: downloadableMatches.length })}
+                    </span>
+                  </>
+                )}
               </button>
-            </div>
+            )}
+
+            {/* Select Mode Toggle */}
+            {downloadableMatches.length > 0 && (
+              <button
+                type="button"
+                onClick={toggleSelectionMode}
+                className={`flex items-center gap-2 px-4 py-3 rounded-xl text-xs font-bold uppercase tracking-wider transition-all cursor-pointer border ${
+                  isSelectionMode
+                    ? 'bg-copper-accent text-background border-copper-accent'
+                    : 'bg-surface-container-high border-sage-muted/20 text-on-surface hover:border-copper-accent/40'
+                }`}
+              >
+                <CheckSquare className="w-4 h-4 shrink-0" />
+                <span>
+                  {isSelectionMode ? t('guestView.cancelSelection') : t('guestView.selectPhotos')}
+                </span>
+              </button>
+            )}
+
+            {/* Select All / Deselect All */}
+            {isSelectionMode && (
+              <button
+                type="button"
+                onClick={selectedPhotoIds.length === downloadableMatches.length ? handleDeselectAll : handleSelectAll}
+                className="flex items-center gap-1.5 px-3.5 py-3 rounded-xl bg-surface-container-high border border-sage-muted/20 text-sage-muted hover:text-on-surface text-xs font-semibold transition-all cursor-pointer"
+              >
+                <span>
+                  {selectedPhotoIds.length === downloadableMatches.length
+                    ? t('guestView.deselectAll')
+                    : t('guestView.selectAll')}
+                </span>
+              </button>
+            )}
+          </div>
+
+          <div className="flex items-center gap-3 ms-auto">
+            {hiddenPhotoIds.length > 0 && (
+              <button
+                type="button"
+                onClick={handleRestoreHidden}
+                className="flex items-center gap-2 px-4 py-3 rounded-xl bg-surface-container-high border border-sage-muted/20 text-on-surface hover:border-copper-accent/40 text-xs font-semibold transition-all cursor-pointer"
+              >
+                <span>{t('guestView.restoreRemoved', { count: hiddenPhotoIds.length })}</span>
+              </button>
+            )}
+
+            <button
+              type="button"
+              onClick={handleRetake}
+              className="flex items-center gap-2 px-4 py-3 rounded-xl bg-surface-container-high border border-sage-muted/20 text-copper-accent hover:border-copper-accent/40 text-xs font-bold uppercase tracking-wider transition-all cursor-pointer"
+            >
+              <RotateCcw className="w-4 h-4 shrink-0" />
+              <span>{t('guestView.changeSelfie')}</span>
+            </button>
           </div>
         </div>
 
         {/* Access warnings */}
         {hasLoadError && (
-          <div className="bg-primary-container/10 border border-surface-border rounded p-5 flex gap-4 text-start">
+          <div className="bg-surface-container border border-sage-muted/20 rounded-xl p-5 flex gap-4 text-start shadow-sm">
             <Lock className="w-5 h-5 text-copper-accent shrink-0 mt-0.5" />
             <div className="flex flex-col gap-1 font-body-md">
-              <span className="font-bold text-on-background text-sm">{t('guestView.blockedNoticeTitle')}</span>
+              <span className="font-bold text-on-surface text-sm">{t('guestView.blockedNoticeTitle')}</span>
               <span className="text-xs text-sage-muted leading-relaxed">
                 {t('guestView.blockedNoticeDesc')}
               </span>
@@ -722,7 +739,7 @@ export function GuestView({ eventId }: GuestViewProps) {
         <div className="botanical-divider" />
 
         {/* Matches Grid */}
-        <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
+        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4 sm:gap-6">
           {displayedMatches.map((match) => {
             const isSelected = selectedPhotoIds.includes(match.driveFileId);
             return (
@@ -735,10 +752,10 @@ export function GuestView({ eventId }: GuestViewProps) {
                     setSelectedPhotoId(match.driveFileId);
                   }
                 }}
-                className={`group relative aspect-square rounded-lg overflow-hidden border cursor-pointer bg-surface-container-low shadow hover:shadow-2xl transition-all ${
+                className={`group relative aspect-square rounded-xl overflow-hidden border cursor-pointer bg-surface-container shadow-sm hover:shadow-xl transition-all duration-300 ${
                   isSelectionMode && isSelected
                     ? 'ring-2 ring-copper-accent border-copper-accent scale-[0.98]'
-                    : 'border-surface-border hover:scale-[1.01]'
+                    : 'border-sage-muted/20 hover:border-copper-accent/40 hover:scale-[1.02]'
                 }`}
               >
                 <GuestPhotoImage
@@ -747,7 +764,7 @@ export function GuestView({ eventId }: GuestViewProps) {
                   publicUrl={match.publicUrl}
                   alt={match.fileName}
                   size="thumb"
-                  className="w-full h-full object-cover group-hover:scale-102 transition-transform duration-300 pointer-events-none"
+                  className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500 pointer-events-none"
                   onError={() => {
                     setFailedPhotoIds((prev) => ({ ...prev, [match.driveFileId]: true }));
                     setHasLoadError(true);
@@ -756,12 +773,12 @@ export function GuestView({ eventId }: GuestViewProps) {
 
                 {/* Selection Mode Badge */}
                 {isSelectionMode && (
-                  <div className="absolute top-2.5 inset-s-2.5 z-10 pointer-events-none">
+                  <div className="absolute top-3 inset-s-3 z-10 pointer-events-none">
                     <div
                       className={`w-7 h-7 rounded-full flex items-center justify-center shadow-md transition-all ${
                         isSelected
                           ? 'bg-copper-accent text-background scale-110'
-                          : 'bg-background/80 backdrop-blur-md border border-surface-border text-sage-muted'
+                          : 'bg-surface-container-high/80 backdrop-blur-md border border-sage-muted/20 text-sage-muted'
                       }`}
                     >
                       <Check className={`w-4 h-4 transition-transform ${isSelected ? 'scale-100' : 'scale-0'}`} />
@@ -776,22 +793,22 @@ export function GuestView({ eventId }: GuestViewProps) {
         {/* Zoom Lightbox Modal */}
         {selectedPhotoId && (
           <div
-            className="fixed inset-0 bg-black/95 flex items-center justify-center z-50 p-4 sm:p-6 overflow-y-auto"
+            className="fixed inset-0 bg-background/90 backdrop-blur-md flex items-center justify-center z-50 p-4 sm:p-6 overflow-y-auto"
             onClick={() => setSelectedPhotoId(null)}
           >
             <div
-              className="relative max-w-3xl w-full max-h-[90vh] flex flex-col gap-3 sm:gap-4 my-auto bg-surface-container-low/95 backdrop-blur-xl border border-surface-border rounded-xl p-4 sm:p-5 shadow-2xl overflow-hidden"
+              className="relative max-w-4xl w-full max-h-[90vh] flex flex-col gap-4 my-auto bg-surface-container-high/95 backdrop-blur-xl border border-sage-muted/20 rounded-2xl p-5 sm:p-6 shadow-2xl overflow-hidden"
               onClick={(e) => e.stopPropagation()}
             >
               {/* Header bar with title and close button */}
-              <div className="flex items-center justify-between pb-2 border-b border-surface-border/50 shrink-0">
-                <span className="text-xs font-bold text-sage-muted uppercase tracking-wider">
+              <div className="flex items-center justify-between pb-3 border-b border-sage-muted/15 shrink-0">
+                <span className="text-xs font-bold text-sage-muted uppercase tracking-wider font-label-sm">
                   {language === 'he' ? 'תצוגה מקדימה' : 'Photo Preview'}
                 </span>
                 <button
                   type="button"
                   onClick={() => setSelectedPhotoId(null)}
-                  className="p-2 rounded-lg bg-surface-container border border-surface-border text-on-background hover:bg-surface-container-high hover:text-copper-accent transition-all cursor-pointer"
+                  className="p-2 rounded-xl bg-surface-container border border-sage-muted/20 text-on-surface hover:border-copper-accent/40 hover:text-copper-accent transition-all cursor-pointer"
                   aria-label={t('common.close')}
                 >
                   <X className="w-5 h-5 shrink-0" />
@@ -799,26 +816,26 @@ export function GuestView({ eventId }: GuestViewProps) {
               </div>
 
               {/* Image Container */}
-              <div className="flex-1 min-h-0 flex items-center justify-center overflow-hidden">
+              <div className="flex-1 min-h-0 flex items-center justify-center overflow-hidden py-2">
                 <GuestPhotoImage
                   provider={event?.provider || 'google'}
                   driveFileId={selectedPhotoId}
                   publicUrl={selectedPhoto?.publicUrl}
                   alt={selectedPhoto?.fileName}
                   size="full"
-                  className="w-full max-h-[58vh] sm:max-h-[65vh] object-contain rounded border border-surface-border shadow-md"
+                  className="w-full max-h-[58vh] sm:max-h-[65vh] object-contain rounded-xl border border-sage-muted/20 shadow-lg"
                 />
               </div>
 
               {/* Footer bar */}
-              <div className="flex items-center justify-end gap-3 pt-2 border-t border-surface-border/50 shrink-0">
+              <div className="flex items-center justify-end gap-3 pt-3 border-t border-sage-muted/15 shrink-0">
                 <button
                   type="button"
                   onClick={() => togglePhotoSelection(selectedPhotoId)}
-                  className={`flex items-center gap-2 px-4 py-2 rounded text-sm font-bold transition-all cursor-pointer border ${
+                  className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold transition-all cursor-pointer border ${
                     selectedPhotoIds.includes(selectedPhotoId)
                       ? 'bg-copper-accent text-background border-copper-accent'
-                      : 'bg-surface-container border-surface-border text-on-background hover:bg-surface-container-high'
+                      : 'bg-surface-container border border-sage-muted/20 text-on-surface hover:border-copper-accent/40'
                   }`}
                 >
                   <CheckSquare className="w-4 h-4 shrink-0" />
@@ -832,7 +849,7 @@ export function GuestView({ eventId }: GuestViewProps) {
                 <button
                   type="button"
                   onClick={() => handleDownloadSingle(selectedPhotoId)}
-                  className="flex items-center gap-2 px-5 py-2.5 rounded bg-copper-accent hover:bg-copper-accent/90 text-background text-sm font-bold transition-colors shadow cursor-pointer border-none"
+                  className="flex items-center gap-2 px-6 py-2.5 rounded-xl bg-copper-accent hover:bg-copper-accent/90 text-background text-xs font-bold uppercase tracking-wider transition-all shadow-md cursor-pointer border-none active:scale-95"
                 >
                   <Download className="w-4 h-4 shrink-0" />
                   {t('guestView.downloadBtn')}
@@ -841,9 +858,28 @@ export function GuestView({ eventId }: GuestViewProps) {
             </div>
           </div>
         )}
-
-
       </main>
+
+      {/* Footer / Privacy Banner */}
+      <footer className="w-full mt-auto py-10 border-t border-sage-muted/10">
+        <div className="w-full px-4 max-w-xl mx-auto flex flex-col items-center text-center gap-3">
+          <div className="bg-surface-container-high/60 backdrop-blur-sm px-4 py-2 rounded-lg border border-sage-muted/10 flex items-center gap-2.5">
+            <Lock className="w-4 h-4 text-copper-accent shrink-0" />
+            <span className="font-label-sm text-xs uppercase tracking-widest font-bold text-on-surface">
+              {language === 'he' ? 'פרטיות מובטחת' : 'Privacy First'}
+            </span>
+          </div>
+          <p className="text-sage-muted font-body-md text-xs sm:text-sm max-w-md leading-relaxed m-0">
+            {language === 'he' 
+              ? 'תמונת הסלפי שלך מעובדת מקומית במכשירך בלבד כדי ליצור זיהוי ביומטרי מאובטח ואינה נשמרת בשרתים כלל.' 
+              : 'Your photo is processed locally on your device to create a secure biometric match and is never saved on our servers.'}
+          </p>
+          <div className="w-32 h-px bg-gradient-to-r from-transparent via-sage-muted/30 to-transparent my-1" />
+          <p className="text-on-surface-variant font-label-sm text-[10px] uppercase tracking-widest m-0">
+            © {new Date().getFullYear()} EventTag.
+          </p>
+        </div>
+      </footer>
     </div>
   );
 }

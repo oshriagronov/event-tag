@@ -259,41 +259,51 @@ export function SelfieCapture({ onCapture }: SelfieCaptureProps) {
   };
 
   return (
-    <div className="w-full max-w-md mx-auto text-start" dir={isRtl ? 'rtl' : 'ltr'}>
+    <div className="w-full max-w-2xl mx-auto text-start" dir={isRtl ? 'rtl' : 'ltr'}>
       {/* Mode Selection */}
       {mode === 'select' && (
-        <div className="flex flex-col gap-4">
-          <button
-            type="button"
-            onClick={handleTakeSelfie}
-            className="group relative flex items-center gap-4 p-5 rounded bg-surface-container border border-surface-border hover:border-copper-accent/35 transition-all duration-300 cursor-pointer shadow-sm hover:shadow-2xl active:scale-[0.99]"
-          >
-            <div className="w-11 h-11 rounded bg-primary/10 border border-primary/20 flex items-center justify-center text-primary shrink-0 group-hover:scale-105 transition-transform duration-300">
-              <Camera className="w-5 h-5" />
-            </div>
-            <div className="text-start">
-              <span className="block font-bold text-on-background text-base">{t('selfieCapture.takeSelfieTitle')}</span>
-              <span className="block font-body-md text-xs text-sage-muted mt-1 leading-normal">
-                {t('selfieCapture.takeSelfieDesc')}
-              </span>
-            </div>
-          </button>
+        <div className="flex flex-col gap-6">
+          <div className="w-full flex flex-col gap-6">
+            {/* Card 1: Take Selfie */}
+            <button
+              type="button"
+              onClick={handleTakeSelfie}
+              className="group w-full bg-surface-container border border-sage-muted/20 hover:border-copper-accent/40 rounded-xl p-8 flex flex-col items-center justify-center gap-5 transition-all duration-300 hover:shadow-[0_8px_30px_rgb(26,47,43,0.06)] relative overflow-hidden text-center cursor-pointer active:scale-[0.99]"
+            >
+              <div className="absolute inset-0 bg-gradient-to-b from-transparent to-surface-container-high/20 opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none" />
+              <div className="h-20 w-20 rounded-lg bg-surface-container-highest/60 backdrop-blur-sm border border-sage-muted/10 text-on-surface flex items-center justify-center z-10 group-hover:text-copper-accent transition-colors duration-300">
+                <Camera className="w-10 h-10 shrink-0" />
+              </div>
+              <div className="text-center z-10">
+                <h2 className="font-display-lg text-2xl text-on-surface mb-2 font-medium">
+                  {t('selfieCapture.takeSelfieTitle')}
+                </h2>
+                <p className="font-body-md text-sm text-sage-muted m-0">
+                  {t('selfieCapture.takeSelfieDesc')}
+                </p>
+              </div>
+            </button>
 
-          <button
-            type="button"
-            onClick={() => fileInputRef.current?.click()}
-            className="group relative flex items-center gap-4 p-5 rounded bg-surface-container border border-surface-border hover:border-copper-accent/35 transition-all duration-300 cursor-pointer shadow-sm hover:shadow-2xl active:scale-[0.99]"
-          >
-            <div className="w-11 h-11 rounded bg-surface-container-high border border-surface-border flex items-center justify-center text-sage-muted shrink-0 group-hover:scale-105 transition-transform duration-300">
-              <Upload className="w-5 h-5" />
-            </div>
-            <div className="text-start">
-              <span className="block font-bold text-on-background text-base">{t('selfieCapture.uploadGalleryBtn')}</span>
-              <span className="block font-body-md text-xs text-sage-muted mt-1 leading-normal">
-                {t('selfieCapture.selectDeviceBtn')}
-              </span>
-            </div>
-          </button>
+            {/* Card 2: Upload Gallery */}
+            <button
+              type="button"
+              onClick={() => fileInputRef.current?.click()}
+              className="group w-full bg-surface-container border border-sage-muted/20 hover:border-copper-accent/40 rounded-xl p-8 flex flex-col items-center justify-center gap-5 transition-all duration-300 hover:shadow-[0_8px_30px_rgb(26,47,43,0.06)] relative overflow-hidden text-center cursor-pointer active:scale-[0.99]"
+            >
+              <div className="absolute inset-0 bg-gradient-to-b from-transparent to-surface-container-high/20 opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none" />
+              <div className="h-20 w-20 rounded-lg bg-surface-container-highest/60 backdrop-blur-sm border border-sage-muted/10 text-on-surface flex items-center justify-center z-10 group-hover:text-copper-accent transition-colors duration-300">
+                <Upload className="w-10 h-10 shrink-0" />
+              </div>
+              <div className="text-center z-10">
+                <h2 className="font-display-lg text-2xl text-on-surface mb-2 font-medium">
+                  {t('selfieCapture.uploadGalleryBtn')}
+                </h2>
+                <p className="font-body-md text-sm text-sage-muted m-0">
+                  {t('selfieCapture.selectDeviceBtn')}
+                </p>
+              </div>
+            </button>
+          </div>
 
           <input
             type="file"
@@ -313,16 +323,16 @@ export function SelfieCapture({ onCapture }: SelfieCaptureProps) {
           />
 
           {/* Tips box for best photo results */}
-          <div className="mt-2 p-4 rounded-lg bg-surface-container/70 border border-surface-border/60 text-start font-body-md shadow-sm">
-            <div className="flex items-center gap-2 mb-2 text-copper-accent font-bold text-xs uppercase tracking-wider">
+          <div className="w-full mt-2 p-5 rounded-xl bg-surface-container-high/60 backdrop-blur-sm border border-sage-muted/10 text-start font-body-md shadow-sm">
+            <div className="flex items-center gap-2 mb-3 text-copper-accent font-bold text-xs uppercase tracking-wider">
               <Sparkles className="w-4 h-4 shrink-0" />
               <span>{t('selfieCapture.tipsTitle')}</span>
             </div>
-            <ul className="space-y-1.5 text-xs text-sage-muted list-disc list-inside ps-0.5 m-0 leading-relaxed">
+            <ul className="space-y-2 text-xs text-sage-muted list-disc list-inside ps-0.5 m-0 leading-relaxed">
               <li>{t('selfieCapture.tipLighting')}</li>
               <li>{t('selfieCapture.tipCenter')}</li>
               <li>{t('selfieCapture.tipObstructions')}</li>
-              <li className="font-semibold text-on-background/90">{t('selfieCapture.tipMultipleTries')}</li>
+              <li className="font-semibold text-on-surface/90">{t('selfieCapture.tipMultipleTries')}</li>
             </ul>
           </div>
         </div>
