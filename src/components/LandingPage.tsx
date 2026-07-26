@@ -334,8 +334,8 @@ export function LandingPage() {
 
                 <div className="absolute inset-0 bg-gradient-to-tr from-copper-accent/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-700"></div>
 
-                <div className="w-32 h-32 rounded-3xl bg-surface-container-lowest border border-surface-border/50 dark:border-none dark:bg-gradient-to-br dark:from-primary-container dark:to-secondary-container flex items-center justify-center shadow-xl shadow-black/40 group-hover:scale-105 transition-transform duration-700 ease-out">
-                  <Users className="w-16 h-16 text-copper-accent" />
+                <div className="w-40 h-40 rounded-3xl bg-white/95 dark:bg-white flex items-center justify-center shadow-2xl shadow-black/60 group-hover:scale-105 transition-transform duration-700 ease-out p-3 border border-white/20 overflow-hidden">
+                  <img src="/logo.png" alt="EventTag Logo" className="w-full h-full object-contain rounded-2xl" />
                 </div>
               </div>
             </div>

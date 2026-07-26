@@ -6,7 +6,6 @@
  */
 
 import { useState, useEffect, useCallback } from 'react';
-import { Link } from 'react-router-dom';
 import { useTranslation } from '../services/translations';
 import { useModal } from '../contexts/ModalContext';
 import {
@@ -18,7 +17,6 @@ import {
   Loader2,
   RotateCcw,
   Search,
-  Users,
   AlertCircle,
   PartyPopper,
   Frown,
@@ -31,7 +29,7 @@ import { matchSelfieToEvent, type MatchResult } from '../services/faceMatching';
 import { SelfieCapture } from './SelfieCapture';
 import { ensureModelsLoaded } from '../services/modelLoader';
 import { warmUpONNX } from '../services/onnxModel';
-import { useConsent } from '../contexts/ConsentContext';
+
 
 interface GuestViewProps {
   eventId: string;
@@ -104,7 +102,6 @@ function GuestPhotoImage({
 export function GuestView({ eventId }: GuestViewProps) {
   const { t, isRtl, language } = useTranslation();
   const { alert } = useModal();
-  const { reopen } = useConsent();
   
   const [viewState, setViewState] = useState<ViewState>('loading-event');
   const [event, setEvent] = useState<CloudEvent | null>(null);
@@ -463,16 +460,16 @@ export function GuestView({ eventId }: GuestViewProps) {
 
   const renderHeader = () => (
     <header className="sticky top-0 z-50 bg-background/90 backdrop-blur-md border-b border-surface-border/40">
-      <div className="max-w-lg mx-auto px-6 py-4 flex items-center gap-3">
-        <div className="w-8 h-8 rounded bg-surface-container border border-surface-border flex items-center justify-center shadow shrink-0">
-          <Users className="w-4 h-4 text-copper-accent" />
+      <div className="max-w-lg mx-auto px-6 py-3.5 flex items-center gap-3.5">
+        <div className="w-12 h-12 rounded-xl bg-white p-1 flex items-center justify-center shadow-md shrink-0 border border-surface-border/30 overflow-hidden">
+          <img src="/logo.png" alt="EventTag Logo" className="w-full h-full object-contain rounded-lg" />
         </div>
         <div className="min-w-0 text-start">
-          <h1 className="font-display-lg text-lg text-on-background m-0 leading-tight">
+          <h1 className="font-display-lg text-xl text-on-background m-0 leading-tight">
             EventTag
           </h1>
           {event && (
-            <p className="font-body-md text-[10px] text-sage-muted truncate m-0 uppercase tracking-wider">{event.name}</p>
+            <p className="font-body-md text-xs text-sage-muted truncate m-0 uppercase tracking-wider mt-0.5">{event.name}</p>
           )}
         </div>
       </div>
@@ -845,29 +842,7 @@ export function GuestView({ eventId }: GuestViewProps) {
           </div>
         )}
 
-        {/* Footer */}
-        <div className="mt-16 pt-8 border-t border-surface-border/30 text-sage-muted w-full">
-          <div className="flex flex-col md:flex-row items-center justify-between gap-6 text-xs text-sage-muted">
-            <div className="flex flex-col sm:flex-row items-center gap-3 sm:gap-6 text-center sm:text-start">
-              <span className="font-display-lg text-lg text-on-background tracking-tight">EventTag</span>
-              <p className="m-0 font-body-md text-[11px] md:text-xs">© {new Date().getFullYear()} EventTag — {language === 'he' ? 'כל הזכויות שמורות' : 'All rights reserved'}</p>
-            </div>
-            <div className="flex flex-wrap items-center justify-center gap-4 md:gap-6 font-label-sm uppercase tracking-wider text-[10px] md:text-xs">
-              <Link to="/privacy-policy" className="hover:text-copper-accent transition-colors cursor-pointer no-underline text-sage-muted font-bold">{t('legal.privacyTitle')}</Link>
-              <span className="text-surface-border">•</span>
-              <Link to="/terms" className="hover:text-copper-accent transition-colors cursor-pointer no-underline text-sage-muted font-bold">{t('legal.termsTitle')}</Link>
-              <span className="text-surface-border">•</span>
-              <Link to="/accessibility" className="hover:text-copper-accent transition-colors cursor-pointer no-underline text-sage-muted font-bold">{t('a11y.accessibilityStatement')}</Link>
-              <span className="text-surface-border">•</span>
-              <button
-                onClick={reopen}
-                className="hover:text-copper-accent transition-colors cursor-pointer bg-transparent border-none p-0 outline-none font-bold text-sage-muted font-label-sm uppercase tracking-wider text-[10px] md:text-xs"
-              >
-                {t('consent.managePreferences')}
-              </button>
-            </div>
-          </div>
-        </div>
+
       </main>
     </div>
   );
