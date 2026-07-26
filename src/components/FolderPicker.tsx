@@ -29,7 +29,7 @@ interface BreadcrumbItem {
 
 export function FolderPicker({ provider, accessToken, onSelect, onCancel }: FolderPickerProps) {
   const { t, isRtl, language } = useTranslation();
-  const { connectDropbox, connectGoogle, connectOneDrive, markProviderExpired, refreshGoogleTokenSilently } = useAuth();
+  const { connectDropbox, connectGoogle, connectOneDrive, markProviderExpired } = useAuth();
   const [folders, setFolders] = useState<DriveFolder[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -66,18 +66,6 @@ export function FolderPicker({ provider, accessToken, onSelect, onCancel }: Fold
       const errStr = err instanceof Error ? err.message : String(err);
       
       if (errStr.includes('401') || errStr.includes('403') || errStr.includes('expired_access_token') || errStr.includes('invalid_token') || errStr.includes('unregistered callers') || errStr.includes('PERMISSION_DENIED')) {
-        if (provider === 'google') {
-          const refreshed = await refreshGoogleTokenSilently();
-          if (refreshed) {
-            try {
-              const retryResult = await listFolders(provider, refreshed, parentId);
-              setFolders(retryResult);
-              return;
-            } catch {
-              // Fallthrough below if retry also fails
-            }
-          }
-        }
         markProviderExpired(provider);
         setIsExpired(true);
         setError(language === 'he' 
@@ -93,7 +81,7 @@ export function FolderPicker({ provider, accessToken, onSelect, onCancel }: Fold
     } finally {
       setLoading(false);
     }
-  }, [accessToken, provider, t, language, markProviderExpired, refreshGoogleTokenSilently]);
+  }, [accessToken, provider, t, language, markProviderExpired]);
 
   useEffect(() => {
     loadFolders(currentFolderId);

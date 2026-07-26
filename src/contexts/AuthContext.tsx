@@ -246,12 +246,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
 
       if (!isValid && gConnected) {
-        // Attempt silent token refresh before giving up
-        const refreshedToken = await refreshGoogleTokenSilently();
-        if (!refreshedToken && !gdrive) {
-          setGoogleAccessToken(null);
-          localStorage.removeItem('google_access_token');
-        }
+        setGoogleAccessToken(null);
+        localStorage.removeItem('google_access_token');
+        setExpiredProviders((prev) => Array.from(new Set([...prev, 'google'])));
       }
     }
 
@@ -265,23 +262,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
 
     return expired;
-  }, [user, dropboxAccessToken, googleAccessToken, onedriveAccessToken, isGoogleConnected, refreshGoogleTokenSilently]);
-
-  // Periodic silent token refresh timer for Google Drive to prevent 1-hour expiration during active use
-  useEffect(() => {
-    if (!isGoogleConnected) return;
-
-    const interval = setInterval(() => {
-      if (typeof window !== 'undefined' && window.location.pathname.startsWith('/event/')) return;
-      const expiresAt = localStorage.getItem('google_token_expires_at');
-      const isNearExpiry = expiresAt ? Date.now() > parseInt(expiresAt, 10) - 10 * 60 * 1000 : true;
-      if (isNearExpiry) {
-        refreshGoogleTokenSilently().catch(() => {});
-      }
-    }, 15 * 60 * 1000); // Check every 15 minutes
-
-    return () => clearInterval(interval);
-  }, [isGoogleConnected, refreshGoogleTokenSilently]);
+  }, [user, dropboxAccessToken, googleAccessToken, onedriveAccessToken, isGoogleConnected]);
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (firebaseUser) => {

@@ -80,10 +80,8 @@ export async function listFolders(
     ? `'${parentFolderId}' in parents`
     : `'root' in parents`;
 
-  const apiKey = import.meta.env.VITE_GOOGLE_API_KEY;
-  const keyParam = apiKey ? `&key=${apiKey}` : '';
   const q = `${parentQuery} and mimeType = 'application/vnd.google-apps.folder' and trashed = false`;
-  const url = `${API_BASE}/files?q=${encodeURIComponent(q)}&fields=nextPageToken,files(id,name)&pageSize=100&orderBy=name${keyParam}`;
+  const url = `${API_BASE}/files?q=${encodeURIComponent(q)}&fields=nextPageToken,files(id,name)&pageSize=100&orderBy=name`;
 
   const res = await fetchWithRetry(url, {
     headers: {
@@ -93,7 +91,7 @@ export async function listFolders(
 
   if (!res.ok) {
     const error = await res.text();
-    if (res.status === 401 || res.status === 403 || error.includes('unregistered callers') || error.includes('PERMISSION_DENIED')) {
+    if (res.status === 401 || error.includes('invalid_token') || error.includes('expired_access_token')) {
       throw new Error(`Google Drive API error: 401 - expired_access_token - ${error}`);
     }
     throw new Error(`Google Drive API error: ${res.status} - ${error}`);
@@ -252,13 +250,10 @@ export async function listPhotosInFolder(
   const allFiles: GoogleFile[] = [];
   let pageToken: string | undefined;
 
-  const apiKey = import.meta.env.VITE_GOOGLE_API_KEY;
-  const keyParam = apiKey ? `&key=${apiKey}` : '';
-
   do {
     const parentQuery = `'${folderId}' in parents`;
     const q = `${parentQuery} and (mimeType starts with 'image/') and trashed = false`;
-    let url = `${API_BASE}/files?q=${encodeURIComponent(q)}&fields=nextPageToken,files(id,name,size,modifiedTime)&pageSize=1000&orderBy=name${keyParam}`;
+    let url = `${API_BASE}/files?q=${encodeURIComponent(q)}&fields=nextPageToken,files(id,name,size,modifiedTime)&pageSize=1000&orderBy=name`;
 
     if (pageToken) {
       url += `&pageToken=${encodeURIComponent(pageToken)}`;
@@ -272,7 +267,7 @@ export async function listPhotosInFolder(
 
     if (!res.ok) {
       const error = await res.text();
-      if (res.status === 401 || res.status === 403 || error.includes('unregistered callers') || error.includes('PERMISSION_DENIED')) {
+      if (res.status === 401 || error.includes('invalid_token') || error.includes('expired_access_token')) {
         throw new Error(`Google Drive API error: 401 - expired_access_token - ${error}`);
       }
       throw new Error(`Google Drive API error: ${res.status} - ${error}`);

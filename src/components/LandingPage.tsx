@@ -11,7 +11,6 @@ import {
   Sparkles,
   FolderUp,
   Users,
-  Lock,
   ChevronDown,
   Monitor,
   EyeOff,
@@ -267,77 +266,55 @@ export function LandingPage() {
 
       <main id="main-content" tabIndex={-1} className="flex-grow flex flex-col focus:outline-none">
         {/* Hero Section */}
-        <section className="relative min-h-[90vh] flex items-center justify-center pt-32 pb-20 px-6 overflow-hidden">
+        <section className="relative min-h-[85vh] lg:min-h-[90vh] flex items-center justify-center pt-28 pb-20 px-6 overflow-hidden">
           {/* Decorative Background Elements */}
           <div className="absolute inset-0 pattern-dots opacity-[0.03] z-0 pointer-events-none" />
           <div className="absolute top-0 right-0 w-1/2 h-full bg-gradient-to-l from-surface-container-lowest/15 to-transparent z-0 pointer-events-none" />
           <div className="absolute top-1/4 left-1/4 w-[500px] h-[500px] bg-gradient-to-tr from-primary-container/10 to-transparent rounded-full blur-3xl -translate-y-1/2 -translate-x-1/2 pointer-events-none" />
           <div className="absolute bottom-10 right-10 w-[400px] h-[400px] bg-gradient-to-bl from-copper-accent/5 to-transparent rounded-full blur-3xl pointer-events-none" />
 
-          <div className="max-w-7xl mx-auto w-full relative z-10 flex flex-col lg:flex-row items-center gap-16 lg:gap-24">
-            {/* Text Content */}
-            <div className="flex-1 text-center lg:text-start flex flex-col items-center lg:items-start">
-              {/* AI Badge */}
-              <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-surface-container border border-surface-border/50 text-copper-accent text-xs font-semibold uppercase tracking-wider mb-6">
-                <Sparkles className="w-3.5 h-3.5" />
-                <span>{t('landing.aiPowered')}</span>
-              </div>
-
-              <h1 className="font-display-lg text-4xl sm:text-5xl lg:text-7xl text-on-background leading-tight mb-6 tracking-tight max-w-2xl m-0">
-                {t('landing.heroTitle')}
-                <br />
-                <span className="italic text-copper-accent mt-2 block font-normal">
-                  {t('landing.heroSubTitle')}
-                </span>
-              </h1>
-
-              <p className="font-body-lg text-lg text-sage-muted mb-10 max-w-xl leading-relaxed m-0">
-                {t('landing.heroDesc')}
-              </p>
-
-              <div className="flex flex-col sm:flex-row items-center justify-center lg:justify-start gap-4 w-full sm:w-auto">
-                <GoogleSignInButton
-                  onClick={signIn}
-                  shape="Square"
-                  height={48}
-                />
-
-                <a
-                  href="https://github.com/oshriagronov/event-tag"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="w-full sm:w-auto px-8 py-4 rounded-lg font-label-sm text-xs uppercase tracking-widest text-on-background border border-surface-border hover:bg-surface-container transition-all text-center no-underline cursor-pointer flex items-center justify-center gap-2.5 shadow-sm hover:border-copper-accent/40"
-                >
-                  <svg className="w-4 h-4 text-copper-accent shrink-0 fill-current" viewBox="0 0 24 24" aria-hidden="true">
-                    <path fillRule="evenodd" clipRule="evenodd" d="M12 2C6.477 2 2 6.484 2 12.017c0 4.425 2.865 8.18 6.839 9.504.5.092.682-.217.682-.483 0-.237-.008-.868-.013-1.703-2.782.605-3.369-1.343-3.369-1.343-.454-1.158-1.11-1.466-1.11-1.466-.908-.62.069-.608.069-.608 1.003.07 1.53 1.032 1.53 1.032.892 1.53 2.341 1.088 2.91.832.092-.647.35-1.088.636-1.338-2.22-.253-4.555-1.113-4.555-4.951 0-1.093.39-1.988 1.029-2.688-.103-.253-.446-1.272.098-2.65 0 0 .84-.27 2.75 1.026A9.564 9.564 0 0112 6.844c.85.004 1.705.115 2.504.337 1.909-1.296 2.747-1.027 2.747-1.027.546 1.379.202 2.398.1 2.651.64.7 1.028 1.595 1.028 2.688 0 3.848-2.339 4.695-4.566 4.943.359.309.678.92.678 1.855 0 1.338-.012 2.419-.012 2.747 0 .268.18.58.688.482A10.019 10.019 0 0022 12.017C22 6.484 17.522 2 12 2z" />
-                  </svg>
-                  <span>{t('landing.openSourceBtn')}</span>
-                </a>
-              </div>
-
-              {/* Privacy Trust Badge */}
-              <div className="mt-12 flex items-center justify-center lg:justify-start gap-3 text-sage-muted bg-surface-container/30 px-4 py-2.5 rounded-xl border border-surface-border/20">
-                <Lock className="w-4 h-4 text-copper-accent" />
-                <span className="font-label-sm text-[10px] uppercase tracking-wider">
-                  {t('landing.privacyBullet1')} • {t('landing.privacyBullet2')}
-                </span>
-              </div>
+          {/* Centered Main Content */}
+          <div className="max-w-4xl mx-auto w-full relative z-20 flex flex-col items-center text-center">
+            {/* AI Badge */}
+            <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-surface-container/80 backdrop-blur-md border border-surface-border/60 text-copper-accent text-xs font-semibold uppercase tracking-wider mb-8 shadow-sm">
+              <Sparkles className="w-3.5 h-3.5" />
+              <span>{t('landing.aiPowered')}</span>
             </div>
 
-            {/* Visual Asset / Framed Art */}
-            <div className="flex-grow-0 flex-shrink-0 flex justify-center w-full max-w-md lg:max-w-none lg:w-[480px]">
-              <div className="relative w-full aspect-square rounded-2xl bg-surface-container-low border border-surface-border/30 flex items-center justify-center p-12 overflow-hidden shadow-2xl group">
-                <div className="absolute top-4 left-4 w-4 h-4 border-t border-l border-sage-muted/20"></div>
-                <div className="absolute top-4 right-4 w-4 h-4 border-t border-r border-sage-muted/20"></div>
-                <div className="absolute bottom-4 left-4 w-4 h-4 border-b border-l border-sage-muted/20"></div>
-                <div className="absolute bottom-4 right-4 w-4 h-4 border-b border-r border-sage-muted/20"></div>
+            {/* Centered Title */}
+            <h1 className="font-display-lg text-4xl sm:text-6xl lg:text-7xl text-on-background leading-[1.15] mb-6 tracking-tight max-w-3xl m-0">
+              {t('landing.heroTitle')}
+              <span className="block italic text-copper-accent font-normal mt-2">
+                {t('landing.heroSubTitle')}
+              </span>
+            </h1>
 
-                <div className="absolute inset-0 bg-gradient-to-tr from-copper-accent/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-700"></div>
+            {/* Centered Subtitle */}
+            <p className="font-body-lg text-base sm:text-xl text-sage-muted mb-10 max-w-2xl leading-relaxed m-0">
+              {t('landing.heroDesc')}
+            </p>
 
-                <div className="w-40 h-40 rounded-3xl bg-white/95 dark:bg-white flex items-center justify-center shadow-2xl shadow-black/60 group-hover:scale-105 transition-transform duration-700 ease-out p-3 border border-white/20 overflow-hidden">
-                  <img src="/logo.png" alt="EventTag Logo" className="w-full h-full object-contain rounded-2xl" />
-                </div>
-              </div>
+            {/* Centered Buttons & Links */}
+            <div className="flex flex-col items-center justify-center gap-4 w-full sm:w-auto">
+              <GoogleSignInButton
+                onClick={signIn}
+                shape="Square"
+                height={50}
+                className="shadow-2xl hover:scale-105 transition-transform"
+              />
+
+              <a
+                href="https://github.com/oshriagronov/event-tag"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-2 font-label-sm text-xs uppercase tracking-widest text-sage-muted hover:text-on-background transition-colors no-underline cursor-pointer group mt-2 py-1 px-3"
+              >
+                <svg className="w-4 h-4 text-copper-accent shrink-0 fill-current" viewBox="0 0 24 24" aria-hidden="true">
+                  <path fillRule="evenodd" clipRule="evenodd" d="M12 2C6.477 2 2 6.484 2 12.017c0 4.425 2.865 8.18 6.839 9.504.5.092.682-.217.682-.483 0-.237-.008-.868-.013-1.703-2.782.605-3.369-1.343-3.369-1.343-.454-1.158-1.11-1.466-1.11-1.466-.908-.62.069-.608.069-.608 1.003.07 1.53 1.032 1.53 1.032.892 1.53 2.341 1.088 2.91.832.092-.647.35-1.088.636-1.338-2.22-.253-4.555-1.113-4.555-4.951 0-1.093.39-1.988 1.029-2.688-.103-.253-.446-1.272.098-2.65 0 0 .84-.27 2.75 1.026A9.564 9.564 0 0112 6.844c.85.004 1.705.115 2.504.337 1.909-1.296 2.747-1.027 2.747-1.027.546 1.379.202 2.398.1 2.651.64.7 1.028 1.595 1.028 2.688 0 3.848-2.339 4.695-4.566 4.943.359.309.678.92.678 1.855 0 1.338-.012 2.419-.012 2.747 0 .268.18.58.688.482A10.019 10.019 0 0022 12.017C22 6.484 17.522 2 12 2z" />
+                </svg>
+                <span>{t('landing.openSourceBtn')}</span>
+                <span aria-hidden="true" className="group-hover:translate-x-0.5 rtl:group-hover:-translate-x-0.5 transition-transform">›</span>
+              </a>
             </div>
           </div>
         </section>

@@ -1,7 +1,7 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { useScanner } from '../contexts/ScannerContext';
 import { 
-  ArrowRight, ArrowLeft, FolderOpen, Loader2, Check, AlertCircle,
+  ArrowRight, ArrowLeft, Loader2, Check, AlertCircle,
   Pause, Play, Copy, QrCode, Share2, ExternalLink, RefreshCw, X
 } from 'lucide-react';
 import { ShareModal } from './ShareModal';
@@ -212,7 +212,7 @@ export function EventView({ eventId, onBack }: EventViewProps) {
     }
   }, [isScanning, event?.status, loadEventDetails]);
 
-  const checkParallelScanWarning = async () => {
+  const checkParallelScanWarning = useCallback(async () => {
     if (isScanning) {
       const confirmed = await confirm({
         title: t('dashboard.parallelScanWarningTitle'),
@@ -224,9 +224,9 @@ export function EventView({ eventId, onBack }: EventViewProps) {
       return confirmed;
     }
     return true;
-  };
+  }, [isScanning, confirm, t]);
 
-  const handleStartScan = async () => {
+  const handleStartScan = useCallback(async () => {
     if (!event) return;
     const provider = event.provider || 'dropbox';
     const token = currentProviderToken;
@@ -284,7 +284,24 @@ export function EventView({ eventId, onBack }: EventViewProps) {
       await updateCloudEvent(eventId, { status: 'pending' });
       setEvent(prev => prev ? { ...prev, status: 'pending' } : null);
     }
-  };
+  }, [event, currentProviderToken, checkParallelScanWarning, eventId, language, alert, startCloudScanning]);
+
+  const hasAutoStartedRef = useRef(false);
+
+  // Auto-start scanning immediately when creating or navigating to a pending event
+  useEffect(() => {
+    if (
+      event &&
+      event.status === 'pending' &&
+      !isThisEventScanning &&
+      currentProviderToken &&
+      !isCurrentProviderExpired &&
+      !hasAutoStartedRef.current
+    ) {
+      hasAutoStartedRef.current = true;
+      handleStartScan();
+    }
+  }, [event, isThisEventScanning, currentProviderToken, isCurrentProviderExpired, handleStartScan]);
 
   const handleRescanAll = async () => {
     if (!event) return;
@@ -421,24 +438,8 @@ export function EventView({ eventId, onBack }: EventViewProps) {
 
       {/* Pending Scan View */}
       {event.status === 'pending' && !isThisEventScanning && (
-        <div className="border border-dashed border-surface-border rounded-xl p-16 text-center flex flex-col items-center justify-center gap-6 bg-surface-container/20 py-24">
-          <div className="w-14 h-14 rounded-xl bg-surface-container border border-surface-border flex items-center justify-center text-copper-accent shadow">
-            <FolderOpen className="w-6 h-6" />
-          </div>
-          <div className="max-w-md">
-            <h3 className="font-title-md text-lg font-bold text-on-background m-0">{language === 'he' ? 'האירוע מוכן לסריקה' : 'Event Ready to Scan'}</h3>
-            <p className="font-body-md text-sage-muted text-sm mt-2 leading-relaxed m-0">
-              {t('eventView.localProcessingNotice')}
-            </p>
-          </div>
-          <button
-            onClick={handleStartScan}
-            disabled={!currentProviderToken}
-            className="px-8 py-3.5 rounded bg-deep-forest hover:bg-primary text-background font-bold text-sm shadow transition-all cursor-pointer disabled:opacity-50 border-none"
-          >
-            {t('eventView.startAIScan')}
-          </button>
-          {(!currentProviderToken || isCurrentProviderExpired) && (
+        <div className="bg-surface-container border border-surface-border rounded-xl p-8 flex flex-col items-center justify-center gap-4 shadow-xl max-w-xl mx-auto w-full my-6 text-center">
+          {(!currentProviderToken || isCurrentProviderExpired) ? (
             <div className="flex flex-col items-center gap-3">
               <p className="text-red-400 text-xs m-0 font-bold">
                 {language === 'he'
@@ -451,6 +452,13 @@ export function EventView({ eventId, onBack }: EventViewProps) {
               >
                 {language === 'he' ? `התחבר לחשבון ${currentProvider === 'dropbox' ? 'Dropbox' : currentProvider === 'google' ? 'Google Drive' : 'OneDrive'}` : `Connect ${currentProvider === 'dropbox' ? 'Dropbox' : currentProvider === 'google' ? 'Google Drive' : 'OneDrive'}`}
               </button>
+            </div>
+          ) : (
+            <div className="flex items-center gap-3 py-4">
+              <Loader2 className="w-5 h-5 text-copper-accent animate-spin" />
+              <span className="font-bold text-on-background text-base">
+                {language === 'he' ? 'מכין תמונות ומתחיל סריקת AI...' : 'Preparing photos and starting AI scan...'}
+              </span>
             </div>
           )}
         </div>

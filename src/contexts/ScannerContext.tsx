@@ -178,7 +178,7 @@ export function ScannerProvider({ children }: { children: ReactNode }) {
   const pausedEventsRef = useRef<Map<string, boolean>>(new Map());
   const cancelledEventsRef = useRef<Map<string, boolean>>(new Map());
 
-  const { googleAccessToken, onedriveAccessToken, dropboxAccessToken, markProviderExpired, refreshGoogleTokenSilently } = useAuth();
+  const { googleAccessToken, onedriveAccessToken, dropboxAccessToken, markProviderExpired } = useAuth();
   const { alert } = useModal();
 
   useEffect(() => {
@@ -400,15 +400,6 @@ export function ScannerProvider({ children }: { children: ReactNode }) {
             const errStr = sharedLinkErr instanceof Error ? sharedLinkErr.message : String(sharedLinkErr);
             
             if (errStr.includes('401') || errStr.includes('403') || errStr.includes('PERMISSION_DENIED') || errStr.includes('unregistered callers')) {
-              if (provider === 'google') {
-                const refreshed = await refreshGoogleTokenSilently();
-                if (refreshed) {
-                  accessToken = refreshed;
-                  preloadCache.clear();
-                  idx--;
-                  continue;
-                }
-              }
               markProviderExpired(provider);
               pausedEventsRef.current.set(eventId, true);
               updateEventState({ scanError: 'auth_expired', isPaused: true });
@@ -498,15 +489,6 @@ export function ScannerProvider({ children }: { children: ReactNode }) {
           photoRetryMap.set(photoId, currentRetries);
 
           if (errStr.includes('401') || errStr.includes('403') || errStr.includes('PERMISSION_DENIED') || errStr.includes('unregistered callers')) {
-            if (provider === 'google') {
-              const refreshed = await refreshGoogleTokenSilently();
-              if (refreshed) {
-                accessToken = refreshed;
-                preloadCache.clear();
-                idx--;
-                continue;
-              }
-            }
             markProviderExpired(provider);
             pausedEventsRef.current.set(eventId, true);
             updateEventState({ scanError: 'auth_expired', isPaused: true });
@@ -665,7 +647,7 @@ export function ScannerProvider({ children }: { children: ReactNode }) {
     let totalFacesFound = 0;
     let nextFileIndex = 0;
     let activeTime = 0;
-    let currentToken = accessToken;
+    const currentToken = accessToken;
 
     const updateEventState = (updates: Partial<EventScanState>) => {
       setScanStates((prev) => {
@@ -756,13 +738,6 @@ export function ScannerProvider({ children }: { children: ReactNode }) {
             markProviderExpired('google');
             updateEventState({ scanError: 'auth_expired', isPaused: true });
             pausedEventsRef.current.set(eventId, true);
-            const refreshedToken = await refreshGoogleTokenSilently();
-            if (refreshedToken) {
-              currentToken = refreshedToken;
-              nextFileIndex--;
-              updateEventState({ scanError: null, isPaused: false });
-              pausedEventsRef.current.set(eventId, false);
-            }
           }
         }
       }
