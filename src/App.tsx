@@ -61,6 +61,7 @@ function GuestViewWrapper() {
 import { SkipLink } from './components/SkipLink';
 import { AccessibilityWidget } from './components/AccessibilityWidget';
 import { VercelTrackers } from './components/VercelTrackers';
+import { FirebaseAnalytics } from './components/FirebaseAnalytics';
 import { useLocation } from 'react-router-dom';
 
 function ScrollToTop() {
@@ -82,6 +83,8 @@ function AppRoutes() {
       <PreferencesModal />
       <AccessibilityWidget />
       <VercelTrackers />
+      <FirebaseAnalytics />
+
       <Routes>
         {/* Public routes */}
         <Route path="/" element={<LandingPage />} />

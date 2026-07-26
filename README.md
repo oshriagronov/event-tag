@@ -62,7 +62,9 @@ src/
 │   ├── Dashboard.tsx           # Multi-event management & cloud provider connection
 │   ├── DropboxIcon.tsx         # Official Dropbox brand logo icon component
 │   ├── EventView.tsx           # Event workspace, gallery, scanning progress & face clusters
+│   ├── FirebaseAnalytics.tsx   # Consent-gated Firebase Analytics telemetry component
 │   ├── FolderPicker.tsx        # Cloud folder selector modal
+
 │   ├── Footer.tsx              # Footer with legal links & compliance info
 │   ├── GoogleIcon.tsx          # Reusable official Google branding asset component
 │   ├── GuestView.tsx           # Guest selfie search, face matching & photo gallery
