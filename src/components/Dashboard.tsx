@@ -87,6 +87,11 @@ export function Dashboard() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [showMobileSearch, setShowMobileSearch] = useState(false);
   const mobileSearchInputRef = useRef<HTMLInputElement>(null);
+  const [imgError, setImgError] = useState(false);
+
+  useEffect(() => {
+    setImgError(false);
+  }, [user?.photoURL]);
 
   useEffect(() => {
     const handleClickOutside = () => setOpenMenuEventId(null);
@@ -833,8 +838,14 @@ export function Dashboard() {
 
                     {/* Avatar Badge */}
                     <div className="w-10 h-10 rounded-full border border-sage-muted/30 overflow-hidden shadow-sm flex items-center justify-center shrink-0 bg-surface-container-high">
-                      {user.photoURL ? (
-                        <img src={user.photoURL} alt="" className="w-full h-full object-cover" />
+                      {user.photoURL && !imgError ? (
+                        <img 
+                          src={user.photoURL} 
+                          alt={user.displayName || 'User profile'} 
+                          referrerPolicy="no-referrer"
+                          onError={() => setImgError(true)}
+                          className="w-full h-full object-cover" 
+                        />
                       ) : (
                         <span className="font-bold text-sm text-copper-accent">{(user.displayName || 'U')[0].toUpperCase()}</span>
                       )}
