@@ -108,6 +108,15 @@ export function Footer() {
               </li>
               <li>
                 <button
+                  onClick={() => window.dispatchEvent(new CustomEvent('toggle-a11y-menu'))}
+                  className="hover:text-copper-accent transition-colors cursor-pointer bg-transparent border-none p-0 outline-none text-xs md:text-sm text-sage-muted font-body-md text-start block"
+                  aria-label={t('a11y.widgetTriggerLabel')}
+                >
+                  {t('a11y.widgetTitle')}
+                </button>
+              </li>
+              <li>
+                <button
                   onClick={reopen}
                   className="hover:text-copper-accent transition-colors cursor-pointer bg-transparent border-none p-0 outline-none text-xs md:text-sm text-sage-muted font-body-md text-start block"
                 >

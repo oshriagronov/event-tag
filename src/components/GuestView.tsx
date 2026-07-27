@@ -6,6 +6,7 @@
  */
 
 import { useState, useEffect, useCallback } from 'react';
+import { Link } from 'react-router-dom';
 import { useTranslation } from '../services/translations';
 import { useModal } from '../contexts/ModalContext';
 import {
@@ -550,6 +551,19 @@ export function GuestView({ eventId }: GuestViewProps) {
                 : 'Your photo is processed locally on your device to create a secure biometric match and is never saved on our servers.'}
             </p>
             <div className="w-32 h-px bg-gradient-to-r from-transparent via-sage-muted/30 to-transparent my-1" />
+            <div className="flex items-center justify-center gap-3 text-xs text-sage-muted font-body-md flex-wrap">
+              <Link to="/accessibility" className="hover:text-copper-accent transition-colors no-underline">
+                {t('legal.accessibilityTitle')}
+              </Link>
+              <span>•</span>
+              <button
+                onClick={() => window.dispatchEvent(new CustomEvent('toggle-a11y-menu'))}
+                className="hover:text-copper-accent transition-colors cursor-pointer bg-transparent border-none p-0 text-xs text-sage-muted font-body-md inline-block"
+                aria-label={t('a11y.widgetTriggerLabel')}
+              >
+                {t('a11y.widgetTitle')}
+              </button>
+            </div>
             <p className="text-on-surface-variant font-label-sm text-[10px] uppercase tracking-widest m-0">
               © {new Date().getFullYear()} EventTag.
             </p>
@@ -875,6 +889,19 @@ export function GuestView({ eventId }: GuestViewProps) {
               : 'Your photo is processed locally on your device to create a secure biometric match and is never saved on our servers.'}
           </p>
           <div className="w-32 h-px bg-gradient-to-r from-transparent via-sage-muted/30 to-transparent my-1" />
+          <div className="flex items-center justify-center gap-3 text-xs text-sage-muted font-body-md flex-wrap">
+            <Link to="/accessibility" className="hover:text-copper-accent transition-colors no-underline">
+              {t('legal.accessibilityTitle')}
+            </Link>
+            <span>•</span>
+            <button
+              onClick={() => window.dispatchEvent(new CustomEvent('toggle-a11y-menu'))}
+              className="hover:text-copper-accent transition-colors cursor-pointer bg-transparent border-none p-0 text-xs text-sage-muted font-body-md inline-block"
+              aria-label={t('a11y.widgetTriggerLabel')}
+            >
+              {t('a11y.widgetTitle')}
+            </button>
+          </div>
           <p className="text-on-surface-variant font-label-sm text-[10px] uppercase tracking-widest m-0">
             © {new Date().getFullYear()} EventTag.
           </p>

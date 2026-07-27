@@ -12,7 +12,6 @@ import {
   MousePointer,
   Baseline,
   FileText,
-  Accessibility
 } from 'lucide-react';
 
 export interface A11yPrefs {
@@ -128,7 +127,7 @@ export function AccessibilityWidget() {
     applyPrefsToElement(prefs);
   }, [prefs]);
 
-  // Alt+A keyboard shortcut handler (layout-independent via e.code)
+  // Alt+A keyboard shortcut handler & custom toggle event
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.altKey && !e.ctrlKey && !e.metaKey && !e.shiftKey && e.code === 'KeyA') {
@@ -136,8 +135,14 @@ export function AccessibilityWidget() {
         setIsOpen((prev) => !prev);
       }
     };
+    const handleToggle = () => setIsOpen((prev) => !prev);
+
     window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
+    window.addEventListener('toggle-a11y-menu', handleToggle);
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown);
+      window.removeEventListener('toggle-a11y-menu', handleToggle);
+    };
   }, []);
 
   // Reset handler
@@ -151,19 +156,6 @@ export function AccessibilityWidget() {
       <div role="status" aria-live="polite" className="sr-only">
         {announcement}
       </div>
-
-      {/* Floating Trigger Button */}
-      <button
-        id="a11y-widget-trigger"
-        onClick={() => setIsOpen((prev) => !prev)}
-        aria-expanded={isOpen}
-        aria-controls="a11y-widget-panel"
-        aria-label={t('a11y.widgetTriggerLabel')}
-        title={t('a11y.widgetTriggerLabel')}
-        className="fixed bottom-6 end-6 z-50 p-3 bg-deep-forest text-surface-container-lowest dark:bg-copper-accent dark:text-black rounded-full shadow-2xl hover:scale-105 active:scale-95 transition-all duration-200 focus-visible:ring-4 focus-visible:ring-copper-accent focus-visible:outline-none flex items-center justify-center cursor-pointer border border-surface-border/40"
-      >
-        <Accessibility className="w-5 h-5 shrink-0" />
-      </button>
 
       {/* Popover Widget Panel */}
       {isOpen && (
