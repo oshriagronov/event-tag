@@ -321,8 +321,8 @@ export function LandingPage() {
               </a>
             </div>
 
-            {/* Dashboard Screenshot Preview Showcase */}
-            <div className="mt-14 sm:mt-16 w-full max-w-5xl mx-auto relative group">
+            {/* Dashboard Screenshot Preview Showcase (Hidden on mobile) */}
+            <div className="hidden sm:block mt-14 sm:mt-16 w-full max-w-5xl mx-auto relative group">
               {/* Outer Glow / Ambient Backdrop */}
               <div className="absolute -inset-1 bg-gradient-to-r from-copper-accent/20 via-primary-container/20 to-copper-accent/20 rounded-2xl blur-xl opacity-60 group-hover:opacity-100 transition-opacity duration-500 pointer-events-none" />
 
