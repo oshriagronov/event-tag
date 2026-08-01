@@ -74,6 +74,7 @@ Agents working on this repository **MUST** consult and apply the relevant skills
 - **Clustering precision:** Incremental face clustering uses L2-normalized Euclidean distance matching with calibrated thresholds (`matchThreshold = 0.90` and `avgThreshold = 0.95`). Guest selfie matches in `GuestView.tsx` use a strict threshold of `0.85` to prevent false positives.
 
 ### 4. UI/UX & Localization
+- **Google Stitch MCP as Design Source of Truth:** Use Google Stitch MCP (`StitchMCP`) for every design choice needed. The project in Google Stitch named `event-tag` is the single source of truth for all designs and UI decisions. Do NOT rely on local design files as they will be removed; always fetch screens, variants, design systems, and visual specs from the `event-tag` Google Stitch project.
 - Interface is dark-themed, sleek, and modern.
 - **Hebrew & RTL Constraint:** The interface is localized in Hebrew (`dir="rtl"`). All labels, buttons, headers, inputs, alerts, and instructions should be in Hebrew with proper bidi isolation.
 - **Official Google Branding & Assets:** All Google sign-in buttons, Google Drive provider indicators, and Google logos across the application **MUST** use the official branding assets located in `/public/google-login/` (via `<GoogleIcon />` component or direct references to `/public/google-login/`), and never use generic or custom inline SVGs.

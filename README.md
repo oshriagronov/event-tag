@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="public/logo.svg" alt="EventTag Logo" width="280" style="border-radius: 20px; padding: 12px; background: white"/>
+  <img src="public/logo-with-bg.svg" alt="EventTag Logo" width="280" />
 </p>
 
 <p align="center">

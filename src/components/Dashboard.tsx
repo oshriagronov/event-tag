@@ -716,7 +716,7 @@ export function Dashboard() {
         />
         {/* Drawer Panel */}
         <div 
-          className={`absolute top-0 bottom-0 w-64 bg-[#171a19] h-full shadow-2xl flex flex-col z-10 transition-transform duration-300 ease-out ${
+          className={`absolute top-0 bottom-0 w-64 bg-surface-container-low h-full shadow-2xl flex flex-col z-10 transition-transform duration-300 ease-out ${
             isRtl 
               ? `right-0 border-l border-surface-border/60 ${mobileMenuOpen ? 'translate-x-0' : 'translate-x-full'}` 
               : `left-0 border-r border-surface-border/60 ${mobileMenuOpen ? 'translate-x-0' : '-translate-x-full'}`
