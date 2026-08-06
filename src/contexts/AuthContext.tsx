@@ -8,6 +8,15 @@ import {
 import { auth, googleProvider } from '../firebase';
 
 import { checkTokenValidity, type CloudProvider } from '../services/cloudProviders';
+import {
+  ensureUserProfile,
+  subscribeUserProfile,
+  subscribeSystemSettings,
+  subscribeAllowlist,
+  type UserProfile,
+  type SystemSettings,
+  type AllowlistEntry,
+} from '../services/adminService';
 
 declare global {
   interface Window {
@@ -35,6 +44,12 @@ declare global {
 interface AuthContextType {
   user: User | null;
   loading: boolean;
+  userProfile: UserProfile | null;
+  isAdmin: boolean;
+  isBlocked: boolean;
+  systemSettings: SystemSettings;
+  allowlist: AllowlistEntry[];
+  isAllowlisted: boolean;
   dropboxAccessToken: string | null;
   googleAccessToken: string | null;
   onedriveAccessToken: string | null;
@@ -80,8 +95,6 @@ function getInitialToken(provider: CloudProvider): string | null {
 
     if (error && p === provider) {
       console.error(`OAuth redirect error for ${provider}:`, error, errorDesc);
-      localStorage.removeItem(`${provider}_connected`);
-      localStorage.removeItem(`${provider}_access_token`);
       const detail = errorDesc ? `${error}: ${decodeURIComponent(errorDesc)}` : error;
       setTimeout(() => {
         window.alert(`שגיאת התחברות ל-${provider}:\n\n${detail}\n\nאנא וודא כי ההגדרות ב-Developer Console תקינות.`);
@@ -104,17 +117,42 @@ function getInitialToken(provider: CloudProvider): string | null {
     if (!p) p = 'dropbox';
 
     if (token && p === provider) {
-      localStorage.setItem(`${provider}_access_token`, token);
-      localStorage.setItem(`${provider}_connected`, 'true');
-      if (expiresIn) {
-        const expiresAt = Date.now() + parseInt(expiresIn, 10) * 1000;
-        localStorage.setItem(`${provider}_token_expires_at`, expiresAt.toString());
+      const uid = auth.currentUser?.uid;
+      if (uid) {
+        localStorage.setItem(`${uid}_${provider}_access_token`, token);
+        localStorage.setItem(`${uid}_${provider}_connected`, 'true');
+        if (expiresIn) {
+          const expiresAt = Date.now() + parseInt(expiresIn, 10) * 1000;
+          localStorage.setItem(`${uid}_${provider}_token_expires_at`, expiresAt.toString());
+        }
+      } else {
+        localStorage.setItem(`pending_${provider}_access_token`, token);
+        if (expiresIn) {
+          const expiresAt = Date.now() + parseInt(expiresIn, 10) * 1000;
+          localStorage.setItem(`pending_${provider}_token_expires_at`, expiresAt.toString());
+        }
       }
       window.history.replaceState(null, '', window.location.pathname);
       return token;
     }
   }
-  return localStorage.getItem(`${provider}_access_token`);
+  return null;
+}
+
+function clearLegacyStorageKeys() {
+  if (typeof window === 'undefined') return;
+  const legacyKeys = [
+    'google_connected',
+    'google_access_token',
+    'google_token_expires_at',
+    'dropbox_connected',
+    'dropbox_access_token',
+    'dropbox_token_expires_at',
+    'onedrive_connected',
+    'onedrive_access_token',
+    'onedrive_token_expires_at',
+  ];
+  legacyKeys.forEach((key) => localStorage.removeItem(key));
 }
 
 export function AuthProvider({ children }: { children: ReactNode }) {
@@ -125,29 +163,41 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [onedriveAccessToken, setOneDriveAccessToken] = useState<string | null>(() => getInitialToken('onedrive'));
 
   // Persistent connection flags (stay true until user explicitly disconnects)
-  const [isDropboxConnected, setIsDropboxConnected] = useState<boolean>(
-    () => typeof window !== 'undefined' && (localStorage.getItem('dropbox_connected') === 'true' || Boolean(getInitialToken('dropbox')))
-  );
-  const [isGoogleConnected, setIsGoogleConnected] = useState<boolean>(
-    () => typeof window !== 'undefined' && (localStorage.getItem('google_connected') === 'true' || Boolean(getInitialToken('google')))
-  );
-  const [isOneDriveConnected, setIsOneDriveConnected] = useState<boolean>(
-    () => typeof window !== 'undefined' && (localStorage.getItem('onedrive_connected') === 'true' || Boolean(getInitialToken('onedrive')))
-  );
+  const [isDropboxConnected, setIsDropboxConnected] = useState<boolean>(false);
+  const [isGoogleConnected, setIsGoogleConnected] = useState<boolean>(false);
+  const [isOneDriveConnected, setIsOneDriveConnected] = useState<boolean>(false);
 
+  const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
+  const [systemSettings, setSystemSettings] = useState<SystemSettings>({
+    maintenanceMode: false,
+    allowlistMode: false,
+  });
+  const [allowlist, setAllowlist] = useState<AllowlistEntry[]>([]);
   const [expiredProviders, setExpiredProviders] = useState<CloudProvider[]>([]);
 
+  useEffect(() => {
+    const unsubSettings = subscribeSystemSettings(
+      (settings) => {
+        setSystemSettings(settings);
+      },
+      (err) => {
+        console.warn('System settings listener error:', err);
+      }
+    );
+    return () => unsubSettings();
+  }, []);
+
   const markProviderExpired = (provider: CloudProvider) => {
-    // Note: Do not remove ${provider}_connected so connection persists visually
+    const uid = user?.uid || auth.currentUser?.uid;
     if (provider === 'dropbox') {
       setDropboxAccessToken(null);
-      localStorage.removeItem('dropbox_access_token');
+      if (uid) localStorage.removeItem(`${uid}_dropbox_access_token`);
     } else if (provider === 'google') {
       setGoogleAccessToken(null);
-      localStorage.removeItem('google_access_token');
+      if (uid) localStorage.removeItem(`${uid}_google_access_token`);
     } else if (provider === 'onedrive') {
       setOneDriveAccessToken(null);
-      localStorage.removeItem('onedrive_access_token');
+      if (uid) localStorage.removeItem(`${uid}_onedrive_access_token`);
     }
     setExpiredProviders((prev) => Array.from(new Set([...prev, provider])));
   };
@@ -194,9 +244,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
               const expiresAt = Date.now() + expiresIn * 1000;
               setGoogleAccessToken(token);
               setIsGoogleConnected(true);
-              localStorage.setItem('google_access_token', token);
-              localStorage.setItem('google_token_expires_at', expiresAt.toString());
-              localStorage.setItem('google_connected', 'true');
+              const uid = auth.currentUser?.uid;
+              if (uid) {
+                localStorage.setItem(`${uid}_google_access_token`, token);
+                localStorage.setItem(`${uid}_google_token_expires_at`, expiresAt.toString());
+                localStorage.setItem(`${uid}_google_connected`, 'true');
+              }
               dismissExpiredProviderNotice('google');
               resolve(token);
             } else {
@@ -225,20 +278,39 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       return expired;
     }
 
-    const dbx = localStorage.getItem('dropbox_access_token') || dropboxAccessToken;
-    if (dbx) {
-      const isValid = await checkTokenValidity('dropbox', dbx);
-      if (!isValid) {
-        setDropboxAccessToken(null);
-        localStorage.removeItem('dropbox_access_token');
+    if (!user) return expired;
+    const uid = user.uid;
+
+    // Check Dropbox
+    const dbxConnected = localStorage.getItem(`${uid}_dropbox_connected`) === 'true' || isDropboxConnected;
+    const dbx = localStorage.getItem(`${uid}_dropbox_access_token`) || dropboxAccessToken;
+    if (dbxConnected || dbx) {
+      const expiresAt = localStorage.getItem(`${uid}_dropbox_token_expires_at`);
+      const isExpiredByTime = expiresAt ? Date.now() > parseInt(expiresAt, 10) - 60000 : false;
+
+      let isValid = false;
+      if (dbx && !isExpiredByTime) {
+        isValid = await checkTokenValidity('dropbox', dbx);
       }
+
+      if (!isValid && dbxConnected) {
+        setDropboxAccessToken(null);
+        localStorage.removeItem(`${uid}_dropbox_access_token`);
+        setExpiredProviders((prev) => Array.from(new Set([...prev, 'dropbox'])));
+        expired.push('dropbox');
+      } else if (isValid) {
+        setExpiredProviders((prev) => prev.filter((p) => p !== 'dropbox'));
+      }
+    } else {
+      setExpiredProviders((prev) => prev.filter((p) => p !== 'dropbox'));
     }
 
-    const gdrive = localStorage.getItem('google_access_token') || googleAccessToken;
-    const gConnected = localStorage.getItem('google_connected') === 'true' || isGoogleConnected;
-    if (user && (gdrive || gConnected)) {
-      const expiresAt = localStorage.getItem('google_token_expires_at');
-      const isExpiredByTime = expiresAt ? Date.now() > (parseInt(expiresAt, 10) - 60000) : true;
+    // Check Google
+    const gConnected = localStorage.getItem(`${uid}_google_connected`) === 'true' || isGoogleConnected;
+    const gdrive = localStorage.getItem(`${uid}_google_access_token`) || googleAccessToken;
+    if (gConnected || gdrive) {
+      const expiresAt = localStorage.getItem(`${uid}_google_token_expires_at`);
+      const isExpiredByTime = expiresAt ? Date.now() > parseInt(expiresAt, 10) - 60000 : true;
 
       let isValid = false;
       if (gdrive && !isExpiredByTime) {
@@ -246,35 +318,151 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
 
       if (!isValid && gConnected) {
-        setGoogleAccessToken(null);
-        localStorage.removeItem('google_access_token');
-        setExpiredProviders((prev) => Array.from(new Set([...prev, 'google'])));
+        const refreshed = await refreshGoogleTokenSilently();
+        if (!refreshed) {
+          setGoogleAccessToken(null);
+          localStorage.removeItem(`${uid}_google_access_token`);
+          setExpiredProviders((prev) => Array.from(new Set([...prev, 'google'])));
+          expired.push('google');
+        }
+      } else if (isValid) {
+        setExpiredProviders((prev) => prev.filter((p) => p !== 'google'));
       }
+    } else {
+      setExpiredProviders((prev) => prev.filter((p) => p !== 'google'));
     }
 
-    const onedrive = localStorage.getItem('onedrive_access_token') || onedriveAccessToken;
-    if (onedrive) {
-      const isValid = await checkTokenValidity('onedrive', onedrive);
-      if (!isValid) {
-        setOneDriveAccessToken(null);
-        localStorage.removeItem('onedrive_access_token');
+    // Check OneDrive
+    const odConnected = localStorage.getItem(`${uid}_onedrive_connected`) === 'true' || isOneDriveConnected;
+    const onedrive = localStorage.getItem(`${uid}_onedrive_access_token`) || onedriveAccessToken;
+    if (odConnected || onedrive) {
+      const expiresAt = localStorage.getItem(`${uid}_onedrive_token_expires_at`);
+      const isExpiredByTime = expiresAt ? Date.now() > parseInt(expiresAt, 10) - 60000 : false;
+
+      let isValid = false;
+      if (onedrive && !isExpiredByTime) {
+        isValid = await checkTokenValidity('onedrive', onedrive);
       }
+
+      if (!isValid && odConnected) {
+        setOneDriveAccessToken(null);
+        localStorage.removeItem(`${uid}_onedrive_access_token`);
+        setExpiredProviders((prev) => Array.from(new Set([...prev, 'onedrive'])));
+        expired.push('onedrive');
+      } else if (isValid) {
+        setExpiredProviders((prev) => prev.filter((p) => p !== 'onedrive'));
+      }
+    } else {
+      setExpiredProviders((prev) => prev.filter((p) => p !== 'onedrive'));
     }
 
     return expired;
-  }, [user, dropboxAccessToken, googleAccessToken, onedriveAccessToken, isGoogleConnected]);
+  }, [
+    user,
+    dropboxAccessToken,
+    googleAccessToken,
+    onedriveAccessToken,
+    isDropboxConnected,
+    isGoogleConnected,
+    isOneDriveConnected,
+    refreshGoogleTokenSilently,
+  ]);
 
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, (firebaseUser) => {
+    let unsubProfile: (() => void) | undefined;
+    let unsubAllowlist: (() => void) | undefined;
+
+    const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
       setUser(firebaseUser);
-      setLoading(false);
       if (firebaseUser) {
+        const uid = firebaseUser.uid;
+        clearLegacyStorageKeys();
+
+        // Check and apply any pending token from getInitialToken
+        (['dropbox', 'google', 'onedrive'] as CloudProvider[]).forEach((p) => {
+          const pendingToken = localStorage.getItem(`pending_${p}_access_token`);
+          if (pendingToken) {
+            const pendingExpiresAt = localStorage.getItem(`pending_${p}_token_expires_at`);
+            localStorage.setItem(`${uid}_${p}_access_token`, pendingToken);
+            localStorage.setItem(`${uid}_${p}_connected`, 'true');
+            if (pendingExpiresAt) {
+              localStorage.setItem(`${uid}_${p}_token_expires_at`, pendingExpiresAt);
+            }
+            localStorage.removeItem(`pending_${p}_access_token`);
+            localStorage.removeItem(`pending_${p}_token_expires_at`);
+          }
+        });
+
+        // Load user-scoped connection status & tokens
+        const dbxConn = localStorage.getItem(`${uid}_dropbox_connected`) === 'true';
+        const gConn = localStorage.getItem(`${uid}_google_connected`) === 'true';
+        const odConn = localStorage.getItem(`${uid}_onedrive_connected`) === 'true';
+
+        setIsDropboxConnected(dbxConn);
+        setIsGoogleConnected(gConn);
+        setIsOneDriveConnected(odConn);
+
+        const dbxToken = localStorage.getItem(`${uid}_dropbox_access_token`);
+        const gToken = localStorage.getItem(`${uid}_google_access_token`);
+        const odToken = localStorage.getItem(`${uid}_onedrive_access_token`);
+
+        setDropboxAccessToken(dbxToken);
+        setGoogleAccessToken(gToken);
+        setOneDriveAccessToken(odToken);
+
         checkCloudConnections();
+
+        try {
+          const profile = await ensureUserProfile(firebaseUser);
+          setUserProfile(profile);
+        } catch (err) {
+          console.error('Failed to ensure user profile:', err);
+        }
+
+        unsubProfile = subscribeUserProfile(firebaseUser.uid, (profile) => {
+          setUserProfile(profile);
+        });
+
+        unsubAllowlist = subscribeAllowlist((entries) => {
+          setAllowlist(entries);
+        });
+      } else {
+        setUserProfile(null);
+        setAllowlist([]);
+        setIsDropboxConnected(false);
+        setIsGoogleConnected(false);
+        setIsOneDriveConnected(false);
+        setDropboxAccessToken(null);
+        setGoogleAccessToken(null);
+        setOneDriveAccessToken(null);
+        setExpiredProviders([]);
+        clearLegacyStorageKeys();
+        if (unsubProfile) unsubProfile();
+        if (unsubAllowlist) unsubAllowlist();
       }
+      setLoading(false);
     });
 
-    return () => unsubscribe();
+    return () => {
+      unsubscribe();
+      if (unsubProfile) unsubProfile();
+      if (unsubAllowlist) unsubAllowlist();
+    };
   }, [checkCloudConnections]);
+
+  const isAdmin = Boolean(
+    userProfile?.role === 'admin' ||
+      user?.email === 'admin@eventtag.com' ||
+      (import.meta.env.VITE_ADMIN_EMAIL && user?.email === import.meta.env.VITE_ADMIN_EMAIL)
+  );
+
+  const isBlocked = Boolean(userProfile?.status === 'blocked');
+
+  const isAllowlisted = Boolean(
+    !systemSettings.allowlistMode ||
+      isAdmin ||
+      (user?.email && allowlist.some((e) => e.email.toLowerCase() === user.email?.toLowerCase()))
+  );
 
   const signIn = async () => {
     try {
@@ -288,6 +476,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   const signOut = async () => {
+    setIsDropboxConnected(false);
+    setIsGoogleConnected(false);
+    setIsOneDriveConnected(false);
+    setDropboxAccessToken(null);
+    setGoogleAccessToken(null);
+    setOneDriveAccessToken(null);
+    setExpiredProviders([]);
+    clearLegacyStorageKeys();
     await firebaseSignOut(auth);
   };
 
@@ -304,8 +500,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   const disconnectDropbox = () => {
+    const uid = user?.uid || auth.currentUser?.uid;
     setDropboxAccessToken(null);
     setIsDropboxConnected(false);
+    if (uid) {
+      localStorage.removeItem(`${uid}_dropbox_access_token`);
+      localStorage.removeItem(`${uid}_dropbox_token_expires_at`);
+      localStorage.removeItem(`${uid}_dropbox_connected`);
+    }
     localStorage.removeItem('dropbox_access_token');
     localStorage.removeItem('dropbox_token_expires_at');
     localStorage.removeItem('dropbox_connected');
@@ -337,9 +539,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
               const expiresAt = Date.now() + expiresIn * 1000;
               setGoogleAccessToken(token);
               setIsGoogleConnected(true);
-              localStorage.setItem('google_access_token', token);
-              localStorage.setItem('google_token_expires_at', expiresAt.toString());
-              localStorage.setItem('google_connected', 'true');
+              const uid = auth.currentUser?.uid;
+              if (uid) {
+                localStorage.setItem(`${uid}_google_access_token`, token);
+                localStorage.setItem(`${uid}_google_token_expires_at`, expiresAt.toString());
+                localStorage.setItem(`${uid}_google_connected`, 'true');
+              }
               dismissExpiredProviderNotice('google');
             }
           },
@@ -358,8 +563,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   const disconnectGoogle = () => {
+    const uid = user?.uid || auth.currentUser?.uid;
     setGoogleAccessToken(null);
     setIsGoogleConnected(false);
+    if (uid) {
+      localStorage.removeItem(`${uid}_google_access_token`);
+      localStorage.removeItem(`${uid}_google_token_expires_at`);
+      localStorage.removeItem(`${uid}_google_connected`);
+    }
     localStorage.removeItem('google_access_token');
     localStorage.removeItem('google_token_expires_at');
     localStorage.removeItem('google_connected');
@@ -384,8 +595,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   const disconnectOneDrive = () => {
+    const uid = user?.uid || auth.currentUser?.uid;
     setOneDriveAccessToken(null);
     setIsOneDriveConnected(false);
+    if (uid) {
+      localStorage.removeItem(`${uid}_onedrive_access_token`);
+      localStorage.removeItem(`${uid}_onedrive_token_expires_at`);
+      localStorage.removeItem(`${uid}_onedrive_connected`);
+    }
     localStorage.removeItem('onedrive_access_token');
     localStorage.removeItem('onedrive_token_expires_at');
     localStorage.removeItem('onedrive_connected');
@@ -401,6 +618,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       value={{
         user,
         loading,
+        userProfile,
+        isAdmin,
+        isBlocked,
+        systemSettings,
+        allowlist,
+        isAllowlisted,
         dropboxAccessToken,
         googleAccessToken,
         onedriveAccessToken,

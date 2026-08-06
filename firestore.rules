@@ -14,38 +14,92 @@ service cloud.firestore {
       return str is string && str.size() >= min && str.size() <= max;
     }
 
+    function isAdmin() {
+      return isAuthenticated() && (
+        (exists(/databases/$(database)/documents/users/$(request.auth.uid))
+          && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin')
+        || (request.auth.token.email != null && request.auth.token.email == 'admin@eventtag.com')
+      );
+    }
+
+    function isUserActive() {
+      return isAuthenticated() && (
+        !exists(/databases/$(database)/documents/users/$(request.auth.uid))
+        || get(/databases/$(database)/documents/users/$(request.auth.uid)).data.status != 'blocked'
+      );
+    }
+
+    function isNotMaintenanceMode() {
+      return !exists(/databases/$(database)/documents/system/config)
+        || get(/databases/$(database)/documents/system/config).data.maintenanceMode != true;
+    }
+
+    function isUserAllowlisted() {
+      return !exists(/databases/$(database)/documents/system/config)
+        || get(/databases/$(database)/documents/system/config).data.allowlistMode != true
+        || (request.auth.token.email != null
+            && exists(/databases/$(database)/documents/allowlist/$(request.auth.token.email.lower())));
+    }
+
+    // System Config collection (maintenanceMode, allowlistMode)
+    match /system/config {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    // Allowlist collection (approved emails when allowlistMode is true)
+    match /allowlist/{emailDoc} {
+      allow read: if isAuthenticated();
+      allow write: if isAdmin();
+    }
+
+    // Users collection (profiles, roles, status, premium dates)
+    match /users/{userId} {
+      allow get: if isAuthenticated() && (isOwner(userId) || isAdmin());
+      allow list: if isAdmin();
+      allow create: if isOwner(userId)
+        && (!request.resource.data.keys().hasAny(['role']) || request.resource.data.role == 'user')
+        && (!request.resource.data.keys().hasAny(['status']) || request.resource.data.status == 'active');
+      allow update: if isAdmin() || (
+        isOwner(userId)
+        && !request.resource.data.diff(resource.data).affectedKeys().hasAny(['role', 'status', 'premiumUntil', 'email'])
+      );
+      allow delete: if isAdmin();
+    }
+
     // Events collection
     match /events/{eventId} {
       // Guests can fetch specific event metadata for face matching
       allow get: if true;
-      // Prevent global listing, only owners can list their own events
-      allow list: if isOwner(resource.data.ownerId);
+      // Prevent global listing, only owners or admins can list events
+      allow list: if isOwner(resource.data.ownerId) || isAdmin();
 
       // Validate event creation
-      allow create: if isOwner(request.resource.data.ownerId)
+      allow create: if (isOwner(request.resource.data.ownerId) || isAdmin())
+        && (isAdmin() || (isUserActive() && isNotMaintenanceMode() && isUserAllowlisted()))
         && isValidString(request.resource.data.name, 1, 100)
         && isValidString(request.resource.data.driveFolderId, 1, 200)
         && request.resource.data.photoCount is number
         && request.resource.data.faceCount is number;
 
       // Validate event updates
-      allow update: if isOwner(resource.data.ownerId)
-        // Prevent re-assigning ownership
+      allow update: if (isOwner(resource.data.ownerId) || isAdmin())
+        && (isAdmin() || (isUserActive() && isNotMaintenanceMode()))
         && request.resource.data.ownerId == resource.data.ownerId
-        // Validate optional updates if present
         && (!request.resource.data.diff(resource.data).affectedKeys().hasAny(['name']) || isValidString(request.resource.data.name, 1, 100))
         && request.resource.data.photoCount is number
         && request.resource.data.faceCount is number;
 
-      allow delete: if isOwner(resource.data.ownerId);
+      allow delete: if isOwner(resource.data.ownerId) || isAdmin();
 
       // Photos subcollection
       match /photos/{photoId} {
         // Guests can get/list photos for a specific event
         allow read: if true;
 
-        // Only event owner can write
-        allow write: if isOwner(get(/databases/$(database)/documents/events/$(eventId)).data.ownerId);
+        // Event owner or admin can write
+        allow write: if (isOwner(get(/databases/$(database)/documents/events/$(eventId)).data.ownerId) || isAdmin())
+          && (isAdmin() || (isUserActive() && isNotMaintenanceMode()));
       }
 
       // Face batches subcollection
@@ -53,8 +107,9 @@ service cloud.firestore {
         // Guests can get/list face descriptors for a specific event
         allow read: if true;
 
-        // Only event owner can write
-        allow write: if isOwner(get(/databases/$(database)/documents/events/$(eventId)).data.ownerId);
+        // Event owner or admin can write
+        allow write: if (isOwner(get(/databases/$(database)/documents/events/$(eventId)).data.ownerId) || isAdmin())
+          && (isAdmin() || (isUserActive() && isNotMaintenanceMode()));
       }
     }
   }

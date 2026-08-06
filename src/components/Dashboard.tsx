@@ -18,7 +18,7 @@ import {
   Calendar, Image as ImageIcon, Trash2,
   ArrowLeft, LogOut, Cloud, Link2, QrCode, Share2,
   CheckCircle2, Loader2, Clock, Copy, Check, X,
-  Plus, Play, Pause, FolderOpen, Search, Menu, BarChart2, Settings,
+  Plus, Play, Pause, FolderOpen, Search, Menu, BarChart2, Settings, Shield,
   Sun, Moon, AlertTriangle, Upload, Sparkles, LayoutGrid, List, Filter, ChevronDown, MoreHorizontal
 } from 'lucide-react';
 import { createGoogleFolder } from '../services/google';
@@ -30,6 +30,8 @@ import { useScanner } from '../contexts/ScannerContext';
 import { useTranslation } from '../services/translations';
 import { useModal } from '../contexts/ModalContext';
 import { useConsent } from '../contexts/ConsentContext';
+import { AdminManagement } from './AdminManagement';
+import { AllowlistManagement } from './AllowlistManagement';
 
 export function Dashboard() {
   const navigate = useNavigate();
@@ -37,6 +39,7 @@ export function Dashboard() {
   const { confirm, alert } = useModal();
   const {
     user,
+    isAdmin,
     dropboxAccessToken,
     googleAccessToken,
     onedriveAccessToken,
@@ -67,7 +70,7 @@ export function Dashboard() {
     startLocalDropboxUploadAndScan,
   } = useScanner();
 
-  const [activeTab, setActiveTab] = useState<'events' | 'settings'>('events');
+  const [activeTab, setActiveTab] = useState<'events' | 'settings' | 'admin' | 'allowlist'>('events');
   const [showProviderModal, setShowProviderModal] = useState(false);
   const [selectedProvider, setSelectedProvider] = useState<CloudProvider>('google');
   const [showGoogleCreateModal, setShowGoogleCreateModal] = useState(false);
@@ -669,6 +672,22 @@ export function Dashboard() {
           <Settings className="w-4 h-4 text-copper-accent" />
           <span className="font-label-sm text-xs uppercase tracking-wider">{t('settings.title')}</span>
         </button>
+
+        {isAdmin && (
+          <button
+            onClick={() => { setActiveTab('admin'); setMobileMenuOpen(false); }}
+            className={`flex items-center gap-3 font-bold py-3 px-4 rounded-lg transition-all text-start cursor-pointer border-none bg-transparent outline-none w-full group ${
+              activeTab === 'admin'
+                ? (isRtl ? 'border-r-4 border-copper-accent pr-3 text-on-background bg-surface-container' : 'border-l-4 border-copper-accent pl-3 text-on-background bg-surface-container')
+                : 'text-sage-muted hover:text-on-background'
+            }`}
+          >
+            <Shield className="w-4 h-4 text-copper-accent" />
+            <span className="font-label-sm text-xs uppercase tracking-wider">
+              {t('admin.title')}
+            </span>
+          </button>
+        )}
       </nav>
 
       {/* CTA Button in Sidebar */}
@@ -1423,6 +1442,10 @@ export function Dashboard() {
                 </div>
               )}
             </>
+          ) : activeTab === 'admin' && isAdmin ? (
+            <AdminManagement embedded={true} />
+          ) : activeTab === 'allowlist' && isAdmin ? (
+            <AllowlistManagement embedded={true} />
           ) : (
             /* Settings & Accessibility Panel */
             <div className="flex flex-col gap-8 max-w-3xl">
@@ -1532,7 +1555,9 @@ export function Dashboard() {
                           </span>
                         </div>
                         <p className="text-xs text-sage-muted m-0">
-                          {isGoogleConnected || googleAccessToken ? (
+                          {expiredProviders.includes('google') ? (
+                            <span className="text-red-400 font-semibold">{t('settings.expired')}</span>
+                          ) : isGoogleConnected || googleAccessToken ? (
                             <span className="text-emerald-400 font-semibold">{t('settings.connected')}</span>
                           ) : (
                             t('settings.notConnected')
@@ -1540,7 +1565,22 @@ export function Dashboard() {
                         </p>
                       </div>
                     </div>
-                    {isGoogleConnected || googleAccessToken ? (
+                    {expiredProviders.includes('google') ? (
+                      <div className="flex items-center gap-2">
+                        <button
+                          onClick={connectGoogle}
+                          className="px-4 py-2 rounded bg-copper-accent hover:bg-copper-accent/90 text-background text-xs font-bold transition-all cursor-pointer border-none shadow"
+                        >
+                          {t('settings.reconnect')}
+                        </button>
+                        <button
+                          onClick={() => handleDisconnectProvider('google')}
+                          className="px-3 py-2 rounded border border-red-500/30 bg-red-500/10 text-red-400 hover:bg-red-500/25 hover:border-red-500/50 text-xs font-bold transition-all cursor-pointer"
+                        >
+                          {t('settings.disconnect')}
+                        </button>
+                      </div>
+                    ) : isGoogleConnected || googleAccessToken ? (
                       <button
                         onClick={() => handleDisconnectProvider('google')}
                         className="px-4 py-2 rounded border border-red-500/30 bg-red-500/10 text-red-400 hover:bg-red-500/25 hover:border-red-500/50 text-xs font-bold transition-all cursor-pointer"
@@ -1566,7 +1606,9 @@ export function Dashboard() {
                       <div>
                         <p className="font-bold text-sm text-on-background m-0">Dropbox</p>
                         <p className="text-xs text-sage-muted m-0">
-                          {isDropboxConnected || dropboxAccessToken ? (
+                          {expiredProviders.includes('dropbox') ? (
+                            <span className="text-red-400 font-semibold">{t('settings.expired')}</span>
+                          ) : isDropboxConnected || dropboxAccessToken ? (
                             <span className="text-emerald-400 font-semibold">{t('settings.connected')}</span>
                           ) : (
                             t('settings.notConnected')
@@ -1574,7 +1616,22 @@ export function Dashboard() {
                         </p>
                       </div>
                     </div>
-                    {isDropboxConnected || dropboxAccessToken ? (
+                    {expiredProviders.includes('dropbox') ? (
+                      <div className="flex items-center gap-2">
+                        <button
+                          onClick={connectDropbox}
+                          className="px-4 py-2 rounded bg-copper-accent hover:bg-copper-accent/90 text-background text-xs font-bold transition-all cursor-pointer border-none shadow"
+                        >
+                          {t('settings.reconnect')}
+                        </button>
+                        <button
+                          onClick={() => handleDisconnectProvider('dropbox')}
+                          className="px-3 py-2 rounded border border-red-500/30 bg-red-500/10 text-red-400 hover:bg-red-500/25 hover:border-red-500/50 text-xs font-bold transition-all cursor-pointer"
+                        >
+                          {t('settings.disconnect')}
+                        </button>
+                      </div>
+                    ) : isDropboxConnected || dropboxAccessToken ? (
                       <button
                         onClick={() => handleDisconnectProvider('dropbox')}
                         className="px-4 py-2 rounded border border-red-500/30 bg-red-500/10 text-red-400 hover:bg-red-500/25 hover:border-red-500/50 text-xs font-bold transition-all cursor-pointer"
@@ -1608,7 +1665,9 @@ export function Dashboard() {
                           </span>
                         </div>
                         <p className="text-xs text-sage-muted m-0">
-                          {isOneDriveConnected || onedriveAccessToken ? (
+                          {expiredProviders.includes('onedrive') ? (
+                            <span className="text-red-400 font-semibold">{t('settings.expired')}</span>
+                          ) : isOneDriveConnected || onedriveAccessToken ? (
                             <span className="text-emerald-400 font-semibold">{t('settings.connected')}</span>
                           ) : (
                             t('settings.notConnected')
@@ -2055,7 +2114,7 @@ export function Dashboard() {
                 onClick={() => {
                   setSelectedProvider('google');
                   setShowProviderModal(false);
-                  if (!googleAccessToken) {
+                  if (!googleAccessToken || expiredProviders.includes('google')) {
                     connectGoogle();
                   } else {
                     setNewEventName('');
@@ -2078,11 +2137,19 @@ export function Dashboard() {
                       </span>
                     </div>
                     <span className="text-[10px] text-sage-muted">
-                      {isGoogleConnected || googleAccessToken ? t('settings.connected') : t('settings.notConnected')}
+                      {expiredProviders.includes('google') ? (
+                        <span className="text-red-400 font-semibold">{t('settings.expired')}</span>
+                      ) : isGoogleConnected || googleAccessToken ? (
+                        t('settings.connected')
+                      ) : (
+                        t('settings.notConnected')
+                      )}
                     </span>
                   </div>
                 </div>
-                {(isGoogleConnected || googleAccessToken) && (
+                {expiredProviders.includes('google') ? (
+                  <span className="w-2 h-2 rounded-full bg-red-400" />
+                ) : (isGoogleConnected || googleAccessToken) && (
                   <span className="w-2 h-2 rounded-full bg-emerald-400" />
                 )}
               </button>
@@ -2093,7 +2160,7 @@ export function Dashboard() {
                 onClick={() => {
                   setSelectedProvider('dropbox');
                   setShowProviderModal(false);
-                  if (!dropboxAccessToken) {
+                  if (!dropboxAccessToken || expiredProviders.includes('dropbox')) {
                     connectDropbox();
                   } else {
                     setNewEventName('');
@@ -2111,11 +2178,19 @@ export function Dashboard() {
                   <div>
                     <span className="font-bold text-sm block">Dropbox</span>
                     <span className="text-[10px] text-sage-muted">
-                      {isDropboxConnected || dropboxAccessToken ? t('settings.connected') : t('settings.notConnected')}
+                      {expiredProviders.includes('dropbox') ? (
+                        <span className="text-red-400 font-semibold">{t('settings.expired')}</span>
+                      ) : isDropboxConnected || dropboxAccessToken ? (
+                        t('settings.connected')
+                      ) : (
+                        t('settings.notConnected')
+                      )}
                     </span>
                   </div>
                 </div>
-                {(isDropboxConnected || dropboxAccessToken) && (
+                {expiredProviders.includes('dropbox') ? (
+                  <span className="w-2 h-2 rounded-full bg-red-400" />
+                ) : (isDropboxConnected || dropboxAccessToken) && (
                   <span className="w-2 h-2 rounded-full bg-emerald-400" />
                 )}
               </button>

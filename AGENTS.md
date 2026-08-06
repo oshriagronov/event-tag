@@ -18,7 +18,11 @@ You are an expert Frontend Engineer and Client-Side Machine Learning specialist.
   - Face embedding extraction via **ONNX Runtime Web** executing an optimized **SFace** (MobileFaceNet backbone) model on WASM (128-dimensional L2-normalized vectors).
 - **Cloud & Database:**
   - **Firebase Auth:** Google Sign-In & Email Authentication.
-  - **Firebase Firestore:** Reactive storage of metadata, cloud file references, face descriptors, and clusters.
+  - **Firebase Firestore:** Reactive storage of metadata, cloud file references, face descriptors, user profiles, allowlists, and system configuration.
+  - **Security Rules Enforcement:** Strict Firestore database rules (`firestore.rules`) enforcing Admin role authorization (`isAdmin()`), blocking restricted users (`isUserActive()`), enforcing global Maintenance Mode (`isNotMaintenanceMode()`), and enforcing login Allowlist Mode (`isUserAllowlisted()`) at the database level to prevent client-side bypasses.
+- **Admin & Management System:**
+  - **AdminManagement Component & adminService:** Dedicated Admin panel (`/admin`) derived from Google Stitch MCP (`EventTag Admin - User Management`). Includes email search, user blocking/unblocking, free premium plan dates (`premiumUntil`), Allowlist Mode toggle (Open vs Restricted Allowlist), and site Maintenance Mode toggle.
+  - **MaintenanceOverlay:** Full-screen maintenance mode display for non-admin users when maintenance mode is active.
 - **Contexts & Modal System:**
   - **ModalContext:** Unified asynchronous modal system for confirm/alert dialogs styled like the application theme (dark backdrop blur, accessibility IS 5568 / WCAG compliant, bidi-isolated).
   - **ShareModal & shareUtils:** Native OS Web Share API integration (`navigator.share`) with automatic fallback to a custom multi-platform share modal (WhatsApp, Telegram, Email, Facebook, X/Twitter, QR Code).

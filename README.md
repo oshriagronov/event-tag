@@ -58,18 +58,19 @@ src/
 ├── firebase.ts                 # Firebase initialization (Auth & Firestore)
 ├── components/
 │   ├── AccessibilityWidget.tsx  # IS 5568 / WCAG 2.0 AA accessibility toolbar
+│   ├── AdminManagement.tsx      # Admin user search, block/unblock, premium plan, allowlist & maintenance
 │   ├── CookieBanner.tsx        # Amendment 13 Privacy & Cookie Consent banner
 │   ├── Dashboard.tsx           # Multi-event management & cloud provider connection
 │   ├── DropboxIcon.tsx         # Official Dropbox brand logo icon component
 │   ├── EventView.tsx           # Event workspace, gallery, scanning progress & face clusters
 │   ├── FirebaseAnalytics.tsx   # Consent-gated Firebase Analytics telemetry component
 │   ├── FolderPicker.tsx        # Cloud folder selector modal
-
 │   ├── Footer.tsx              # Footer with legal links & compliance info
 │   ├── GoogleIcon.tsx          # Reusable official Google branding asset component
 │   ├── GuestView.tsx           # Guest selfie search, face matching & photo gallery
 │   ├── LandingPage.tsx         # Modern landing page with hero, features, FAQ & CTA
 │   ├── LegalPage.tsx           # Terms of Service, Privacy Policy & Accessibility Statement
+│   ├── MaintenanceOverlay.tsx  # Maintenance mode full-screen overlay for non-admin users
 │   ├── PreferencesModal.tsx    # Granular privacy consent settings modal
 │   ├── PrivacyBanner.tsx       # Ingest privacy assurance indicator
 │   ├── PrivacyPage.tsx         # Detailed privacy compliance page
@@ -79,11 +80,12 @@ src/
 │   ├── SkipLink.tsx            # Accessible skip-to-main-content link
 │   └── VercelTrackers.tsx      # Consent-gated Vercel Analytics & Speed Insights component
 ├── contexts/
-│   ├── AuthContext.tsx         # Firebase Auth user session & cloud OAuth tokens
+│   ├── AuthContext.tsx         # Firebase Auth user session, profiles, role & cloud OAuth tokens
 │   ├── ConsentContext.tsx      # Privacy Protection Law consent state
 │   ├── ScannerContext.tsx      # Global scanning state (progress, pause, ETA)
 │   └── SettingsContext.tsx     # Visual preferences context
 ├── services/
+│   ├── adminService.ts         # User profiles, user blocking, premium dates, allowlist & system settings
 │   ├── cloudProviders.ts       # Unified cloud provider abstraction layer
 │   ├── dropbox.ts              # Dropbox Chooser & file streaming integration
 │   ├── faceAlignment.ts        # Facial landmark alignment (112x112 similarity transform)
