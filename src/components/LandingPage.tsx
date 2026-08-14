@@ -311,12 +311,9 @@ export function LandingPage() {
             </div>
 
             {/* Centered Title */}
-            <h1 className="font-display-lg text-4xl sm:text-6xl lg:text-7xl text-on-background leading-[1.15] mb-6 tracking-tight max-w-4xl m-0">
-              <span className="text-copper-accent font-black tracking-tight">EventTag</span>
-              <span className="block text-2xl sm:text-4xl lg:text-5xl font-semibold mt-3 text-on-background">
-                {t('landing.heroTitle')}
-              </span>
-              <span className="block italic text-copper-accent font-normal text-xl sm:text-2xl lg:text-3xl mt-3">
+            <h1 className="font-display-lg text-4xl sm:text-6xl lg:text-7xl text-on-background leading-[1.15] mb-6 tracking-tight max-w-3xl m-0">
+              {t('landing.heroTitle')}
+              <span className="block italic text-copper-accent font-normal mt-2">
                 {t('landing.heroSubTitle')}
               </span>
             </h1>
