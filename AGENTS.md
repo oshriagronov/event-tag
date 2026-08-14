@@ -19,9 +19,14 @@ You are an expert Frontend Engineer and Client-Side Machine Learning specialist.
 - **Cloud & Database:**
   - **Firebase Auth:** Google Sign-In & Email Authentication.
   - **Firebase Firestore:** Reactive storage of metadata, cloud file references, face descriptors, user profiles, allowlists, and system configuration.
-  - **Security Rules Enforcement:** Strict Firestore database rules (`firestore.rules`) enforcing Admin role authorization (`isAdmin()`), blocking restricted users (`isUserActive()`), enforcing global Maintenance Mode (`isNotMaintenanceMode()`), and enforcing login Allowlist Mode (`isUserAllowlisted()`) at the database level to prevent client-side bypasses.
+  - **Security Rules Enforcement:** Strict Firestore database rules (`firestore.rules`) enforcing Admin role authorization (`isAdmin()`), blocking restricted users (`isUserActive()`), enforcing global Maintenance Mode (`isNotMaintenanceMode()`), enforcing login Allowlist Mode (`isUserAllowlisted()`), enforcing dynamic tier quota limits (`getPhotoQuotaLimit()`), and maintaining immutable system audit logs (`/audit_logs/{logId}`).
 - **Admin & Management System:**
-  - **AdminManagement Component & adminService:** Dedicated Admin panel (`/admin`) derived from Google Stitch MCP (`EventTag Admin - User Management`). Includes email search, user blocking/unblocking, free premium plan dates (`premiumUntil`), Allowlist Mode toggle (Open vs Restricted Allowlist), and site Maintenance Mode toggle.
+  - **AdminManagement Component & adminService:** Comprehensive 5-tool Admin suite (`/admin`) derived from Google Stitch MCP. Features dedicated side menu navigation for:
+    1. **User Management:** Email/name search, user blocking/unblocking, bulk status/allowlist/premium operations, free premium plan grants (`premiumUntil`), Allowlist Mode toggle (Open vs Restricted), and Maintenance Mode toggle.
+    2. **System Health & Overview Metrics:** Real-time aggregated stats (Photos Indexed, Detected Faces, Face Embeddings), Cloud Provider Fabric distribution chart (Google Drive vs. Dropbox), and Event Telemetry (Active, Scanning, Completed).
+    3. **System Audit Logs (`audit_logs`):** Immutable audit log trail tracking admin changes (user status, allowlist updates, premium plan changes, maintenance toggles, quota edits) with timestamps, severity levels (Info, Warning, Security), and performed-by email/ID.
+    4. **Allowlist CSV Bulk Import & Export:** Multiline text/drag-and-drop CSV parser with instant email validation, preview table, bulk import, and CSV download export.
+    5. **Quota & Tier Limits Management:** Form to edit Standard and Premium tier photo and monthly event limits, stored in `/system/config` and dynamically enforced at the Firestore Security Rules level.
   - **MaintenanceOverlay:** Full-screen maintenance mode display for non-admin users when maintenance mode is active.
 - **Contexts & Modal System:**
   - **ModalContext:** Unified asynchronous modal system for confirm/alert dialogs styled like the application theme (dark backdrop blur, accessibility IS 5568 / WCAG compliant, bidi-isolated).

@@ -58,7 +58,7 @@ src/
 ├── firebase.ts                 # Firebase initialization (Auth & Firestore)
 ├── components/
 │   ├── AccessibilityWidget.tsx  # IS 5568 / WCAG 2.0 AA accessibility toolbar
-│   ├── AdminManagement.tsx      # Admin user search, block/unblock, premium plan, allowlist & maintenance
+│   ├── AdminManagement.tsx      # Admin panel with 5 tools: User Management, System Health, Audit Logs, Allowlist CSV, Quotas
 │   ├── CookieBanner.tsx        # Amendment 13 Privacy & Cookie Consent banner
 │   ├── Dashboard.tsx           # Multi-event management & cloud provider connection
 │   ├── DropboxIcon.tsx         # Official Dropbox brand logo icon component
@@ -85,7 +85,7 @@ src/
 │   ├── ScannerContext.tsx      # Global scanning state (progress, pause, ETA)
 │   └── SettingsContext.tsx     # Visual preferences context
 ├── services/
-│   ├── adminService.ts         # User profiles, user blocking, premium dates, allowlist & system settings
+│   ├── adminService.ts         # User management, system health metrics, immutable audit logs, allowlist CSV, quota limits
 │   ├── cloudProviders.ts       # Unified cloud provider abstraction layer
 │   ├── dropbox.ts              # Dropbox Chooser & file streaming integration
 │   ├── faceAlignment.ts        # Facial landmark alignment (112x112 similarity transform)

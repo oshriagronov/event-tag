@@ -18,13 +18,15 @@ import {
   KeyRound,
   Menu,
   X,
+  Globe,
+  ExternalLink,
 } from 'lucide-react';
 
 export function LandingPage() {
   const { user, loading, signIn } = useAuth();
-  const { theme } = useSettings();
+  const { theme, language, setLanguage } = useSettings();
   const navigate = useNavigate();
-  const { t, isRtl, language } = useTranslation();
+  const { t, isRtl } = useTranslation();
   const [openFaq, setOpenFaq] = useState<number | null>(null);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
@@ -113,20 +115,20 @@ export function LandingPage() {
             </li>
             <li>
               <a
+                href="#privacy"
+                onClick={(e) => handleScrollTo(e, 'privacy')}
+                className="font-label-sm text-xs uppercase tracking-wider text-on-surface-variant hover:text-copper-accent transition-colors duration-300 no-underline cursor-pointer"
+              >
+                {t('landing.privacyNavBtn')}
+              </a>
+            </li>
+            <li>
+              <a
                 href="#faq"
                 onClick={(e) => handleScrollTo(e, 'faq')}
                 className="font-label-sm text-xs uppercase tracking-wider text-on-surface-variant hover:text-copper-accent transition-colors duration-300 no-underline cursor-pointer"
               >
                 {t('landing.faqNavBtn')}
-              </a>
-            </li>
-            <li>
-              <a
-                href="#privacy"
-                onClick={(e) => handleScrollTo(e, 'privacy')}
-                className="font-label-sm text-xs uppercase tracking-wider text-on-surface-variant hover:text-copper-accent transition-colors duration-300 no-underline cursor-pointer"
-              >
-                {language === 'he' ? 'פרטיות' : 'Privacy'}
               </a>
             </li>
             {user && (
@@ -143,6 +145,17 @@ export function LandingPage() {
 
           {/* Trailing Action */}
           <div className="hidden md:flex items-center gap-3 md:gap-4">
+            {/* Language Switcher */}
+            <button
+              onClick={() => setLanguage(language === 'he' ? 'en' : 'he')}
+              className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg border border-surface-border/60 bg-surface-container/60 hover:bg-surface-container-high text-xs font-semibold text-on-surface-variant hover:text-on-background transition-colors cursor-pointer"
+              title={language === 'he' ? 'Switch to English' : 'עבור לעברית'}
+              aria-label={language === 'he' ? 'Switch to English' : 'עבור לעברית'}
+            >
+              <Globe className="w-3.5 h-3.5 text-copper-accent" />
+              <span>{language === 'he' ? 'English' : 'עברית'}</span>
+            </button>
+
             {user ? (
               <Link
                 to="/dashboard"
@@ -206,8 +219,19 @@ export function LandingPage() {
                 }}
                 className="flex items-center gap-3 font-bold py-3 px-4 rounded-lg text-sage-muted hover:text-on-background hover:bg-surface-container transition-all text-start cursor-pointer no-underline w-full"
               >
-                <Sparkles className="w-4 h-4 text-copper-accent" />
+                <FolderUp className="w-4 h-4 text-copper-accent" />
                 <span className="font-label-sm text-xs uppercase tracking-wider">{t('landing.howItWorksBtn')}</span>
+              </a>
+              <a
+                href="#privacy"
+                onClick={(e) => {
+                  setMobileMenuOpen(false);
+                  handleScrollTo(e, 'privacy');
+                }}
+                className="flex items-center gap-3 font-bold py-3 px-4 rounded-lg text-sage-muted hover:text-on-background hover:bg-surface-container transition-all text-start cursor-pointer no-underline w-full"
+              >
+                <Shield className="w-4 h-4 text-copper-accent" />
+                <span className="font-label-sm text-xs uppercase tracking-wider">{t('landing.privacyNavBtn')}</span>
               </a>
               <a
                 href="#faq"
@@ -219,17 +243,6 @@ export function LandingPage() {
               >
                 <Users className="w-4 h-4 text-copper-accent" />
                 <span className="font-label-sm text-xs uppercase tracking-wider">{t('landing.faqNavBtn')}</span>
-              </a>
-              <a
-                href="#privacy"
-                onClick={(e) => {
-                  setMobileMenuOpen(false);
-                  handleScrollTo(e, 'privacy');
-                }}
-                className="flex items-center gap-3 font-bold py-3 px-4 rounded-lg text-sage-muted hover:text-on-background hover:bg-surface-container transition-all text-start cursor-pointer no-underline w-full"
-              >
-                <Shield className="w-4 h-4 text-copper-accent" />
-                <span className="font-label-sm text-xs uppercase tracking-wider">{language === 'he' ? 'פרטיות' : 'Privacy'}</span>
               </a>
               {user && (
                 <Link
@@ -243,7 +256,19 @@ export function LandingPage() {
               )}
             </nav>
 
-            <div className="px-4 pt-4 border-t border-surface-border/30">
+            <div className="px-4 pt-4 border-t border-surface-border/30 flex flex-col gap-3">
+              {/* Language Switcher Mobile */}
+              <button
+                onClick={() => {
+                  setLanguage(language === 'he' ? 'en' : 'he');
+                  setMobileMenuOpen(false);
+                }}
+                className="w-full inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg border border-surface-border/60 bg-surface-container text-xs font-semibold text-on-surface hover:bg-surface-container-high transition-colors cursor-pointer"
+              >
+                <Globe className="w-4 h-4 text-copper-accent" />
+                <span>{language === 'he' ? 'Switch to English' : 'עבור לעברית'}</span>
+              </button>
+
               {user ? (
                 <Link
                   to="/dashboard"
@@ -286,15 +311,18 @@ export function LandingPage() {
             </div>
 
             {/* Centered Title */}
-            <h1 className="font-display-lg text-4xl sm:text-6xl lg:text-7xl text-on-background leading-[1.15] mb-6 tracking-tight max-w-3xl m-0">
-              {t('landing.heroTitle')}
-              <span className="block italic text-copper-accent font-normal mt-2">
+            <h1 className="font-display-lg text-4xl sm:text-6xl lg:text-7xl text-on-background leading-[1.15] mb-6 tracking-tight max-w-4xl m-0">
+              <span className="text-copper-accent font-black tracking-tight">EventTag</span>
+              <span className="block text-2xl sm:text-4xl lg:text-5xl font-semibold mt-3 text-on-background">
+                {t('landing.heroTitle')}
+              </span>
+              <span className="block italic text-copper-accent font-normal text-xl sm:text-2xl lg:text-3xl mt-3">
                 {t('landing.heroSubTitle')}
               </span>
             </h1>
 
             {/* Centered Subtitle */}
-            <p className="font-body-lg text-base sm:text-xl text-sage-muted mb-10 max-w-2xl leading-relaxed m-0">
+            <p className="font-body-lg text-base sm:text-xl text-sage-muted mb-10 max-w-3xl leading-relaxed m-0">
               {t('landing.heroDesc')}
             </p>
 
@@ -426,11 +454,17 @@ export function LandingPage() {
           </div>
         </section>
 
-        {/* Absolute Privacy Section */}
-        <section id="privacy" className="relative py-24 px-6 overflow-hidden scroll-mt-20 border-t border-surface-border/20">
+        {/* Merged Application Purpose & Absolute Privacy Section */}
+        <section
+          id="privacy"
+          className="relative py-24 px-6 overflow-hidden scroll-mt-20 border-t border-surface-border/20 bg-surface-container-low/30"
+        >
+          {/* Support #app-purpose anchor */}
+          <div id="app-purpose" className="scroll-mt-24" />
           <div className="absolute inset-0 bg-gradient-to-b from-transparent via-primary-container/5 to-transparent pointer-events-none" />
 
           <div className="max-w-6xl mx-auto w-full relative z-10">
+            {/* Header */}
             <div className="text-center mb-16">
               <div className="inline-flex items-center justify-center p-4 bg-surface-container border border-surface-border rounded-full mb-6 shadow-sm">
                 <Shield className="w-8 h-8 text-copper-accent" />
@@ -439,13 +473,42 @@ export function LandingPage() {
                 {t('landing.privacyTitle')}
               </h2>
               <div className="botanical-divider w-40 mx-auto my-4" />
-              <p className="font-body-lg text-sage-muted text-lg mt-2 max-w-2xl mx-auto leading-relaxed">
+              <p className="font-body-lg text-sage-muted text-base md:text-lg mt-2 max-w-2xl mx-auto leading-relaxed m-0">
                 {t('landing.privacyDesc')}
               </p>
             </div>
 
-            {/* Bento Grid Features */}
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6 md:gap-8 mb-16 text-start">
+            {/* Two-Column Utility Cards (Who It Is For) */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-8 mb-12 text-start">
+              {/* For Organizers */}
+              <div className="p-8 rounded-2xl bg-surface-container border border-surface-border hover:border-copper-accent/35 transition-all shadow-sm flex flex-col">
+                <div className="w-12 h-12 rounded-xl bg-surface-container-high flex items-center justify-center mb-6 border border-surface-border/50">
+                  <FolderUp className="w-6 h-6 text-copper-accent" />
+                </div>
+                <h3 className="font-title-md text-xl font-bold text-on-background mb-3">
+                  {t('landing.purposeHostTitle')}
+                </h3>
+                <p className="font-body-md text-sage-muted text-sm md:text-base leading-relaxed m-0">
+                  {t('landing.purposeHostDesc')}
+                </p>
+              </div>
+
+              {/* For Guests */}
+              <div className="p-8 rounded-2xl bg-surface-container border border-surface-border hover:border-copper-accent/35 transition-all shadow-sm flex flex-col">
+                <div className="w-12 h-12 rounded-xl bg-surface-container-high flex items-center justify-center mb-6 border border-surface-border/50">
+                  <Camera className="w-6 h-6 text-copper-accent" />
+                </div>
+                <h3 className="font-title-md text-xl font-bold text-on-background mb-3">
+                  {t('landing.purposeGuestTitle')}
+                </h3>
+                <p className="font-body-md text-sage-muted text-sm md:text-base leading-relaxed m-0">
+                  {t('landing.purposeGuestDesc')}
+                </p>
+              </div>
+            </div>
+
+            {/* Bento Grid Features (Privacy Architecture) */}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6 md:gap-8 mb-12 text-start">
               <div className="group bg-surface-container border border-surface-border rounded-xl p-8 hover:border-copper-accent/35 hover:shadow-2xl transition-all duration-300 flex flex-col items-start relative overflow-hidden">
                 <div className="w-12 h-12 rounded-full bg-surface-container-high border border-surface-border/50 flex items-center justify-center mb-6">
                   <Monitor className="w-5 h-5 text-copper-accent" />
@@ -486,6 +549,42 @@ export function LandingPage() {
                     ? 'בענן נשמרים רק וקטורים מתמטיים מופשטים, שמהם לא ניתן לשחזר את תמונת הפנים המקורית.'
                     : 'Any necessary operational metadata is safeguarded with state-of-the-art encryption, storing only non-reconstructable mathematical vectors.'}
                 </p>
+              </div>
+            </div>
+
+            {/* Google Drive API & Privacy Disclosure Banner */}
+            <div className="p-6 md:p-8 rounded-2xl bg-surface-container/70 border border-copper-accent/30 shadow-md text-start mb-12">
+              <div className="flex flex-col md:flex-row gap-5 items-start">
+                <div className="w-10 h-10 rounded-full bg-copper-accent/15 flex items-center justify-center shrink-0 text-copper-accent">
+                  <Shield className="w-5 h-5" />
+                </div>
+                <div className="flex-1">
+                  <h4 className="font-title-md text-base md:text-lg font-bold text-on-background mb-2">
+                    {t('landing.googleIntegrationTitle')}
+                  </h4>
+                  <p className="font-body-md text-sage-muted text-xs md:text-sm leading-relaxed mb-4">
+                    {t('landing.googleIntegrationDesc')}
+                  </p>
+                  <div className="flex flex-wrap items-center gap-4 text-xs">
+                    <a
+                      href="https://developers.google.com/terms/api-services-user-data-policy"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-copper-accent hover:underline inline-flex items-center gap-1 font-semibold"
+                    >
+                      <span>Google API Services User Data Policy</span>
+                      <ExternalLink className="w-3 h-3" />
+                    </a>
+                    <span className="text-sage-muted/40">•</span>
+                    <Link to="/privacy-policy" className="text-copper-accent hover:underline font-semibold">
+                      {language === 'he' ? 'מדיניות פרטיות מלאה' : 'Full Privacy Policy'}
+                    </Link>
+                    <span className="text-sage-muted/40">•</span>
+                    <Link to="/terms" className="text-copper-accent hover:underline font-semibold">
+                      {language === 'he' ? 'תנאי שימוש' : 'Terms of Service'}
+                    </Link>
+                  </div>
+                </div>
               </div>
             </div>
 

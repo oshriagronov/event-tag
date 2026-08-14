@@ -41,10 +41,29 @@ service cloud.firestore {
             && exists(/databases/$(database)/documents/allowlist/$(request.auth.token.email.lower())));
     }
 
-    // System Config collection (maintenanceMode, allowlistMode)
+    function getPhotoQuotaLimit() {
+      let isPremium = request.auth != null
+        && exists(/databases/$(database)/documents/users/$(request.auth.uid))
+        && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.premiumUntil != null;
+      let configExists = exists(/databases/$(database)/documents/system/config)
+        && get(/databases/$(database)/documents/system/config).data.keys().hasAny(['quotas']);
+      let config = configExists ? get(/databases/$(database)/documents/system/config).data.quotas : null;
+      let standardLimit = (config != null && config.keys().hasAny(['standard']) && config.standard.keys().hasAny(['maxPhotosPerEvent'])) ? config.standard.maxPhotosPerEvent : 500;
+      let premiumLimit = (config != null && config.keys().hasAny(['premium']) && config.premium.keys().hasAny(['maxPhotosPerEvent'])) ? config.premium.maxPhotosPerEvent : 10000;
+      return isPremium ? premiumLimit : standardLimit;
+    }
+
+    // System Config collection (maintenanceMode, allowlistMode, quotas)
     match /system/config {
       allow read: if true;
       allow write: if isAdmin();
+    }
+
+    // Audit logs collection (immutable security logs)
+    match /audit_logs/{logId} {
+      allow read: if isAdmin();
+      allow create: if isAuthenticated();
+      allow update, delete: if false;
     }
 
     // Allowlist collection (approved emails when allowlistMode is true)
@@ -80,7 +99,8 @@ service cloud.firestore {
         && isValidString(request.resource.data.name, 1, 100)
         && isValidString(request.resource.data.driveFolderId, 1, 200)
         && request.resource.data.photoCount is number
-        && request.resource.data.faceCount is number;
+        && request.resource.data.faceCount is number
+        && (isAdmin() || request.resource.data.photoCount <= getPhotoQuotaLimit());
 
       // Validate event updates
       allow update: if (isOwner(resource.data.ownerId) || isAdmin())
@@ -88,7 +108,8 @@ service cloud.firestore {
         && request.resource.data.ownerId == resource.data.ownerId
         && (!request.resource.data.diff(resource.data).affectedKeys().hasAny(['name']) || isValidString(request.resource.data.name, 1, 100))
         && request.resource.data.photoCount is number
-        && request.resource.data.faceCount is number;
+        && request.resource.data.faceCount is number
+        && (isAdmin() || request.resource.data.photoCount <= getPhotoQuotaLimit());
 
       allow delete: if isOwner(resource.data.ownerId) || isAdmin();
 
