@@ -68,8 +68,6 @@ export const translations = {
       purposeGuestDesc: 'אורחים פותחים את קישור האירוע, מעלים סלפי קצר ומקבלים באופן מיידי גישה לכל התמונות שבהן הם מופיעים מתוך האירוע, ללא צורך לחפש ידנית בין אלפי תמונות.',
       purposePrivacyTitle: 'פרטיות ועיבוד מקומי',
       purposePrivacyDesc: 'כל עיבוד התמונות, סריקת הפנים והחישוב הביומטרי מתבצעים מקומית בדפדפן המשתמש. קובצי התמונות המקוריים נשארים מאוחסנים אך ורק בספק הענן שלכם (Google Drive וספקים נוספים) ולעולם אינם מועלים לשרתים של EventTag.',
-      googleIntegrationTitle: 'גילוי נאות לשילוב Google Drive API',
-      googleIntegrationDesc: 'EventTag משתמשת בהרשאות Google Drive (scope: drive.file) אך ורק לצורך גישה לקובצי התמונות בתיקיות שהמשתמש בחר באופן מפורש או לצורך יצירת תיקיית אירוע חדשה. המערכת אינה קוראת או ניגשת לשום קובץ אחר בחשבון ה-Google Drive שלך. המידע אינו משותף או נמכר לאף גורם חיצוני, בהתאם לדרישות ה-Limited Use של Google.',
       step1Title: 'בחירת תמונות',
       step1Desc: 'בעל האירוע בוחר תיקייה קיימת בענן לסריקת התמונות או בוחר תמונות מהמחשב — ואנו ניצור תיקייה בענן, נעלה את התמונות ונכין אותן לסריקה.',
       step2Title: 'סריקה חכמה',
@@ -363,6 +361,17 @@ export const translations = {
       ],
       termsSection4Title: 'שינויים בשירות',
       termsSection4Text: 'אנו שומרים לעצמנו את הזכות לשנות או להפסיק זמנית או לצמיתות את השירות (או כל חלק ממנו) בכל עת, ללא הודעה מוקדמת. תנאים אלו עשויים להתעדכן מעת לעת, והמשך השימוש בשירות מהווה הסכמה לתנאים המעודכנים.',
+      termsSection5Title: 'שילוב ספקי אחסון ענן ושימוש ב-Google Drive API (גילוי נאות)',
+      termsSection5Text: 'השירות מתממשק ישירות עם שירותי אחסון ענן (כגון Google Drive ו-Dropbox) כדי לקרוא את קובצי תמונות האירוע לצורך סריקה מקומית בדפדפן המשתמש:',
+      termsSection5Bullets: [
+        'EventTag משתמשת בהרשאות Google Drive API (ספציפית בהרשאת drive.file הלא-מוגבלת) אך ורק לצורך גישה לקובצי התמונות בתיקיות שהמשתמש בחר במפורש או לצורך יצירת תיקיית אירוע ייעודית.',
+        'המערכת אינה ניגשת, קוראת או משנה שום קובץ אחר בחשבון ה-Google Drive שלך מעבר לתיקייה שנבחרה.',
+        'מידע או נתוני משתמש שהתקבלו מ-Google APIs אינם נשמרים בשרתים חיצוניים, אינם מועברים ואינם נמכרים לשום צד שלישי.',
+        'השימוש וההעברה של מידע שהתקבל מ-Google APIs לכל יישום אחר נעשים בהתאם מלא למדיניות נתוני המשתמש של Google API Services (כולל דרישות ה-Limited Use).'
+      ],
+      termsGoogleDisclosureTitle: 'הצהרת עמידה במדיניות Google Limited Use',
+      termsGoogleDisclosureText: 'השימוש וההעברה לכל יישום אחר של מידע שהתקבל מ-Google APIs על ידי EventTag עומדים בהוראות',
+      termsGoogleDisclosureLink: 'מדיניות נתוני המשתמש של Google API Services (כולל דרישות ה-Limited Use)',
       
       // Accessibility Statement content
       accessibilityTitle: 'הצהרת נגישות',
@@ -593,8 +602,6 @@ export const translations = {
       purposeGuestDesc: 'Guests open the event link or scan the QR code, take a quick selfie, and immediately receive all photos in which they appear without manually searching through thousands of images.',
       purposePrivacyTitle: 'Privacy & On-Device Processing',
       purposePrivacyDesc: 'All image processing, face detection, and vector computations run locally in the user\'s browser. Your original high-resolution photo files remain securely stored only in your cloud provider (Google Drive and other supported providers) and are never stored on EventTag servers.',
-      googleIntegrationTitle: 'Google Drive API Integration & Limited Use Disclosure',
-      googleIntegrationDesc: 'EventTag accesses Google Drive API permissions (specifically the non-restricted drive.file scope) exclusively to read photo files in folders explicitly selected by the user or to create a dedicated event photo folder. EventTag does not access, read, or modify any other files in your Google Drive. User data is never shared, sold, or transferred to third parties, strictly adhering to the Google API Services User Data Policy, including Limited Use requirements.',
       step1Title: 'Select Photos',
       step1Desc: 'The event organizer can choose an existing cloud folder to scan photos, or select photos from their PC — where we automatically create a cloud folder, upload the photos, and get them ready for scanning.',
       step2Title: 'Smart Scanning',
@@ -888,6 +895,17 @@ export const translations = {
       ],
       termsSection4Title: 'Changes to Service',
       termsSection4Text: 'We reserve the right to modify, suspend, or discontinue the Service at any time without notice. These terms may be updated occasionally, and your continued usage of the Service constitutes acceptance of the modified terms.',
+      termsSection5Title: 'Cloud Storage Integration & Google Drive API Terms (Disclosure)',
+      termsSection5Text: 'The Service integrates directly with cloud storage providers (such as Google Drive and Dropbox) to ingest event photos for local on-device processing:',
+      termsSection5Bullets: [
+        'EventTag accesses Google Drive API permissions (specifically the non-restricted drive.file scope) exclusively to read photo files in folders explicitly selected by the user or to create a dedicated event photo folder.',
+        'EventTag does not access, read, or modify any other files in your Google Drive account beyond the selected folder.',
+        'User data received from Google APIs is never stored on external servers, shared, transferred, or sold to third parties.',
+        'EventTag\'s use and transfer to any other app of information received from Google APIs adheres strictly to the Google API Services User Data Policy, including Limited Use requirements.'
+      ],
+      termsGoogleDisclosureTitle: 'Google Limited Use Compliance Statement',
+      termsGoogleDisclosureText: 'EventTag\'s use and transfer to any other app of information received from Google APIs will adhere to the',
+      termsGoogleDisclosureLink: 'Google API Services User Data Policy (including Limited Use requirements)',
       
       // Accessibility Statement content
       accessibilityTitle: 'Accessibility Statement',

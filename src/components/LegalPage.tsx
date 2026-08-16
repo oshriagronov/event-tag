@@ -340,6 +340,56 @@ export function LegalPage({ defaultTab = 'privacy' }: LegalPageProps) {
                 {t('legal.termsSection4Text')}
               </p>
             </section>
+
+            {/* Section 5 */}
+            <section className="border-t border-surface-border pt-8 space-y-4">
+              <h2 className="font-headline-lg text-xl md:text-2xl text-deep-forest mb-4 m-0">
+                5. {t('legal.termsSection5Title')}
+              </h2>
+              <p className="font-body-md text-sage-muted leading-relaxed mb-4 m-0">
+                {t('legal.termsSection5Text')}
+              </p>
+              <ul className={`list-disc ${isRtl ? 'pr-6' : 'pl-6'} space-y-2 text-xs md:text-sm font-body-md`}>
+                {getBullets('legal.termsSection5Bullets').map((bullet, idx) => (
+                  <li key={idx}>{bullet}</li>
+                ))}
+              </ul>
+            </section>
+
+            {/* Google Disclosure Box */}
+            <section className="border-t border-surface-border pt-8">
+              <div className="bg-surface-container/30 border border-surface-border rounded-xl p-6 flex gap-4 items-start shadow-sm">
+                <CheckCircle2 className="w-5 h-5 text-copper-accent shrink-0 mt-0.5" />
+                <div className="font-body-md">
+                  <h5 className="font-bold text-deep-forest mb-2 text-sm md:text-base">{t('legal.termsGoogleDisclosureTitle')}</h5>
+                  <p className="text-sage-muted leading-relaxed m-0 text-xs md:text-sm">
+                    {t('legal.termsGoogleDisclosureText')}{' '}
+                    <a 
+                      href="https://developers.google.com/terms/api-services-user-data-policy#additional_requirements_for_specific_api_scopes" 
+                      target="_blank" 
+                      rel="noopener noreferrer" 
+                      className="text-copper-accent hover:underline inline-flex items-center gap-0.5 font-bold"
+                    >
+                      {t('legal.termsGoogleDisclosureLink')}
+                      <ExternalLink className="w-3.5 h-3.5 inline shrink-0" />
+                    </a>
+                    .
+                  </p>
+                </div>
+              </div>
+            </section>
+
+            {/* Support Block */}
+            <section className="border-t border-surface-border pt-8">
+              <div className="p-6 rounded-xl bg-surface-container/30 border border-surface-border inline-block text-start">
+                <p className="font-label-sm text-xs text-sage-muted mb-2 uppercase tracking-wider">
+                  {language === 'he' ? 'דוא"ל לתמיכה' : 'Email Support'}
+                </p>
+                <a className="font-display-lg text-lg text-copper-accent hover:underline transition-colors no-underline font-bold" href="mailto:eventtagofficial@gmail.com">
+                  eventtagofficial@gmail.com
+                </a>
+              </div>
+            </section>
           </article>
         </main>
       )}

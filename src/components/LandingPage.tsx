@@ -19,7 +19,6 @@ import {
   Menu,
   X,
   Globe,
-  ExternalLink,
 } from 'lucide-react';
 
 export function LandingPage() {
@@ -549,41 +548,6 @@ export function LandingPage() {
               </div>
             </div>
 
-            {/* Google Drive API & Privacy Disclosure Banner */}
-            <div className="p-6 md:p-8 rounded-2xl bg-surface-container/70 border border-copper-accent/30 shadow-md text-start mb-12">
-              <div className="flex flex-col md:flex-row gap-5 items-start">
-                <div className="w-10 h-10 rounded-full bg-copper-accent/15 flex items-center justify-center shrink-0 text-copper-accent">
-                  <Shield className="w-5 h-5" />
-                </div>
-                <div className="flex-1">
-                  <h4 className="font-title-md text-base md:text-lg font-bold text-on-background mb-2">
-                    {t('landing.googleIntegrationTitle')}
-                  </h4>
-                  <p className="font-body-md text-sage-muted text-xs md:text-sm leading-relaxed mb-4">
-                    {t('landing.googleIntegrationDesc')}
-                  </p>
-                  <div className="flex flex-wrap items-center gap-4 text-xs">
-                    <a
-                      href="https://developers.google.com/terms/api-services-user-data-policy"
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="text-copper-accent hover:underline inline-flex items-center gap-1 font-semibold"
-                    >
-                      <span>Google API Services User Data Policy</span>
-                      <ExternalLink className="w-3 h-3" />
-                    </a>
-                    <span className="text-sage-muted/40">•</span>
-                    <Link to="/privacy-policy" className="text-copper-accent hover:underline font-semibold">
-                      {language === 'he' ? 'מדיניות פרטיות מלאה' : 'Full Privacy Policy'}
-                    </Link>
-                    <span className="text-sage-muted/40">•</span>
-                    <Link to="/terms" className="text-copper-accent hover:underline font-semibold">
-                      {language === 'he' ? 'תנאי שימוש' : 'Terms of Service'}
-                    </Link>
-                  </div>
-                </div>
-              </div>
-            </div>
 
             {/* The EventTag Promise Banner */}
             <div className="relative overflow-hidden rounded-xl bg-surface-container border border-surface-border p-8 md:p-12 flex flex-col md:flex-row items-center justify-between gap-8 group text-start">
