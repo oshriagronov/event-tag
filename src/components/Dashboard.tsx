@@ -19,7 +19,8 @@ import {
   ArrowLeft, LogOut, Cloud, Link2, QrCode, Share2,
   CheckCircle2, Loader2, Clock, Copy, Check, X,
   Plus, Play, Pause, FolderOpen, Search, Menu, BarChart2, Settings, Shield,
-  Sun, Moon, AlertTriangle, Upload, Sparkles, LayoutGrid, List, Filter, ChevronDown, MoreHorizontal
+  Sun, Moon, AlertTriangle, Upload, Sparkles, LayoutGrid, List, Filter, ChevronDown, MoreHorizontal,
+  Crown, Info
 } from 'lucide-react';
 import { createGoogleFolder } from '../services/google';
 import { createDropboxFolder } from '../services/dropbox';
@@ -31,6 +32,11 @@ import { useModal } from '../contexts/ModalContext';
 import { useConsent } from '../contexts/ConsentContext';
 import { AdminManagement } from './AdminManagement';
 import { AllowlistManagement } from './AllowlistManagement';
+import {
+  getUserQuotaStatus,
+  isFirebaseQuotaOrDemandError,
+  getFirestoreErrorMessage,
+} from '../services/quotaService';
 
 export function Dashboard() {
   const navigate = useNavigate();
@@ -38,6 +44,8 @@ export function Dashboard() {
   const { confirm, alert } = useModal();
   const {
     user,
+    userProfile,
+    systemSettings,
     isAdmin,
     dropboxAccessToken,
     googleAccessToken,
@@ -154,7 +162,31 @@ export function Dashboard() {
   }, [user]);
 
 
-  const handleFolderSelected = (folder: { id: string; name: string }) => {
+  // Compute user quota status based on user role/profile and system settings
+  const quotaStatus = getUserQuotaStatus(
+    user,
+    userProfile,
+    systemSettings,
+    language
+  );
+
+  // Highest photo count among user's events to show capacity utilization
+  const peakEventPhotoCount = cloudEvents.reduce((max, ev) => Math.max(max, ev.photoCount || 0), 0);
+  const photoUsagePercent = quotaStatus.isAdmin
+    ? 0
+    : Math.min(100, Math.round((peakEventPhotoCount / quotaStatus.maxPhotosPerEvent) * 100));
+
+  const handleOpenNewEventFlow = async () => {
+    setMobileMenuOpen(false);
+    const canProceedParallel = await checkParallelScanWarning();
+    if (!canProceedParallel) return;
+    setNewEventName('');
+    setPendingPhotos([]);
+    setPendingFolder(null);
+    setShowProviderModal(true);
+  };
+
+  const handleFolderSelected = async (folder: { id: string; name: string }) => {
     setPendingFolder(folder);
     setPendingPhotos([]);
     setShowCreateModal(true);
@@ -177,6 +209,18 @@ export function Dashboard() {
 
   const handleCreateEvent = async () => {
     if (!user || (!pendingFolder && pendingPhotos.length === 0) || !newEventName.trim()) return;
+
+    if (pendingPhotos.length > quotaStatus.maxPhotosPerEvent) {
+      await alert({
+        title: t('dashboard.photoLimitExceededTitle'),
+        message: t('dashboard.photoLimitExceededMessage')
+          .replace('{count}', pendingPhotos.length.toString())
+          .replace('{tier}', quotaStatus.tierName)
+          .replace('{max}', quotaStatus.maxPhotosPerEvent.toString()),
+        variant: 'warning',
+      });
+      return;
+    }
 
     setCreating(true);
     try {
@@ -217,12 +261,13 @@ export function Dashboard() {
       setPendingPhotos([]);
       setPendingFolder(null);
       navigate(`/dashboard/event/${eventId}`);
-    } catch (err) {
+    } catch (err: unknown) {
       console.error('Failed to create event:', err);
+      const errInfo = getFirestoreErrorMessage(err, language);
       await alert({
-        title: language === 'he' ? 'שגיאה ביצירת אירוע' : 'Error Creating Event',
-        message: language === 'he' ? 'שגיאה ביצירת האירוע. נסה שוב.' : 'Error creating event. Please try again.',
-        variant: 'danger',
+        title: errInfo.isHighDemand ? t('dashboard.firebaseHighDemandTitle') : errInfo.title,
+        message: errInfo.isHighDemand ? t('dashboard.firebaseHighDemandMessage') : errInfo.message,
+        variant: errInfo.isHighDemand ? 'warning' : 'danger',
       });
     } finally {
       setCreating(false);
@@ -231,6 +276,18 @@ export function Dashboard() {
 
   const handleCreateGoogleEvent = async () => {
     if (!user || !googleAccessToken || selectedLocalFiles.length === 0 || !newEventName.trim()) return;
+
+    if (selectedLocalFiles.length > quotaStatus.maxPhotosPerEvent) {
+      await alert({
+        title: t('dashboard.photoLimitExceededTitle'),
+        message: t('dashboard.photoLimitExceededMessage')
+          .replace('{count}', selectedLocalFiles.length.toString())
+          .replace('{tier}', quotaStatus.tierName)
+          .replace('{max}', quotaStatus.maxPhotosPerEvent.toString()),
+        variant: 'warning',
+      });
+      return;
+    }
 
     setCreating(true);
     try {
@@ -256,6 +313,14 @@ export function Dashboard() {
       navigate(`/dashboard/event/${eventId}`);
     } catch (err: unknown) {
       console.error('Failed to create Google Drive event:', err);
+      if (isFirebaseQuotaOrDemandError(err)) {
+        await alert({
+          title: t('dashboard.firebaseHighDemandTitle'),
+          message: t('dashboard.firebaseHighDemandMessage'),
+          variant: 'warning',
+        });
+        return;
+      }
       const errStr = err instanceof Error ? err.message : String(err);
       if (
         errStr.includes('401') ||
@@ -278,12 +343,11 @@ export function Dashboard() {
           connectGoogle();
         }
       } else {
+        const errInfo = getFirestoreErrorMessage(err, language);
         await alert({
-          title: language === 'he' ? 'שגיאה ביצירת אירוע' : 'Error Creating Event',
-          message: language === 'he'
-            ? `שגיאה ביצירת התיקייה ב-Google Drive:\n${errStr}`
-            : `Error creating folder in Google Drive:\n${errStr}`,
-          variant: 'danger',
+          title: errInfo.isHighDemand ? t('dashboard.firebaseHighDemandTitle') : errInfo.title,
+          message: errInfo.isHighDemand ? t('dashboard.firebaseHighDemandMessage') : errInfo.message,
+          variant: errInfo.isHighDemand ? 'warning' : 'danger',
         });
       }
     } finally {
@@ -293,6 +357,18 @@ export function Dashboard() {
 
   const handleCreateDropboxEvent = async () => {
     if (!user || !dropboxAccessToken || selectedLocalFiles.length === 0 || !newEventName.trim()) return;
+
+    if (selectedLocalFiles.length > quotaStatus.maxPhotosPerEvent) {
+      await alert({
+        title: t('dashboard.photoLimitExceededTitle'),
+        message: t('dashboard.photoLimitExceededMessage')
+          .replace('{count}', selectedLocalFiles.length.toString())
+          .replace('{tier}', quotaStatus.tierName)
+          .replace('{max}', quotaStatus.maxPhotosPerEvent.toString()),
+        variant: 'warning',
+      });
+      return;
+    }
 
     setCreating(true);
     try {
@@ -318,6 +394,14 @@ export function Dashboard() {
       navigate(`/dashboard/event/${eventId}`);
     } catch (err: unknown) {
       console.error('Failed to create Dropbox event:', err);
+      if (isFirebaseQuotaOrDemandError(err)) {
+        await alert({
+          title: t('dashboard.firebaseHighDemandTitle'),
+          message: t('dashboard.firebaseHighDemandMessage'),
+          variant: 'warning',
+        });
+        return;
+      }
       const errStr = err instanceof Error ? err.message : String(err);
       if (
         errStr.includes('401') ||
@@ -340,12 +424,11 @@ export function Dashboard() {
           connectDropbox();
         }
       } else {
+        const errInfo = getFirestoreErrorMessage(err, language);
         await alert({
-          title: language === 'he' ? 'שגיאה ביצירת אירוע' : 'Error Creating Event',
-          message: language === 'he'
-            ? `שגיאה ביצירת התיקייה ב-Dropbox:\n${errStr}`
-            : `Error creating folder in Dropbox:\n${errStr}`,
-          variant: 'danger',
+          title: errInfo.isHighDemand ? t('dashboard.firebaseHighDemandTitle') : errInfo.title,
+          message: errInfo.isHighDemand ? t('dashboard.firebaseHighDemandMessage') : errInfo.message,
+          variant: errInfo.isHighDemand ? 'warning' : 'danger',
         });
       }
     } finally {
@@ -664,18 +747,61 @@ export function Dashboard() {
         )}
       </nav>
 
+      {/* Quota & Plan Status Card in Sidebar */}
+      <div className="px-5 mt-auto mb-3">
+        <div className="p-3.5 rounded-xl bg-surface-container border border-surface-border flex flex-col gap-2.5 shadow-sm text-start">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-1.5">
+              {quotaStatus.isAdmin ? (
+                <Shield className="w-3.5 h-3.5 text-copper-accent" />
+              ) : quotaStatus.isPremium ? (
+                <Crown className="w-3.5 h-3.5 text-amber-400" />
+              ) : (
+                <span className="w-2 h-2 rounded-full bg-emerald-400" />
+              )}
+              <span className="text-[11px] font-bold uppercase tracking-wider text-on-background">
+                {quotaStatus.tierName}
+              </span>
+            </div>
+            <span className="text-[10px] px-2 py-0.5 rounded-full bg-surface-container-high border border-surface-border text-on-background font-mono font-semibold">
+              {quotaStatus.isAdmin
+                ? '∞'
+                : `${photoUsagePercent}%`}
+            </span>
+          </div>
+
+          {/* Progress bar */}
+          <div className="w-full bg-surface-container-low rounded-full h-2 overflow-hidden border border-surface-border/40">
+            <div
+              className={`h-full rounded-full transition-all duration-500 ${
+                quotaStatus.isAdmin
+                  ? 'bg-gradient-to-r from-copper-accent to-emerald-400 w-full'
+                  : photoUsagePercent >= 90
+                  ? 'bg-red-400'
+                  : photoUsagePercent >= 75
+                  ? 'bg-amber-400'
+                  : 'bg-emerald-400'
+              }`}
+              style={{
+                width: quotaStatus.isAdmin ? '100%' : `${Math.max(peakEventPhotoCount > 0 ? 5 : 0, photoUsagePercent)}%`,
+              }}
+            />
+          </div>
+
+          <div className="text-[11px] text-sage-muted font-mono leading-tight text-start">
+            {quotaStatus.isAdmin
+              ? (language === 'he' ? 'תמונות ללא הגבלה' : 'Unlimited photos')
+              : (language === 'he'
+                  ? `${peakEventPhotoCount} / ${quotaStatus.maxPhotosPerEvent.toLocaleString()} תמונות`
+                  : `${peakEventPhotoCount} / ${quotaStatus.maxPhotosPerEvent.toLocaleString()} photos`)}
+          </div>
+        </div>
+      </div>
+
       {/* CTA Button in Sidebar */}
-      <div className="px-5 mt-auto">
+      <div className="px-5 mb-5">
         <button
-          onClick={async () => {
-            setMobileMenuOpen(false);
-            const canProceed = await checkParallelScanWarning();
-            if (!canProceed) return;
-            setNewEventName('');
-            setPendingPhotos([]);
-            setPendingFolder(null);
-            setShowProviderModal(true);
-          }}
+          onClick={handleOpenNewEventFlow}
           className="w-full bg-deep-forest text-surface-container-lowest font-label-sm text-xs font-bold uppercase tracking-wider py-3.5 px-4 rounded-xl flex items-center justify-center gap-2 hover:bg-primary-container transition-colors shadow-sm cursor-pointer border-none active:scale-95 text-background"
         >
           <Plus className="w-4 h-4" />
@@ -1039,6 +1165,13 @@ export function Dashboard() {
                     <p className="font-body-md text-sage-muted text-sm mt-2 leading-relaxed">
                       {language === 'he' ? 'חבר תיקיית תמונות מספק ענן כדי להתחיל את הסריקה המקומית והזיהוי.' : 'Connect a folder from a Cloud Provider to initialize on-device facial scanning.'}
                     </p>
+                    <button
+                      onClick={handleOpenNewEventFlow}
+                      className="mt-6 px-6 py-2.5 rounded-xl bg-deep-forest hover:bg-primary text-background font-bold text-xs transition-all cursor-pointer inline-flex items-center gap-2 shadow-sm border-none active:scale-95"
+                    >
+                      <Plus className="w-4 h-4" />
+                      <span>{t('dashboard.newEventBtn')}</span>
+                    </button>
                   </div>
                 </div>
               ) : filteredEvents.length === 0 ? (
@@ -1698,6 +1831,44 @@ export function Dashboard() {
               </button>
             </div>
 
+            {/* Quota limit helper badge & progress */}
+            <div className="p-3 rounded-xl bg-surface-container-low border border-surface-border flex flex-col gap-2 text-start">
+              <div className="flex items-center justify-between text-xs text-sage-muted">
+                <div className="flex items-center gap-1.5 font-medium text-on-background">
+                  {quotaStatus.isAdmin ? (
+                    <Shield className="w-3.5 h-3.5 text-copper-accent" />
+                  ) : quotaStatus.isPremium ? (
+                    <Crown className="w-3.5 h-3.5 text-amber-400" />
+                  ) : (
+                    <Info className="w-3.5 h-3.5 text-copper-accent" />
+                  )}
+                  <span>{quotaStatus.tierName}</span>
+                </div>
+                <span className="font-mono text-[11px] font-semibold text-on-background">
+                  {quotaStatus.isAdmin
+                    ? t('dashboard.monthlyUsageUnlimited')
+                    : `${pendingPhotos.length} / ${quotaStatus.maxPhotosPerEvent.toLocaleString()} (${Math.round((pendingPhotos.length / quotaStatus.maxPhotosPerEvent) * 100)}%)`}
+                </span>
+              </div>
+
+              {!quotaStatus.isAdmin && (
+                <div className="w-full bg-surface-container-high rounded-full h-1.5 overflow-hidden border border-surface-border/40">
+                  <div
+                    className={`h-full rounded-full transition-all duration-300 ${
+                      pendingPhotos.length > quotaStatus.maxPhotosPerEvent
+                        ? 'bg-red-400'
+                        : pendingPhotos.length / quotaStatus.maxPhotosPerEvent >= 0.75
+                        ? 'bg-amber-400'
+                        : 'bg-emerald-400'
+                    }`}
+                    style={{
+                      width: `${Math.min(100, Math.max(pendingPhotos.length > 0 ? 5 : 0, Math.round((pendingPhotos.length / quotaStatus.maxPhotosPerEvent) * 100)))}%`,
+                    }}
+                  />
+                </div>
+              )}
+            </div>
+
             <div className="flex flex-col gap-2 text-start">
               <label className="text-xs font-bold uppercase tracking-wider text-sage-muted">
                 {pendingFolder
@@ -1717,6 +1888,19 @@ export function Dashboard() {
                 </span>
               </div>
             </div>
+
+            {/* Photo count limit warning if exceeded */}
+            {pendingPhotos.length > quotaStatus.maxPhotosPerEvent && (
+              <div className="bg-red-500/15 border-2 border-red-500/50 rounded-xl p-3.5 text-start flex items-start gap-2.5 shadow-md">
+                <AlertTriangle className="w-4 h-4 text-red-400 shrink-0 mt-0.5" />
+                <p className="text-xs font-semibold text-red-300 m-0 leading-relaxed">
+                  {t('dashboard.photoLimitExceededMessage')
+                    .replace('{count}', pendingPhotos.length.toString())
+                    .replace('{tier}', quotaStatus.tierName)
+                    .replace('{max}', quotaStatus.maxPhotosPerEvent.toString())}
+                </p>
+              </div>
+            )}
 
             <div className="bg-amber-500/15 dark:bg-amber-500/20 border-2 border-amber-500/50 dark:border-amber-400/50 rounded-xl p-4 text-start flex items-start gap-3 shadow-md">
               <div className="p-2 rounded-lg bg-amber-500/25 text-amber-700 dark:text-amber-300 shrink-0 mt-0.5 shadow-sm">
@@ -1750,7 +1934,7 @@ export function Dashboard() {
             <div className="flex gap-3 mt-2">
               <button
                 onClick={handleCreateEvent}
-                disabled={creating || !newEventName.trim()}
+                disabled={creating || !newEventName.trim() || pendingPhotos.length > quotaStatus.maxPhotosPerEvent}
                 className="flex-1 py-3 rounded bg-deep-forest hover:bg-primary text-background font-bold text-sm transition-all cursor-pointer active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 border-none"
               >
                 {creating ? (
@@ -1791,13 +1975,49 @@ export function Dashboard() {
               </button>
             </div>
 
+            {/* Quota limit helper badge & progress */}
+            <div className="p-3 rounded-xl bg-surface-container-low border border-surface-border flex flex-col gap-2 text-start">
+              <div className="flex items-center justify-between text-xs text-sage-muted">
+                <div className="flex items-center gap-1.5 font-medium text-on-background">
+                  {quotaStatus.isAdmin ? (
+                    <Shield className="w-3.5 h-3.5 text-copper-accent" />
+                  ) : quotaStatus.isPremium ? (
+                    <Crown className="w-3.5 h-3.5 text-amber-400" />
+                  ) : (
+                    <Info className="w-3.5 h-3.5 text-copper-accent" />
+                  )}
+                  <span>{quotaStatus.tierName}</span>
+                </div>
+                <span className="font-mono text-[11px] font-semibold text-on-background">
+                  {quotaStatus.isAdmin
+                    ? t('dashboard.monthlyUsageUnlimited')
+                    : `${selectedLocalFiles.length} / ${quotaStatus.maxPhotosPerEvent.toLocaleString()} (${Math.round((selectedLocalFiles.length / quotaStatus.maxPhotosPerEvent) * 100)}%)`}
+                </span>
+              </div>
+
+              {!quotaStatus.isAdmin && (
+                <div className="w-full bg-surface-container-high rounded-full h-1.5 overflow-hidden border border-surface-border/40">
+                  <div
+                    className={`h-full rounded-full transition-all duration-300 ${
+                      selectedLocalFiles.length > quotaStatus.maxPhotosPerEvent
+                        ? 'bg-red-400'
+                        : selectedLocalFiles.length / quotaStatus.maxPhotosPerEvent >= 0.75
+                        ? 'bg-amber-400'
+                        : 'bg-emerald-400'
+                    }`}
+                    style={{
+                      width: `${Math.min(100, Math.max(selectedLocalFiles.length > 0 ? 5 : 0, Math.round((selectedLocalFiles.length / quotaStatus.maxPhotosPerEvent) * 100)))}%`,
+                    }}
+                  />
+                </div>
+              )}
+            </div>
+
             <p className="text-xs text-sage-muted m-0 text-start">
               {language === 'he'
                 ? 'בחר תמונות או תיקייה מהמחשב. המערכת תקים תיקייה ב-Google Drive שלך, תעלה ותסרוק את התמונות מקומית בדפדפן.'
                 : 'Select photos or a folder from your computer. The app will create a folder in your Google Drive, upload, and scan faces locally.'}
             </p>
-
-
 
             {/* Select Local Files / Folder Dropzone */}
             <div className="flex flex-col gap-2 text-start">
@@ -1840,6 +2060,19 @@ export function Dashboard() {
               </div>
             </div>
 
+            {/* Photo count limit warning if exceeded */}
+            {selectedLocalFiles.length > quotaStatus.maxPhotosPerEvent && (
+              <div className="bg-red-500/15 border-2 border-red-500/50 rounded-xl p-3.5 text-start flex items-start gap-2.5 shadow-md">
+                <AlertTriangle className="w-4 h-4 text-red-400 shrink-0 mt-0.5" />
+                <p className="text-xs font-semibold text-red-300 m-0 leading-relaxed">
+                  {t('dashboard.photoLimitExceededMessage')
+                    .replace('{count}', selectedLocalFiles.length.toString())
+                    .replace('{tier}', quotaStatus.tierName)
+                    .replace('{max}', quotaStatus.maxPhotosPerEvent.toString())}
+                </p>
+              </div>
+            )}
+
             {/* Event Name Input */}
             <div className="flex flex-col gap-2 text-start">
               <label className="text-xs font-bold uppercase tracking-wider text-sage-muted">
@@ -1858,7 +2091,7 @@ export function Dashboard() {
             <div className="flex gap-3">
               <button
                 onClick={handleCreateGoogleEvent}
-                disabled={creating || selectedLocalFiles.length === 0 || !newEventName.trim()}
+                disabled={creating || selectedLocalFiles.length === 0 || !newEventName.trim() || selectedLocalFiles.length > quotaStatus.maxPhotosPerEvent}
                 className="flex-1 py-3 rounded bg-deep-forest hover:bg-primary text-background font-bold text-sm transition-all cursor-pointer active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 border-none shadow-lg"
               >
                 {creating ? (
@@ -1899,12 +2132,49 @@ export function Dashboard() {
               </button>
             </div>
 
+            {/* Quota limit helper badge & progress */}
+            <div className="p-3 rounded-xl bg-surface-container-low border border-surface-border flex flex-col gap-2 text-start">
+              <div className="flex items-center justify-between text-xs text-sage-muted">
+                <div className="flex items-center gap-1.5 font-medium text-on-background">
+                  {quotaStatus.isAdmin ? (
+                    <Shield className="w-3.5 h-3.5 text-copper-accent" />
+                  ) : quotaStatus.isPremium ? (
+                    <Crown className="w-3.5 h-3.5 text-amber-400" />
+                  ) : (
+                    <Info className="w-3.5 h-3.5 text-copper-accent" />
+                  )}
+                  <span>{quotaStatus.tierName}</span>
+                </div>
+                <span className="font-mono text-[11px] font-semibold text-on-background">
+                  {quotaStatus.isAdmin
+                    ? t('dashboard.monthlyUsageUnlimited')
+                    : `${selectedLocalFiles.length} / ${quotaStatus.maxPhotosPerEvent.toLocaleString()} (${Math.round((selectedLocalFiles.length / quotaStatus.maxPhotosPerEvent) * 100)}%)`}
+                </span>
+              </div>
+
+              {!quotaStatus.isAdmin && (
+                <div className="w-full bg-surface-container-high rounded-full h-1.5 overflow-hidden border border-surface-border/40">
+                  <div
+                    className={`h-full rounded-full transition-all duration-300 ${
+                      selectedLocalFiles.length > quotaStatus.maxPhotosPerEvent
+                        ? 'bg-red-400'
+                        : selectedLocalFiles.length / quotaStatus.maxPhotosPerEvent >= 0.75
+                        ? 'bg-amber-400'
+                        : 'bg-emerald-400'
+                    }`}
+                    style={{
+                      width: `${Math.min(100, Math.max(selectedLocalFiles.length > 0 ? 5 : 0, Math.round((selectedLocalFiles.length / quotaStatus.maxPhotosPerEvent) * 100)))}%`,
+                    }}
+                  />
+                </div>
+              )}
+            </div>
+
             <p className="text-xs text-sage-muted m-0 text-start">
               {language === 'he'
                 ? 'בחר תמונות או תיקייה מהמחשב. המערכת תקים תיקייה ב-Dropbox שלך, תעלה ותסרוק את התמונות מקומית בדפדפן.'
                 : 'Select photos or a folder from your computer. The app will create a folder in your Dropbox, upload, and scan faces locally.'}
             </p>
-
 
             {/* Select Local Files / Folder Dropzone */}
             <div className="flex flex-col gap-2 text-start">
@@ -1947,6 +2217,19 @@ export function Dashboard() {
               </div>
             </div>
 
+            {/* Photo count limit warning if exceeded */}
+            {selectedLocalFiles.length > quotaStatus.maxPhotosPerEvent && (
+              <div className="bg-red-500/15 border-2 border-red-500/50 rounded-xl p-3.5 text-start flex items-start gap-2.5 shadow-md">
+                <AlertTriangle className="w-4 h-4 text-red-400 shrink-0 mt-0.5" />
+                <p className="text-xs font-semibold text-red-300 m-0 leading-relaxed">
+                  {t('dashboard.photoLimitExceededMessage')
+                    .replace('{count}', selectedLocalFiles.length.toString())
+                    .replace('{tier}', quotaStatus.tierName)
+                    .replace('{max}', quotaStatus.maxPhotosPerEvent.toString())}
+                </p>
+              </div>
+            )}
+
             {/* Event Name Input */}
             <div className="flex flex-col gap-2 text-start">
               <label className="text-xs font-bold uppercase tracking-wider text-sage-muted">
@@ -1981,7 +2264,7 @@ export function Dashboard() {
             <div className="flex gap-3">
               <button
                 onClick={handleCreateDropboxEvent}
-                disabled={creating || selectedLocalFiles.length === 0 || !newEventName.trim()}
+                disabled={creating || selectedLocalFiles.length === 0 || !newEventName.trim() || selectedLocalFiles.length > quotaStatus.maxPhotosPerEvent}
                 className="flex-1 py-3 rounded bg-deep-forest hover:bg-primary text-background font-bold text-sm transition-all cursor-pointer active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 border-none shadow-lg"
               >
                 {creating ? (

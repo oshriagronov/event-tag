@@ -583,6 +583,21 @@ export function EventView({ eventId, onBack }: EventViewProps) {
               </div>
             </div>
           )}
+          {thisEventScanError === 'demand_limit' && (
+            <div className="flex flex-col items-center gap-3 bg-amber-500/15 border border-amber-500/30 rounded-xl p-5 text-center mt-2">
+              <AlertCircle className="w-7 h-7 text-amber-400" />
+              <div className="flex flex-col gap-1 text-center">
+                <h4 className="font-bold text-amber-400 text-sm m-0">
+                  {language === 'he' ? 'עומס זמני במערכת' : 'High System Demand'}
+                </h4>
+                <p className="text-sage-muted text-xs m-0">
+                  {language === 'he'
+                    ? 'יש לנו עומס גבוה היום במערכת, אנא נסה שוב מחר.'
+                    : 'We are experiencing high demand today. Please come back tomorrow.'}
+                </p>
+              </div>
+            </div>
+          )}
         </div>
       )}
 

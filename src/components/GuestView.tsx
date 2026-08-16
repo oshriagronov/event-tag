@@ -30,6 +30,7 @@ import { matchSelfieToEvent, type MatchResult } from '../services/faceMatching';
 import { SelfieCapture } from './SelfieCapture';
 import { ensureModelsLoaded } from '../services/modelLoader';
 import { warmUpONNX } from '../services/onnxModel';
+import { isFirebaseQuotaOrDemandError } from '../services/quotaService';
 
 
 interface GuestViewProps {
@@ -157,7 +158,15 @@ export function GuestView({ eventId }: GuestViewProps) {
       } catch (err) {
         if (cancelled) return;
         console.error('Error loading event:', err);
-        setErrorMessage(language === 'he' ? 'שגיאה בטעינת האירוע. בדוק/י את החיבור לאינטרנט ונסה/י שוב.' : 'Error loading event. Please check your internet connection and try again.');
+        if (isFirebaseQuotaOrDemandError(err)) {
+          setErrorMessage(
+            language === 'he'
+              ? 'יש לנו עומס גבוה היום במערכת, אנא נסה שוב מחר.'
+              : 'We are experiencing high demand today. Please come back tomorrow.'
+          );
+        } else {
+          setErrorMessage(language === 'he' ? 'שגיאה בטעינת האירוע. בדוק/י את החיבור לאינטרנט ונסה/י שוב.' : 'Error loading event. Please check your internet connection and try again.');
+        }
         setViewState('error');
       }
     }
@@ -192,11 +201,19 @@ export function GuestView({ eventId }: GuestViewProps) {
         }
       } catch (err) {
         console.error('Matching error:', err);
-        setErrorMessage(t('guestView.errorSearching'));
+        if (isFirebaseQuotaOrDemandError(err)) {
+          setErrorMessage(
+            language === 'he'
+              ? 'יש לנו עומס גבוה היום במערכת, אנא נסה שוב מחר.'
+              : 'We are experiencing high demand today. Please come back tomorrow.'
+          );
+        } else {
+          setErrorMessage(t('guestView.errorSearching'));
+        }
         setViewState('error');
       }
     },
-    [event, t]
+    [event, t, language]
   );
 
   // ---- Retake selfie ----

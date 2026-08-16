@@ -26,7 +26,8 @@ You are an expert Frontend Engineer and Client-Side Machine Learning specialist.
     2. **System Health & Overview Metrics:** Real-time aggregated stats (Photos Indexed, Detected Faces, Face Embeddings), Cloud Provider Fabric distribution chart (Google Drive vs. Dropbox), and Event Telemetry (Active, Scanning, Completed).
     3. **System Audit Logs (`audit_logs`):** Immutable audit log trail tracking admin changes (user status, allowlist updates, premium plan changes, maintenance toggles, quota edits) with timestamps, severity levels (Info, Warning, Security), and performed-by email/ID.
     4. **Allowlist CSV Bulk Import & Export:** Multiline text/drag-and-drop CSV parser with instant email validation, preview table, bulk import, and CSV download export.
-    5. **Quota & Tier Limits Management:** Form to edit Standard and Premium tier photo and monthly event limits, stored in `/system/config` and dynamically enforced at the Firestore Security Rules level.
+    5. **Quota & Tier Limits Management:** Form to edit Standard and Premium tier photo limits per event (`maxPhotosPerEvent`), stored in `/system/config` and dynamically enforced at the Firestore Security Rules level (`getPhotoQuotaLimit()`).
+  - **Quota & Tier Limits Enforcement (`quotaService`):** Client-side tier evaluation (`standard`, `premium`, `admin`) enforcing per-event photo limits (`maxPhotosPerEvent`), proactive creation modal photo warnings/disabled states, and Firestore capacity/high-demand error interceptor (`isFirebaseQuotaOrDemandError`) with graceful bilingual notifications ("יש לנו עומס גבוה היום במערכת, אנא נסה שוב מחר.").
   - **MaintenanceOverlay:** Full-screen maintenance mode display for non-admin users when maintenance mode is active.
 - **Contexts & Modal System:**
   - **ModalContext:** Unified asynchronous modal system for confirm/alert dialogs styled like the application theme (dark backdrop blur, accessibility IS 5568 / WCAG compliant, bidi-isolated).

@@ -31,7 +31,6 @@ export interface UserProfile {
 
 export interface QuotaTier {
   maxPhotosPerEvent: number;
-  maxEventsPerMonth: number;
 }
 
 export interface QuotaConfig {
@@ -92,11 +91,9 @@ export interface AllowlistEntry {
 export const DEFAULT_QUOTAS: QuotaConfig = {
   standard: {
     maxPhotosPerEvent: 500,
-    maxEventsPerMonth: 1,
   },
   premium: {
     maxPhotosPerEvent: 10000,
-    maxEventsPerMonth: 100,
   },
 };
 

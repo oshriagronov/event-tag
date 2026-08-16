@@ -16,6 +16,7 @@ import {
 } from '../services/firestore';
 import { useAuth } from './AuthContext';
 import { useModal } from './ModalContext';
+import { isFirebaseQuotaOrDemandError } from '../services/quotaService';
 
 export interface EventScanState {
   eventId: string;
@@ -24,7 +25,7 @@ export interface EventScanState {
   scannedCount: number;
   totalToScan: number;
   etaSeconds: number | null;
-  scanError: 'auth_expired' | 'network_error' | null;
+  scanError: 'auth_expired' | 'network_error' | 'demand_limit' | null;
 }
 
 interface ScannerContextType {
@@ -35,7 +36,7 @@ interface ScannerContextType {
   etaSeconds: number | null;
   activeScanningEventId: string | null;
   activeScanningEventIds: string[];
-  scanError: 'auth_expired' | 'network_error' | null;
+  scanError: 'auth_expired' | 'network_error' | 'demand_limit' | null;
   isEventScanning: (eventId: string) => boolean;
   getEventScanState: (eventId: string) => EventScanState | undefined;
   startCloudScanning: (
@@ -488,6 +489,14 @@ export function ScannerProvider({ children }: { children: ReactNode }) {
           const currentRetries = (photoRetryMap.get(photoId) || 0) + 1;
           photoRetryMap.set(photoId, currentRetries);
 
+          if (isFirebaseQuotaOrDemandError(err)) {
+            pausedEventsRef.current.set(eventId, true);
+            updateEventState({ scanError: 'demand_limit', isPaused: true });
+            preloadCache.clear();
+            idx--;
+            continue;
+          }
+
           if (errStr.includes('401') || errStr.includes('403') || errStr.includes('PERMISSION_DENIED') || errStr.includes('unregistered callers')) {
             markProviderExpired(provider);
             pausedEventsRef.current.set(eventId, true);
@@ -727,6 +736,11 @@ export function ScannerProvider({ children }: { children: ReactNode }) {
           });
         } catch (err: unknown) {
           console.error(`Failed to process & upload file ${file.name}:`, err);
+          if (isFirebaseQuotaOrDemandError(err)) {
+            updateEventState({ scanError: 'demand_limit', isPaused: true });
+            pausedEventsRef.current.set(eventId, true);
+            break;
+          }
           const errStr = err instanceof Error ? err.message : String(err);
           if (
             errStr.includes('401') ||
@@ -899,6 +913,11 @@ export function ScannerProvider({ children }: { children: ReactNode }) {
           });
         } catch (err: unknown) {
           console.error(`Failed to process & upload file ${file.name} to Dropbox:`, err);
+          if (isFirebaseQuotaOrDemandError(err)) {
+            updateEventState({ scanError: 'demand_limit', isPaused: true });
+            pausedEventsRef.current.set(eventId, true);
+            break;
+          }
           const errStr = err instanceof Error ? err.message : String(err);
 
           if (

@@ -93,6 +93,7 @@ src/
 │   ├── firestore.ts            # Firestore CRUD & batched descriptor writer
 │   ├── google.ts               # Google Drive API REST v3 integration
 │   ├── onnxModel.ts            # ONNX Runtime Web (SFace WASM embedding extractor)
+│   ├── quotaService.ts         # Dynamic tier quota calculator, limit validator & Firestore capacity error handler
 │   └── translations.ts         # Hebrew/English localization strings
 └── utils/
     └── shareUtils.ts           # Web Share API & fallback share link helpers

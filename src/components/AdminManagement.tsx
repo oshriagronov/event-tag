@@ -1514,25 +1514,6 @@ export function AdminManagement({ embedded = false }: AdminManagementProps) {
                       className="w-full bg-surface-container-low border border-surface-border rounded-xl px-4 py-2.5 text-on-background text-sm font-mono focus:border-copper-accent outline-none"
                     />
                   </div>
-
-                  <div className="space-y-1.5">
-                    <label className="block text-xs font-bold text-sage-muted uppercase tracking-wider">
-                      {t('admin.maxEventsPerMonth')}
-                    </label>
-                    <input
-                      type="number"
-                      min={1}
-                      max={1000}
-                      value={quotaForm.standard.maxEventsPerMonth}
-                      onChange={(e) =>
-                        setQuotaForm((prev) => ({
-                          ...prev,
-                          standard: { ...prev.standard, maxEventsPerMonth: parseInt(e.target.value, 10) || 1 },
-                        }))
-                      }
-                      className="w-full bg-surface-container-low border border-surface-border rounded-xl px-4 py-2.5 text-on-background text-sm font-mono focus:border-copper-accent outline-none"
-                    />
-                  </div>
                 </div>
               </div>
             </div>
@@ -1563,25 +1544,6 @@ export function AdminManagement({ embedded = false }: AdminManagementProps) {
                         setQuotaForm((prev) => ({
                           ...prev,
                           premium: { ...prev.premium, maxPhotosPerEvent: parseInt(e.target.value, 10) || 10000 },
-                        }))
-                      }
-                      className="w-full bg-surface-container-low border border-surface-border rounded-xl px-4 py-2.5 text-on-background text-sm font-mono focus:border-copper-accent outline-none"
-                    />
-                  </div>
-
-                  <div className="space-y-1.5">
-                    <label className="block text-xs font-bold text-sage-muted uppercase tracking-wider">
-                      {t('admin.maxEventsPerMonth')}
-                    </label>
-                    <input
-                      type="number"
-                      min={1}
-                      max={10000}
-                      value={quotaForm.premium.maxEventsPerMonth}
-                      onChange={(e) =>
-                        setQuotaForm((prev) => ({
-                          ...prev,
-                          premium: { ...prev.premium, maxEventsPerMonth: parseInt(e.target.value, 10) || 100 },
                         }))
                       }
                       className="w-full bg-surface-container-low border border-surface-border rounded-xl px-4 py-2.5 text-on-background text-sm font-mono focus:border-copper-accent outline-none"
