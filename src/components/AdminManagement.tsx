@@ -1498,17 +1498,17 @@ export function AdminManagement({ embedded = false }: AdminManagementProps) {
                 <div className="space-y-4">
                   <div className="space-y-1.5">
                     <label className="block text-xs font-bold text-sage-muted uppercase tracking-wider">
-                      {t('admin.maxPhotosPerEvent')}
+                      {t('admin.maxPhotosPerMonth')}
                     </label>
                     <input
                       type="number"
                       min={1}
                       max={50000}
-                      value={quotaForm.standard.maxPhotosPerEvent}
+                      value={quotaForm.standard.maxPhotosPerMonth}
                       onChange={(e) =>
                         setQuotaForm((prev) => ({
                           ...prev,
-                          standard: { ...prev.standard, maxPhotosPerEvent: parseInt(e.target.value, 10) || 500 },
+                          standard: { ...prev.standard, maxPhotosPerMonth: parseInt(e.target.value, 10) || 500 },
                         }))
                       }
                       className="w-full bg-surface-container-low border border-surface-border rounded-xl px-4 py-2.5 text-on-background text-sm font-mono focus:border-copper-accent outline-none"
@@ -1533,17 +1533,17 @@ export function AdminManagement({ embedded = false }: AdminManagementProps) {
                 <div className="space-y-4">
                   <div className="space-y-1.5">
                     <label className="block text-xs font-bold text-sage-muted uppercase tracking-wider">
-                      {t('admin.maxPhotosPerEvent')}
+                      {t('admin.maxPhotosPerMonth')}
                     </label>
                     <input
                       type="number"
                       min={1}
                       max={1000000}
-                      value={quotaForm.premium.maxPhotosPerEvent}
+                      value={quotaForm.premium.maxPhotosPerMonth}
                       onChange={(e) =>
                         setQuotaForm((prev) => ({
                           ...prev,
-                          premium: { ...prev.premium, maxPhotosPerEvent: parseInt(e.target.value, 10) || 10000 },
+                          premium: { ...prev.premium, maxPhotosPerMonth: parseInt(e.target.value, 10) || 10000 },
                         }))
                       }
                       className="w-full bg-surface-container-low border border-surface-border rounded-xl px-4 py-2.5 text-on-background text-sm font-mono focus:border-copper-accent outline-none"

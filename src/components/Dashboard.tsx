@@ -7,7 +7,10 @@ import {
   createCloudEvent,
   deleteCloudEvent,
   addCloudPhotosBatch,
+  subscribeUserUsage,
+  recordUserPhotoUsage,
   type CloudEvent,
+  type UserUsage,
 } from '../services/firestore';
 import { FolderPicker } from './FolderPicker';
 import type { CloudProvider } from '../services/cloudProviders';
@@ -137,6 +140,9 @@ export function Dashboard() {
   // Copy feedback
   const [copiedId, setCopiedId] = useState<string | null>(null);
 
+  // Rolling 30-day user photo usage
+  const [userUsage, setUserUsage] = useState<UserUsage | null>(null);
+
   // Subscribe to cloud events in real-time
   useEffect(() => {
     if (!user) {
@@ -161,20 +167,28 @@ export function Dashboard() {
     return () => unsubscribe();
   }, [user]);
 
+  // Subscribe to rolling 30-day photo usage in real-time
+  useEffect(() => {
+    if (!user) {
+      setUserUsage(null);
+      return;
+    }
+
+    const unsubscribe = subscribeUserUsage(user.uid, (usage) => {
+      setUserUsage(usage);
+    });
+
+    return () => unsubscribe();
+  }, [user]);
 
   // Compute user quota status based on user role/profile and system settings
   const quotaStatus = getUserQuotaStatus(
     user,
     userProfile,
+    userUsage,
     systemSettings,
     language
   );
-
-  // Highest photo count among user's events to show capacity utilization
-  const peakEventPhotoCount = cloudEvents.reduce((max, ev) => Math.max(max, ev.photoCount || 0), 0);
-  const photoUsagePercent = quotaStatus.isAdmin
-    ? 0
-    : Math.min(100, Math.round((peakEventPhotoCount / quotaStatus.maxPhotosPerEvent) * 100));
 
   const handleOpenNewEventFlow = async () => {
     setMobileMenuOpen(false);
@@ -210,13 +224,15 @@ export function Dashboard() {
   const handleCreateEvent = async () => {
     if (!user || (!pendingFolder && pendingPhotos.length === 0) || !newEventName.trim()) return;
 
-    if (pendingPhotos.length > quotaStatus.maxPhotosPerEvent) {
+    if (!quotaStatus.isAdmin && pendingPhotos.length > quotaStatus.remainingPhotosThisCycle) {
       await alert({
         title: t('dashboard.photoLimitExceededTitle'),
         message: t('dashboard.photoLimitExceededMessage')
           .replace('{count}', pendingPhotos.length.toString())
+          .replace('{remaining}', quotaStatus.remainingPhotosThisCycle.toString())
           .replace('{tier}', quotaStatus.tierName)
-          .replace('{max}', quotaStatus.maxPhotosPerEvent.toString()),
+          .replace('{max}', quotaStatus.maxPhotosPerMonth.toLocaleString())
+          .replace('{resetDate}', quotaStatus.formattedResetDate || (language === 'he' ? 'סיום מחזור 30 הימים' : 'end of 30-day cycle')),
         variant: 'warning',
       });
       return;
@@ -254,6 +270,7 @@ export function Dashboard() {
         }));
 
         await addCloudPhotosBatch(eventId, basePhotos);
+        await recordUserPhotoUsage(user.uid, pendingPhotos.length);
       }
 
       setShowCreateModal(false);
@@ -277,13 +294,15 @@ export function Dashboard() {
   const handleCreateGoogleEvent = async () => {
     if (!user || !googleAccessToken || selectedLocalFiles.length === 0 || !newEventName.trim()) return;
 
-    if (selectedLocalFiles.length > quotaStatus.maxPhotosPerEvent) {
+    if (!quotaStatus.isAdmin && selectedLocalFiles.length > quotaStatus.remainingPhotosThisCycle) {
       await alert({
         title: t('dashboard.photoLimitExceededTitle'),
         message: t('dashboard.photoLimitExceededMessage')
           .replace('{count}', selectedLocalFiles.length.toString())
+          .replace('{remaining}', quotaStatus.remainingPhotosThisCycle.toString())
           .replace('{tier}', quotaStatus.tierName)
-          .replace('{max}', quotaStatus.maxPhotosPerEvent.toString()),
+          .replace('{max}', quotaStatus.maxPhotosPerMonth.toLocaleString())
+          .replace('{resetDate}', quotaStatus.formattedResetDate || (language === 'he' ? 'סיום מחזור 30 הימים' : 'end of 30-day cycle')),
         variant: 'warning',
       });
       return;
@@ -302,6 +321,9 @@ export function Dashboard() {
         googleFolder.name,
         'google'
       );
+
+      // Record photo usage for the 30-day cycle
+      await recordUserPhotoUsage(user.uid, selectedLocalFiles.length);
 
       // 3. Trigger 2-worker parallel face scanning & Google Drive upload task
       startLocalGoogleUploadAndScan(eventId, googleFolder.id, selectedLocalFiles, googleAccessToken);
@@ -358,13 +380,15 @@ export function Dashboard() {
   const handleCreateDropboxEvent = async () => {
     if (!user || !dropboxAccessToken || selectedLocalFiles.length === 0 || !newEventName.trim()) return;
 
-    if (selectedLocalFiles.length > quotaStatus.maxPhotosPerEvent) {
+    if (!quotaStatus.isAdmin && selectedLocalFiles.length > quotaStatus.remainingPhotosThisCycle) {
       await alert({
         title: t('dashboard.photoLimitExceededTitle'),
         message: t('dashboard.photoLimitExceededMessage')
           .replace('{count}', selectedLocalFiles.length.toString())
+          .replace('{remaining}', quotaStatus.remainingPhotosThisCycle.toString())
           .replace('{tier}', quotaStatus.tierName)
-          .replace('{max}', quotaStatus.maxPhotosPerEvent.toString()),
+          .replace('{max}', quotaStatus.maxPhotosPerMonth.toLocaleString())
+          .replace('{resetDate}', quotaStatus.formattedResetDate || (language === 'he' ? 'סיום מחזור 30 הימים' : 'end of 30-day cycle')),
         variant: 'warning',
       });
       return;
@@ -383,6 +407,9 @@ export function Dashboard() {
         dropboxFolder.name,
         'dropbox'
       );
+
+      // Record photo usage for the 30-day cycle
+      await recordUserPhotoUsage(user.uid, selectedLocalFiles.length);
 
       // 3. Trigger 2-worker parallel face scanning & Dropbox upload task
       startLocalDropboxUploadAndScan(eventId, dropboxFolder.path, selectedLocalFiles, dropboxAccessToken);
@@ -766,7 +793,7 @@ export function Dashboard() {
             <span className="text-[10px] px-2 py-0.5 rounded-full bg-surface-container-high border border-surface-border text-on-background font-mono font-semibold">
               {quotaStatus.isAdmin
                 ? '∞'
-                : `${photoUsagePercent}%`}
+                : `${quotaStatus.percentUsed}%`}
             </span>
           </div>
 
@@ -776,24 +803,31 @@ export function Dashboard() {
               className={`h-full rounded-full transition-all duration-500 ${
                 quotaStatus.isAdmin
                   ? 'bg-gradient-to-r from-copper-accent to-emerald-400 w-full'
-                  : photoUsagePercent >= 90
+                  : quotaStatus.percentUsed >= 90
                   ? 'bg-red-400'
-                  : photoUsagePercent >= 75
+                  : quotaStatus.percentUsed >= 75
                   ? 'bg-amber-400'
                   : 'bg-emerald-400'
               }`}
               style={{
-                width: quotaStatus.isAdmin ? '100%' : `${Math.max(peakEventPhotoCount > 0 ? 5 : 0, photoUsagePercent)}%`,
+                width: quotaStatus.isAdmin ? '100%' : `${Math.max(quotaStatus.photosUsedThisCycle > 0 ? 5 : 0, quotaStatus.percentUsed)}%`,
               }}
             />
           </div>
 
-          <div className="text-[11px] text-sage-muted font-mono leading-tight text-start">
-            {quotaStatus.isAdmin
-              ? (language === 'he' ? 'תמונות ללא הגבלה' : 'Unlimited photos')
-              : (language === 'he'
-                  ? `${peakEventPhotoCount} / ${quotaStatus.maxPhotosPerEvent.toLocaleString()} תמונות`
-                  : `${peakEventPhotoCount} / ${quotaStatus.maxPhotosPerEvent.toLocaleString()} photos`)}
+          <div className="flex flex-col gap-0.5 text-start">
+            <div className="text-[11px] text-sage-muted font-mono leading-tight">
+              {quotaStatus.isAdmin
+                ? (language === 'he' ? 'תמונות ללא הגבלה' : 'Unlimited photos')
+                : (language === 'he'
+                    ? `${quotaStatus.photosUsedThisCycle.toLocaleString()} / ${quotaStatus.maxPhotosPerMonth.toLocaleString()} תמונות`
+                    : `${quotaStatus.photosUsedThisCycle.toLocaleString()} / ${quotaStatus.maxPhotosPerMonth.toLocaleString()} photos`)}
+            </div>
+            {!quotaStatus.isAdmin && (
+              <div className="text-[10px] text-sage-muted/80 font-body-md">
+                {quotaStatus.cycleStatusText}
+              </div>
+            )}
           </div>
         </div>
       </div>
@@ -1853,14 +1887,16 @@ export function Dashboard() {
             </div>
 
             {/* Photo count limit warning if exceeded */}
-            {pendingPhotos.length > quotaStatus.maxPhotosPerEvent && (
+            {!quotaStatus.isAdmin && pendingPhotos.length > quotaStatus.remainingPhotosThisCycle && (
               <div className="bg-red-500/15 border-2 border-red-500/50 rounded-xl p-3.5 text-start flex items-start gap-2.5 shadow-md">
                 <AlertTriangle className="w-4 h-4 text-red-400 shrink-0 mt-0.5" />
-                <p className="text-xs font-semibold text-red-300 m-0 leading-relaxed">
+                <p className="text-xs font-semibold text-red-300 m-0 leading-relaxed whitespace-pre-line">
                   {t('dashboard.photoLimitExceededMessage')
                     .replace('{count}', pendingPhotos.length.toString())
+                    .replace('{remaining}', quotaStatus.remainingPhotosThisCycle.toString())
                     .replace('{tier}', quotaStatus.tierName)
-                    .replace('{max}', quotaStatus.maxPhotosPerEvent.toString())}
+                    .replace('{max}', quotaStatus.maxPhotosPerMonth.toLocaleString())
+                    .replace('{resetDate}', quotaStatus.formattedResetDate || (language === 'he' ? 'סיום מחזור 30 הימים' : 'end of 30-day cycle'))}
                 </p>
               </div>
             )}
@@ -1897,7 +1933,7 @@ export function Dashboard() {
             <div className="flex gap-3 mt-2">
               <button
                 onClick={handleCreateEvent}
-                disabled={creating || !newEventName.trim() || pendingPhotos.length > quotaStatus.maxPhotosPerEvent}
+                disabled={creating || !newEventName.trim() || (!quotaStatus.isAdmin && pendingPhotos.length > quotaStatus.remainingPhotosThisCycle)}
                 className="flex-1 py-3 rounded bg-deep-forest hover:bg-primary text-background font-bold text-sm transition-all cursor-pointer active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 border-none"
               >
                 {creating ? (
@@ -1987,14 +2023,16 @@ export function Dashboard() {
             </div>
 
             {/* Photo count limit warning if exceeded */}
-            {selectedLocalFiles.length > quotaStatus.maxPhotosPerEvent && (
+            {!quotaStatus.isAdmin && selectedLocalFiles.length > quotaStatus.remainingPhotosThisCycle && (
               <div className="bg-red-500/15 border-2 border-red-500/50 rounded-xl p-3.5 text-start flex items-start gap-2.5 shadow-md">
                 <AlertTriangle className="w-4 h-4 text-red-400 shrink-0 mt-0.5" />
-                <p className="text-xs font-semibold text-red-300 m-0 leading-relaxed">
+                <p className="text-xs font-semibold text-red-300 m-0 leading-relaxed whitespace-pre-line">
                   {t('dashboard.photoLimitExceededMessage')
                     .replace('{count}', selectedLocalFiles.length.toString())
+                    .replace('{remaining}', quotaStatus.remainingPhotosThisCycle.toString())
                     .replace('{tier}', quotaStatus.tierName)
-                    .replace('{max}', quotaStatus.maxPhotosPerEvent.toString())}
+                    .replace('{max}', quotaStatus.maxPhotosPerMonth.toLocaleString())
+                    .replace('{resetDate}', quotaStatus.formattedResetDate || (language === 'he' ? 'סיום מחזור 30 הימים' : 'end of 30-day cycle'))}
                 </p>
               </div>
             )}
@@ -2017,7 +2055,7 @@ export function Dashboard() {
             <div className="flex gap-3">
               <button
                 onClick={handleCreateGoogleEvent}
-                disabled={creating || selectedLocalFiles.length === 0 || !newEventName.trim() || selectedLocalFiles.length > quotaStatus.maxPhotosPerEvent}
+                disabled={creating || selectedLocalFiles.length === 0 || !newEventName.trim() || (!quotaStatus.isAdmin && selectedLocalFiles.length > quotaStatus.remainingPhotosThisCycle)}
                 className="flex-1 py-3 rounded bg-deep-forest hover:bg-primary text-background font-bold text-sm transition-all cursor-pointer active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 border-none shadow-lg"
               >
                 {creating ? (
@@ -2107,14 +2145,16 @@ export function Dashboard() {
             </div>
 
             {/* Photo count limit warning if exceeded */}
-            {selectedLocalFiles.length > quotaStatus.maxPhotosPerEvent && (
+            {!quotaStatus.isAdmin && selectedLocalFiles.length > quotaStatus.remainingPhotosThisCycle && (
               <div className="bg-red-500/15 border-2 border-red-500/50 rounded-xl p-3.5 text-start flex items-start gap-2.5 shadow-md">
                 <AlertTriangle className="w-4 h-4 text-red-400 shrink-0 mt-0.5" />
-                <p className="text-xs font-semibold text-red-300 m-0 leading-relaxed">
+                <p className="text-xs font-semibold text-red-300 m-0 leading-relaxed whitespace-pre-line">
                   {t('dashboard.photoLimitExceededMessage')
                     .replace('{count}', selectedLocalFiles.length.toString())
+                    .replace('{remaining}', quotaStatus.remainingPhotosThisCycle.toString())
                     .replace('{tier}', quotaStatus.tierName)
-                    .replace('{max}', quotaStatus.maxPhotosPerEvent.toString())}
+                    .replace('{max}', quotaStatus.maxPhotosPerMonth.toLocaleString())
+                    .replace('{resetDate}', quotaStatus.formattedResetDate || (language === 'he' ? 'סיום מחזור 30 הימים' : 'end of 30-day cycle'))}
                 </p>
               </div>
             )}
@@ -2153,7 +2193,7 @@ export function Dashboard() {
             <div className="flex gap-3">
               <button
                 onClick={handleCreateDropboxEvent}
-                disabled={creating || selectedLocalFiles.length === 0 || !newEventName.trim() || selectedLocalFiles.length > quotaStatus.maxPhotosPerEvent}
+                disabled={creating || selectedLocalFiles.length === 0 || !newEventName.trim() || (!quotaStatus.isAdmin && selectedLocalFiles.length > quotaStatus.remainingPhotosThisCycle)}
                 className="flex-1 py-3 rounded bg-deep-forest hover:bg-primary text-background font-bold text-sm transition-all cursor-pointer active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 border-none shadow-lg"
               >
                 {creating ? (

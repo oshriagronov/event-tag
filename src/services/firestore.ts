@@ -8,6 +8,7 @@ import {
   doc,
   getDoc,
   getDocs,
+  setDoc,
   addDoc,
   updateDoc,
   deleteDoc,
@@ -359,3 +360,98 @@ export async function resetCloudEventForScanning(eventId: string): Promise<void>
     await batch.commit();
   }
 }
+
+// ---- User Photo Usage & Rolling Quota ----
+
+export interface UserUsage {
+  cycleStart?: Timestamp | Date;
+  cycleReset?: Timestamp | Date;
+  photosThisCycle: number;
+  updatedAt?: unknown;
+}
+
+/**
+ * Fetch current 30-day rolling photo usage for a user
+ */
+export async function getUserUsage(userId: string): Promise<UserUsage | null> {
+  try {
+    const docRef = doc(firestore, 'users', userId, 'usage', 'current');
+    const snap = await getDoc(docRef);
+    if (!snap.exists()) return null;
+    return snap.data() as UserUsage;
+  } catch (err) {
+    console.error('Error fetching user usage:', err);
+    return null;
+  }
+}
+
+/**
+ * Subscribe to current 30-day rolling photo usage for a user
+ */
+export function subscribeUserUsage(
+  userId: string,
+  onUpdate: (usage: UserUsage | null) => void
+): () => void {
+  const docRef = doc(firestore, 'users', userId, 'usage', 'current');
+  return onSnapshot(
+    docRef,
+    (snap) => {
+      if (snap.exists()) {
+        onUpdate(snap.data() as UserUsage);
+      } else {
+        onUpdate(null);
+      }
+    },
+    (err) => {
+      console.error('Error subscribing to user usage:', err);
+      onUpdate(null);
+    }
+  );
+}
+
+/**
+ * Record photo usage for a user, initiating a 30-day cycle on first upload or after cycle expiry
+ */
+export async function recordUserPhotoUsage(userId: string, addedPhotos: number): Promise<void> {
+  if (addedPhotos <= 0) return;
+  const docRef = doc(firestore, 'users', userId, 'usage', 'current');
+  const snap = await getDoc(docRef);
+  const now = new Date();
+
+  if (!snap.exists()) {
+    // First upload ever: start 30-day cycle
+    const cycleReset = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000);
+    await setDoc(docRef, {
+      cycleStart: serverTimestamp(),
+      cycleReset,
+      photosThisCycle: addedPhotos,
+      updatedAt: serverTimestamp(),
+    });
+    return;
+  }
+
+  const data = snap.data() as UserUsage;
+  const resetDate = data.cycleReset
+    ? (data.cycleReset as { toDate?: () => Date }).toDate
+      ? (data.cycleReset as { toDate: () => Date }).toDate()
+      : new Date(data.cycleReset as unknown as string)
+    : null;
+
+  if (!resetDate || now.getTime() >= resetDate.getTime()) {
+    // Previous cycle expired: start fresh 30-day cycle
+    const newReset = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000);
+    await setDoc(docRef, {
+      cycleStart: serverTimestamp(),
+      cycleReset: newReset,
+      photosThisCycle: addedPhotos,
+      updatedAt: serverTimestamp(),
+    });
+  } else {
+    // Within active 30-day cycle: accumulate photo count
+    await updateDoc(docRef, {
+      photosThisCycle: (data.photosThisCycle || 0) + addedPhotos,
+      updatedAt: serverTimestamp(),
+    });
+  }
+}
+

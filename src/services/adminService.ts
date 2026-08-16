@@ -30,7 +30,7 @@ export interface UserProfile {
 }
 
 export interface QuotaTier {
-  maxPhotosPerEvent: number;
+  maxPhotosPerMonth: number;
 }
 
 export interface QuotaConfig {
@@ -90,10 +90,10 @@ export interface AllowlistEntry {
 
 export const DEFAULT_QUOTAS: QuotaConfig = {
   standard: {
-    maxPhotosPerEvent: 500,
+    maxPhotosPerMonth: 500,
   },
   premium: {
-    maxPhotosPerEvent: 10000,
+    maxPhotosPerMonth: 10000,
   },
 };
 
@@ -318,7 +318,7 @@ export async function updateQuotaConfig(
     'quota_updated',
     adminUid,
     'system/config/quotas',
-    `עודכנו מכסות תוכניות: רגיל (${quotas.standard.maxPhotosPerEvent} תמונות/אירוע), פרימיום (${quotas.premium.maxPhotosPerEvent} תמונות/אירוע)`,
+    `עודכנו מכסות תוכניות: רגיל (${quotas.standard.maxPhotosPerMonth} תמונות/30 יום), פרימיום (${quotas.premium.maxPhotosPerMonth} תמונות/30 יום)`,
     'info',
     adminEmail
   );

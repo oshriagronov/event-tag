@@ -48,8 +48,8 @@ service cloud.firestore {
       let configExists = exists(/databases/$(database)/documents/system/config)
         && get(/databases/$(database)/documents/system/config).data.keys().hasAny(['quotas']);
       let config = configExists ? get(/databases/$(database)/documents/system/config).data.quotas : null;
-      let standardLimit = (config != null && config.keys().hasAny(['standard']) && config.standard.keys().hasAny(['maxPhotosPerEvent'])) ? config.standard.maxPhotosPerEvent : 500;
-      let premiumLimit = (config != null && config.keys().hasAny(['premium']) && config.premium.keys().hasAny(['maxPhotosPerEvent'])) ? config.premium.maxPhotosPerEvent : 10000;
+      let standardLimit = (config != null && config.keys().hasAny(['standard']) && config.standard.keys().hasAny(['maxPhotosPerMonth'])) ? config.standard.maxPhotosPerMonth : 500;
+      let premiumLimit = (config != null && config.keys().hasAny(['premium']) && config.premium.keys().hasAny(['maxPhotosPerMonth'])) ? config.premium.maxPhotosPerMonth : 10000;
       return isPremium ? premiumLimit : standardLimit;
     }
 
@@ -84,6 +84,17 @@ service cloud.firestore {
         && !request.resource.data.diff(resource.data).affectedKeys().hasAny(['role', 'status', 'premiumUntil', 'email'])
       );
       allow delete: if isAdmin();
+
+      // Rolling 30-day photo usage subcollection
+      match /usage/{usageDoc} {
+        allow read: if isOwner(userId) || isAdmin();
+        allow write: if (isOwner(userId) || isAdmin())
+          && (isAdmin() || (
+            request.resource.data.photosThisCycle is number
+            && request.resource.data.photosThisCycle >= 0
+            && request.resource.data.photosThisCycle <= getPhotoQuotaLimit()
+          ));
+      }
     }
 
     // Events collection
