@@ -37,7 +37,7 @@ You are an expert Frontend Engineer and Client-Side Machine Learning specialist.
   - **Google Drive API:** Non-restricted `drive.file` scope ingestion with client-side local photo upload to automated Drive event folders, automatic public link permission delegation (`makeFolderPublic`), and 2-worker parallel face scanning.
 - **Deployment & Hosting:** Optimized for Vercel deployment with `vercel.json` SPA route rewrites (`/(.*)` -> `/index.html`), static WASM model cache headers, and consent-gated Vercel Analytics (`@vercel/analytics`) & Speed Insights (`@vercel/speed-insights`) via `VercelTrackers` as well as Firebase Analytics via `FirebaseAnalytics`.
 
-- **Local Utilities & Caching:** `qrcode.react` (share link QR codes), `dexie` (client-side IndexedDB caching).
+- **Local Utilities & Caching:** `jszip` (client-side ZIP packaging for batch photo downloads), `qrcode.react` (share link QR codes), `dexie` (client-side IndexedDB caching).
 
 ---
 

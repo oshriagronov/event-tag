@@ -9,6 +9,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { Link } from 'react-router-dom';
 import { useTranslation } from '../services/translations';
 import { useModal } from '../contexts/ModalContext';
+import JSZip from 'jszip';
 import {
   Check,
   CheckSquare,
@@ -347,7 +348,7 @@ export function GuestView({ eventId }: GuestViewProps) {
     return blob;
   };
 
-  // ---- Download photos one by one ----
+  // ---- Download photos (single photo directly, multiple as a ZIP archive) ----
   const handleDownload = async () => {
     const targets = isSelectionMode ? selectedMatches : downloadableMatches;
     if (targets.length === 0) return;
@@ -357,7 +358,16 @@ export function GuestView({ eventId }: GuestViewProps) {
 
     try {
       const total = targets.length;
-      let downloadedCount = 0;
+
+      // If only 1 photo is targeted, download it directly without creating a zip
+      if (total === 1) {
+        await handleDownloadSingle(targets[0].driveFileId);
+        return;
+      }
+
+      const zip = new JSZip();
+      const usedNames = new Set<string>();
+      let fetchedCount = 0;
 
       for (let i = 0; i < targets.length; i++) {
         const match = targets[i];
@@ -380,44 +390,47 @@ export function GuestView({ eventId }: GuestViewProps) {
         if (blob && blob.size > 0) {
           const ext = blob.type.includes('png') ? 'png' : 'jpg';
           const baseName = match.fileName || `photo_${i + 1}.${ext}`;
-          const finalFileName = baseName.endsWith(`.${ext}`) ? baseName : `${baseName}.${ext}`;
+          let finalFileName = baseName.endsWith(`.${ext}`) ? baseName : `${baseName}.${ext}`;
+          if (usedNames.has(finalFileName)) {
+            finalFileName = `photo_${i + 1}_${finalFileName}`;
+          }
+          usedNames.add(finalFileName);
 
-          const url = URL.createObjectURL(blob);
-          const a = document.createElement('a');
-          a.href = url;
-          a.download = finalFileName;
-          document.body.appendChild(a);
-          a.click();
-          document.body.removeChild(a);
-          setTimeout(() => URL.revokeObjectURL(url), 1000);
-          downloadedCount++;
-        } else if (match.publicUrl) {
-          const rawUrl = convertToRawUrl(provider, match.publicUrl, 'full');
-          const downloadUrl = rawUrl.includes('dropbox') ? rawUrl.replace('raw=1', 'dl=1') : rawUrl;
-          const a = document.createElement('a');
-          a.href = downloadUrl;
-          a.download = match.fileName || `photo_${i + 1}.jpg`;
-          document.body.appendChild(a);
-          a.click();
-          document.body.removeChild(a);
-          downloadedCount++;
+          zip.file(finalFileName, blob);
+          fetchedCount++;
         } else {
           console.warn(`Could not retrieve photo ${match.driveFileId || match.fileName}`);
         }
 
-        setDownloadProgress(Math.round(((i + 1) / total) * 100));
-
-        // Small 250ms pacing delay between photo downloads
-        await new Promise((r) => setTimeout(r, 250));
+        setDownloadProgress(Math.round(((i + 1) / total) * 80));
       }
 
-      if (downloadedCount === 0) {
+      if (fetchedCount === 0) {
         throw new Error(
           language === 'he'
             ? 'לא ניתן היה להוריד את התמונות. וודא שהתיקייה או הקבצים מוגדרים כציבוריים לצפייה.'
             : 'Could not download photos. Ensure the folder or photos are set to public viewing.'
         );
       }
+
+      // Generate the ZIP blob (progress from 80% to 100%)
+      const zipBlob = await zip.generateAsync({ type: 'blob' }, (metadata) => {
+        setDownloadProgress(80 + Math.round(metadata.percent * 0.2));
+      });
+
+      const safeEventName = event?.name
+        ? event.name.replace(/[\\/:*?"<>|]/g, '_').trim()
+        : 'photos';
+      const zipFileName = `${safeEventName || 'event'}_photos.zip`;
+
+      const url = URL.createObjectURL(zipBlob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = zipFileName;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      setTimeout(() => URL.revokeObjectURL(url), 2000);
     } catch (err: unknown) {
       console.error('Download error:', err);
       const errMsg = err instanceof Error ? err.message : String(err);

@@ -19,33 +19,45 @@
 </p>
 
 
-
 ## What is EventTag?
 
-EventTag is a privacy-first event photo sharing and retrieval platform designed to make sharing photos between event organizers and guests as effortless and private as possible. Event organizers connect cloud photo folders directly from **Dropbox** or **Google Drive** (with **OneDrive** coming soon) for browser-based scanning, and guests scan a share link / QR code with a selfie to instantly find and download all photos they appear in.
+EventTag is a privacy-first event photo sharing and retrieval platform designed to make sharing photos between event organizers and guests effortless and secure. Event organizers connect cloud photo folders directly from **Dropbox** or **Google Drive** (with **OneDrive** coming soon) for browser-based scanning, and guests scan a share link or QR code with a selfie to instantly find and download all photos they appear in.
 
-### 🎯 The Goal
-- **For Guests:** Instant, private, self-service retrieval of all their event photos via a simple selfie scan.
-- **For Event Organizers:** Effortless photo sharing with guests while keeping user privacy paramount and avoiding manual photo distribution.
+### The Goal
+- **For Guests:** Instant, private, self-service retrieval and download of their event photos using a simple selfie.
+- **For Event Organizers:** Effortless photo distribution directly from cloud storage without manual sorting or tagging.
 
-**Privacy-First & On-Device AI:** All face detection, alignment, and 128-dimensional embedding extraction happen **100% locally in the user's browser** using WebAssembly (ONNX Runtime Web with SFace + face-api.js). Photos are ingested in-memory from cloud storage or local disk; **no photo files are ever uploaded to or saved on backend servers**. Only mathematical face vectors and metadata are stored in Firebase Firestore.
-
+**Privacy-First & On-Device AI:** All face detection, alignment, and 128-dimensional embedding extraction occur **100% locally in the user's browser** using WebAssembly (ONNX Runtime Web with SFace + `@vladmandic/face-api`). Photos are ingested in-memory from cloud storage or local disk; **no photo files are ever uploaded to or stored on backend servers**. Only mathematical face vectors and metadata sync to Firebase Firestore.
 
 
 ## Features
 
-### 📸 Guest Experience
-- **Selfie Search** — Guests capture or upload a selfie to instantly query event photos.
-- **Strict Face Matching** — Calibrated 0.85 vector distance threshold prevents false positives.
-- **Instant Photo Retrieval & Downloads** — View full-resolution photos directly from cloud storage and download them one by one.
-- **QR Code & Share Links** — Instant access via event QR code or custom share URL (`qrcode.react`).
+### Guest Experience
+- **Selfie Search:** Capture or upload a selfie to query event photos in real time.
+- **EXIF Auto-Orientation & Rotational Fallback:** Automatic orientation fixes and 4-point rotational detection (0°, 90°, 180°, 270°) to ensure detection regardless of camera angle.
+- **Strict Face Matching:** Calibrated 0.85 vector distance threshold prevents false positives.
+- **Photo Retrieval & Downloads:** View full-resolution photos directly from cloud storage with single photo and bulk ZIP download (`jszip`) options.
+- **QR Code & Social Sharing:** Instant access via dynamic QR codes (`qrcode.react`) and multi-platform share menus (WhatsApp, Telegram, Facebook, X, Email).
 
-### 🛠️ Event Owner Experience
-- **Multi-Cloud Storage Connection** — Connect photo libraries directly from **Dropbox** and **Google Drive** (OneDrive marked as "Soon").
-- **Cloud Auto-Ingest & Upload** — Select local photos or folders to automatically generate event folders in **Dropbox** or **Google Drive** with public link view permissions and scan faces locally with 2-worker parallel processing.
-- **Automatic Face Clustering** — On-device AI groups recognized faces automatically into distinct guest profiles.
-- **Live Scanning Queue & Parallel Ingestion** — Scan multiple events concurrently with independent pause/stop controls per event, real-time ETA display, and performance warning alerts.
-- **Multi-Event Management** — Isolated dashboard for creating, sharing, and deleting multiple events.
+### Event Organizer Experience
+- **Multi-Cloud Storage Integrations:** Connect folders directly from **Dropbox** and **Google Drive** (OneDrive marked as "Soon").
+- **Cloud Auto-Ingest & Upload:** Ingest local photos to automatically create event folders in Dropbox or Google Drive with public view permissions.
+- **2-Worker Parallel Face Scanning:** Multi-worker pipeline performing offscreen canvas downscaling (max 1600px), face detection, 112x112 landmark alignment, and SFace WASM embedding extraction.
+- **Multi-Event Parallel Ingestion:** Scan multiple events concurrently with independent pause, resume, and cancel controls per event alongside live ETA metrics.
+- **Automatic Face Clustering:** On-device incremental clustering groups detected faces into distinct guest profiles.
+- **Dynamic Tier & Quota Limits:** Dynamic tier limits (`standard`, `premium`, `admin`) enforced client-side (`quotaService`) and on Firestore security rules, with graceful capacity error handling.
+
+### Admin Management Suite (`/admin`)
+- **User Management:** Email/name search, account blocking/unblocking, allowlist management, and premium plan grants with expiration tracking.
+- **System Health & Metrics:** Aggregated metrics (indexed photos, detected faces, face embeddings), cloud provider distribution, and event status telemetry.
+- **Immutable System Audit Logs:** Structured audit log trail (`audit_logs`) tracking administrative actions with severity levels, timestamps, and admin identity.
+- **Allowlist CSV Import/Export:** Multiline text and drag-and-drop CSV parser with instant email validation, preview table, bulk import, and CSV export.
+- **Quota Configuration:** Dynamic configuration of per-event photo limits for standard and premium tiers stored in `/system/config`.
+
+### Privacy, Compliance & Accessibility
+- **Israeli Privacy Protection Law & Amendment 13 Compliance:** Built-in cookie consent banner, granular privacy preferences modal, data minimization, and automated data purging upon account deletion.
+- **Israeli Standard IS 5568 / WCAG 2.0 AA Accessibility:** Dedicated accessibility toolbar widget, keyboard navigation, high contrast controls, font scaling, and screen reader compatibility.
+- **Hebrew & RTL Optimization:** Fully localized in Hebrew (`dir="rtl"`) using CSS logical properties and bidirectional text isolation.
 
 
 ## Architecture
@@ -58,7 +70,8 @@ src/
 ├── firebase.ts                 # Firebase initialization (Auth & Firestore)
 ├── components/
 │   ├── AccessibilityWidget.tsx  # IS 5568 / WCAG 2.0 AA accessibility toolbar
-│   ├── AdminManagement.tsx      # Admin panel with 5 tools: User Management, System Health, Audit Logs, Allowlist CSV, Quotas
+│   ├── AdminManagement.tsx      # Admin panel (User Management, Health, Audit Logs, Allowlist, Quotas)
+│   ├── AllowlistManagement.tsx  # Allowlist management tool component
 │   ├── CookieBanner.tsx        # Amendment 13 Privacy & Cookie Consent banner
 │   ├── Dashboard.tsx           # Multi-event management & cloud provider connection
 │   ├── DropboxIcon.tsx         # Official Dropbox brand logo icon component
@@ -66,7 +79,7 @@ src/
 │   ├── FirebaseAnalytics.tsx   # Consent-gated Firebase Analytics telemetry component
 │   ├── FolderPicker.tsx        # Cloud folder selector modal
 │   ├── Footer.tsx              # Footer with legal links & compliance info
-│   ├── GoogleIcon.tsx          # Reusable official Google branding asset component
+│   ├── GoogleIcon.tsx          # Official Google branding asset component
 │   ├── GuestView.tsx           # Guest selfie search, face matching & photo gallery
 │   ├── LandingPage.tsx         # Modern landing page with hero, features, FAQ & CTA
 │   ├── LegalPage.tsx           # Terms of Service, Privacy Policy & Accessibility Statement
@@ -74,26 +87,28 @@ src/
 │   ├── PreferencesModal.tsx    # Granular privacy consent settings modal
 │   ├── PrivacyBanner.tsx       # Ingest privacy assurance indicator
 │   ├── PrivacyPage.tsx         # Detailed privacy compliance page
-│   ├── SelfieCapture.tsx       # Live camera / file selfie capture tool
+│   ├── SelfieCapture.tsx       # Live camera / file selfie capture tool with rotational fallback
 │   ├── SettingsModal.tsx       # Theme & font size preferences modal
 │   ├── ShareModal.tsx          # Multi-platform share menu modal (WhatsApp, Telegram, Email, FB, X, QR)
 │   ├── SkipLink.tsx            # Accessible skip-to-main-content link
 │   └── VercelTrackers.tsx      # Consent-gated Vercel Analytics & Speed Insights component
 ├── contexts/
-│   ├── AuthContext.tsx         # Firebase Auth user session, profiles, role & cloud OAuth tokens
+│   ├── AuthContext.tsx         # Firebase Auth session, user profiles, roles & cloud OAuth tokens
 │   ├── ConsentContext.tsx      # Privacy Protection Law consent state
-│   ├── ScannerContext.tsx      # Global scanning state (progress, pause, ETA)
+│   ├── ModalContext.tsx        # Unified asynchronous modal dialog system
+│   ├── ScannerContext.tsx      # Global scanning state (progress, pause, ETA, parallel workers)
 │   └── SettingsContext.tsx     # Visual preferences context
 ├── services/
-│   ├── adminService.ts         # User management, system health metrics, immutable audit logs, allowlist CSV, quota limits
+│   ├── adminService.ts         # User management, system metrics, audit logs, allowlist, quota limits
 │   ├── cloudProviders.ts       # Unified cloud provider abstraction layer
 │   ├── dropbox.ts              # Dropbox Chooser & file streaming integration
 │   ├── faceAlignment.ts        # Facial landmark alignment (112x112 similarity transform)
 │   ├── faceMatching.ts         # Face vector distance & similarity matching
 │   ├── firestore.ts            # Firestore CRUD & batched descriptor writer
 │   ├── google.ts               # Google Drive API REST v3 integration
-│   ├── onnxModel.ts            # ONNX Runtime Web (SFace WASM embedding extractor)
-│   ├── quotaService.ts         # Dynamic tier quota calculator, limit validator & Firestore capacity error handler
+│   ├── modelLoader.ts          # SFace WASM model asset loader
+│   ├── onnxModel.ts            # ONNX Runtime Web (SFace WASM 128-dim embedding extractor)
+│   ├── quotaService.ts         # Dynamic tier quota calculator & capacity error handler
 │   └── translations.ts         # Hebrew/English localization strings
 └── utils/
     └── shareUtils.ts           # Web Share API & fallback share link helpers
@@ -105,7 +120,7 @@ src/
 Cloud Storage (Google Drive / Dropbox)
   → In-Memory Image Fetch & Downscale (Max 1600px offscreen canvas)
     → @vladmandic/face-api (SSD MobileNet V1 Detection + 68 Landmarks)
-      → Landmark Alignment (112x112 matrix transform)
+      → Landmark Alignment (112x112 similarity transform)
         → ONNX Runtime Web (SFace WASM 128-dim vector extraction)
           → Incremental Face Clustering (L2 Euclidean distance matching)
             → Firebase Firestore Batched Write (Descriptors & metadata only)
@@ -120,23 +135,24 @@ Cloud Storage (Google Drive / Dropbox)
 | `photos`   | References to cloud files | `id`, `eventId`, `driveFileId`/`dropboxPath`, `fileName`, `processed` |
 | `faces`    | Extracted face vectors & bounding boxes | `id`, `photoId`, `clusterId`, `descriptor` (128 floats), `boundingBox` |
 | `clusters` | Face group clusters assigned to guests | `id`, `eventId`, `name`, `faceCount` |
+| `users`    | User account profiles and roles | `uid`, `email`, `role`, `status`, `tier`, `premiumUntil`, `allowlisted` |
+| `audit_logs` | Immutable system audit log trail | `id`, `timestamp`, `action`, `performedBy`, `severity`, `details` |
+| `system`   | Global configuration documents | `maintenanceMode`, `allowlistMode`, `maxPhotosPerEvent` |
 
 
+## Performance & Scanning Optimizations
 
-## ⚡ Performance & Scanning Optimizations
+1. **Offscreen Canvas Downscaling:** High-resolution photos are scaled to a maximum dimension of `1600px` before inference, preventing WebGL out-of-memory errors and accelerating throughput.
+2. **Tuned Detection Recall:** SSD MobileNet V1 operates at `minConfidence = 0.45` for event photos and `0.38` for guest selfies to reliably capture varying lighting and angles.
+3. **Batched Database Writes:** Face vectors are buffered in memory and flushed to Firestore in chunks (15 photos or 50 faces), avoiding individual write bottlenecks.
+4. **On-Device ONNX WASM Execution:** 128-dimensional face embeddings are extracted using SFace running on ONNX Runtime Web via WebAssembly.
 
-1. **Offscreen Canvas Downscaling:** High-resolution photos are scaled to a maximum boundary of `1600px` before inference, reducing WebGL memory usage by over 90% and preventing browser out-of-memory crashes.
-2. **Tuned Detection Recall:** SSD MobileNet V1 runs with `minConfidence = 0.45` to reliably detect faces under challenging event lighting, angles, and movement.
-3. **Batched Database Writes:** Face vectors are buffered in memory and flushed to Firestore in chunks (15 photos or 50 faces), optimizing database performance.
-4. **On-Device ONNX WASM Execution:** Face embeddings are extracted locally using SFace on ONNX Runtime Web with WebAssembly support.
-
----
 
 ## Getting Started
 
 ### Prerequisites
 - **Node.js** 18+ and **npm**
-- Modern Web Browser with WebGL / WASM support (Chrome, Edge, Safari, Firefox)
+- Modern Web Browser with WebGL and WebAssembly support (Chrome, Edge, Safari, Firefox)
 
 ### Installation & Execution
 
@@ -153,29 +169,27 @@ npm run dev
 ```
 
 
-
 ## Available Scripts
 
 | Command | Description |
 |---|---|
 | `npm run dev` | Starts local dev server at `http://localhost:5173` |
-| `npm run build` | Runs TypeScript check (`tsc -b`) and Vite production bundle |
+| `npm run build` | Runs TypeScript check (`tsc -b`) and builds production bundle |
 | `npm run preview` | Previews production build locally |
-| `npm run lint` | Runs ESLint analysis across codebase |
+| `npm run lint` | Runs ESLint analysis across the codebase |
 
----
 
-## 🚀 Deployment (Vercel)
+## Deployment (Vercel)
 
-EventTag is optimized for zero-config deployment on **Vercel**:
+EventTag is configured for zero-config deployment on **Vercel**:
 
 ### 1. Connect Repository
-1. Import the project repository into your [Vercel Dashboard](https://vercel.com).
+1. Import the repository into your [Vercel Dashboard](https://vercel.com).
 2. Set Framework Preset: **Vite**.
 3. Output Directory: `dist`.
 
 ### 2. Configure Environment Variables
-In Vercel Project Settings → **Environment Variables**, add:
+In Vercel Project Settings → **Environment Variables**, configure:
 - `VITE_FIREBASE_API_KEY`
 - `VITE_FIREBASE_AUTH_DOMAIN`
 - `VITE_FIREBASE_PROJECT_ID`
@@ -188,18 +202,15 @@ In Vercel Project Settings → **Environment Variables**, add:
 
 ### 3. Update OAuth Authorized Redirect URIs
 In Firebase Console, Google Cloud Console, and Dropbox App Console:
-- Add your Vercel deployment URL (e.g. `https://your-app.vercel.app`) to **Authorized JavaScript origins** and **Authorized redirect URIs**.
+- Add your Vercel deployment URL (e.g., `https://your-app.vercel.app`) to **Authorized JavaScript origins** and **Authorized redirect URIs**.
 
-`vercel.json` is included in the project root to automatically handle SPA single-page routing rewrites and static WASM model cache headers.
+`vercel.json` in the root directory manages SPA routing rewrites (`/(.*)` -> `/index.html`) and static WASM cache headers.
 
 
+## Privacy & Security
 
-## 🔒 Privacy & Security
-
-EventTag is built around strict data privacy and regulatory compliance:
-
-- **Zero Photo Uploads:** Photos are processed in client memory from Google Drive or Dropbox and are **never uploaded to backend servers**.
-- **Local ML Processing:** All facial recognition runs on the client device via WASM and WebGL.
+- **Zero Photo Uploads:** Photos are ingested in client memory from cloud storage providers and are never uploaded to backend servers.
+- **Local Client-Side ML:** Facial recognition inference runs entirely on the user's device via WebAssembly.
 - **Mathematical Descriptors Only:** Only anonymous 128-dimensional floating point vectors are stored in Firestore.
-- **Complete Account Deletion:** Deleting an account purges all associated Firestore events, photo references, and face descriptors, cancels active scans, disconnects cloud storage OAuth tokens, wipes local caches, deletes the Firebase Auth account, and resets privacy consent (`resetConsent()`) so the consent screen is presented on the next visit/login.
-- **Israeli Privacy Protection Law (Amendment 13) Compliant:** User consent controls, transparent data policies, and no third-party tracking.
+- **Complete Account Deletion & Data Purging:** Purges associated Firestore events, photo references, and face descriptors, revokes OAuth connections, wipes client caches, deletes the Firebase Auth account, and resets consent flags.
+- **Israeli Privacy Protection Law (Amendment 13) Compliant:** User consent controls, transparent policies, and zero third-party tracking.

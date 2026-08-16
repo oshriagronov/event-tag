@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import { useScanner } from '../contexts/ScannerContext';
 import { 
   ArrowRight, ArrowLeft, Loader2, Check, AlertCircle,
-  Pause, Play, Copy, QrCode, Share2, ExternalLink, RefreshCw, X
+  Pause, Play, Copy, QrCode, Share2, ExternalLink, RefreshCw, X, ShieldCheck
 } from 'lucide-react';
 import { ShareModal } from './ShareModal';
 import { handleShareEvent } from '../utils/shareUtils';
@@ -438,25 +438,25 @@ export function EventView({ eventId, onBack }: EventViewProps) {
 
       {/* Pending Scan View */}
       {event.status === 'pending' && !isThisEventScanning && (
-        <div className="bg-surface-container border border-surface-border rounded-xl p-8 flex flex-col items-center justify-center gap-4 shadow-xl max-w-xl mx-auto w-full my-6 text-center">
+        <div className="bg-surface-container border border-surface-border rounded-2xl p-8 sm:p-10 flex flex-col items-center justify-center gap-5 shadow-2xl max-w-2xl mx-auto w-full my-6 text-center">
           {(!currentProviderToken || isCurrentProviderExpired) ? (
             <div className="flex flex-col items-center gap-3">
-              <p className="text-red-400 text-xs m-0 font-bold">
+              <p className="text-red-400 text-sm m-0 font-bold">
                 {language === 'he'
                   ? `יש להתחבר מחדש עם חשבון ${currentProvider === 'dropbox' ? 'Dropbox' : currentProvider === 'google' ? 'Google Drive' : 'OneDrive'} כדי לאפשר גישה לתיקייה.`
                   : `Reconnect to ${currentProvider === 'dropbox' ? 'Dropbox' : currentProvider === 'google' ? 'Google Drive' : 'OneDrive'} to allow folders authorization.`}
               </p>
               <button
                 onClick={handleReconnectProvider}
-                className="px-5 py-2.5 rounded bg-copper-accent hover:bg-copper-accent/90 text-background font-bold text-xs shadow transition-all cursor-pointer border-none"
+                className="px-5 py-2.5 rounded-lg bg-copper-accent hover:bg-copper-accent/90 text-background font-bold text-sm shadow transition-all cursor-pointer border-none"
               >
                 {language === 'he' ? `התחבר לחשבון ${currentProvider === 'dropbox' ? 'Dropbox' : currentProvider === 'google' ? 'Google Drive' : 'OneDrive'}` : `Connect ${currentProvider === 'dropbox' ? 'Dropbox' : currentProvider === 'google' ? 'Google Drive' : 'OneDrive'}`}
               </button>
             </div>
           ) : (
             <div className="flex items-center gap-3 py-4">
-              <Loader2 className="w-5 h-5 text-copper-accent animate-spin" />
-              <span className="font-bold text-on-background text-base">
+              <Loader2 className="w-6 h-6 text-copper-accent animate-spin" />
+              <span className="font-bold text-on-background text-lg">
                 {language === 'he' ? 'מכין תמונות ומתחיל סריקת AI...' : 'Preparing photos and starting AI scan...'}
               </span>
             </div>
@@ -466,17 +466,50 @@ export function EventView({ eventId, onBack }: EventViewProps) {
 
       {/* Active / Interrupted Scanning Progress Panel */}
       {(event.status === 'scanning' || isThisEventScanning) && (
-        <div className="bg-surface-container border border-surface-border rounded-xl p-8 flex flex-col gap-6 shadow-2xl max-w-xl mx-auto w-full my-6">
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 text-sm border-b border-surface-border pb-5">
-            <div className="flex items-center gap-3">
-              <Loader2 className={`w-4 h-4 text-copper-accent ${isThisEventScanning && !isThisEventPaused ? 'animate-spin' : ''}`} />
-              <span className="font-bold text-on-background text-base">
-                {!isThisEventScanning
-                  ? (language === 'he' ? 'הסריקה הופסקה' : 'Scanning Interrupted')
-                  : t('eventView.scanningPhotos')}
-              </span>
+        <div className="bg-surface-container border border-surface-border rounded-2xl p-6 sm:p-8 md:p-9 flex flex-col gap-6 shadow-2xl max-w-3xl mx-auto w-full my-6">
+          {/* Header & Controls */}
+          <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-surface-border pb-5">
+            {/* Status & Title */}
+            <div className="flex items-center gap-3.5 min-w-0">
+              <div className="w-10 h-10 rounded-xl bg-copper-accent/10 border border-copper-accent/20 flex items-center justify-center shrink-0">
+                <Loader2 className={`w-5 h-5 text-copper-accent ${isThisEventScanning && !isThisEventPaused ? 'animate-spin' : ''}`} />
+              </div>
+              <div className="flex flex-col text-start min-w-0">
+                <span className="font-bold text-on-background text-base sm:text-lg leading-snug">
+                  {!isThisEventScanning
+                    ? (language === 'he' ? 'הסריקה הופסקה' : 'Scanning Interrupted')
+                    : t('eventView.scanningPhotos')}
+                </span>
+                <span className="text-xs text-sage-muted font-body-md mt-0.5">
+                  {language === 'he' ? 'עיבוד וזיהוי פנים מקומי בדפדפן' : 'Local browser AI face processing'}
+                </span>
+              </div>
             </div>
-            <div className="flex items-center gap-3 shrink-0">
+
+            {/* Badges and Action Buttons */}
+            <div className="flex items-center gap-2 sm:gap-2.5 flex-wrap justify-start md:justify-end shrink-0">
+              {/* ETA Badge */}
+              <div className="text-xs bg-surface-container-low px-3 py-2 rounded-lg border border-surface-border text-sage-muted font-medium whitespace-nowrap flex items-center gap-1.5">
+                <span className={`w-1.5 h-1.5 rounded-full ${isThisEventPaused ? 'bg-amber-400' : 'bg-copper-accent animate-pulse'}`}></span>
+                <span>
+                  {!isThisEventScanning
+                    ? (language === 'he' ? 'לחץ להמשך סריקה' : 'Click Play to Resume')
+                    : isThisEventPaused
+                      ? t('dashboard.statusPaused')
+                      : formatETA(thisEventEta)}
+                </span>
+              </div>
+
+              {/* Photo Count Badge */}
+              <div className="font-mono bg-surface-container-low px-3 py-2 rounded-lg border border-surface-border text-xs sm:text-sm text-on-background font-bold whitespace-nowrap" dir="ltr">
+                <span style={{ unicodeBidi: 'isolate' }}>
+                  {isThisEventScanning
+                    ? `${thisEventScannedCount} / ${thisEventTotalToScan}`
+                    : `${photos.filter(p => p.processed).length} / ${photos.length || event.photoCount || 0}`}
+                </span>
+              </div>
+
+              {/* Pause / Resume Button */}
               <button
                 onClick={async () => {
                   if (!isThisEventScanning) {
@@ -490,15 +523,18 @@ export function EventView({ eventId, onBack }: EventViewProps) {
                   }
                 }}
                 disabled={!currentProviderToken}
-                className={`w-9 h-9 rounded flex items-center justify-center transition-all cursor-pointer border ${
+                className={`w-9 h-9 sm:w-10 sm:h-10 rounded-lg flex items-center justify-center transition-all cursor-pointer border ${
                   isThisEventPaused || !isThisEventScanning
                     ? 'border-copper-accent text-copper-accent bg-copper-accent/10 hover:bg-copper-accent/20'
                     : 'border-surface-border text-sage-muted hover:bg-surface-container-high hover:text-on-background bg-surface-container-low'
                 }`}
                 title={!isThisEventScanning ? (language === 'he' ? 'המשך סריקה' : 'Resume Scan') : isThisEventPaused ? t('eventView.isResumed') : t('eventView.isPaused')}
+                aria-label={!isThisEventScanning ? (language === 'he' ? 'המשך סריקה' : 'Resume Scan') : isThisEventPaused ? t('eventView.isResumed') : t('eventView.isPaused')}
               >
                 {isThisEventPaused || !isThisEventScanning ? <Play className="w-4 h-4" /> : <Pause className="w-4 h-4" />}
               </button>
+
+              {/* Stop Scan Button */}
               {isThisEventScanning && (
                 <button
                   onClick={async () => {
@@ -513,47 +549,53 @@ export function EventView({ eventId, onBack }: EventViewProps) {
                       stopScanning(eventId);
                     }
                   }}
-                  className="w-9 h-9 rounded flex items-center justify-center transition-all cursor-pointer border border-surface-border text-sage-muted hover:text-red-400 hover:bg-surface-container-high bg-surface-container-low"
+                  className="w-9 h-9 sm:w-10 sm:h-10 rounded-lg flex items-center justify-center transition-all cursor-pointer border border-surface-border text-sage-muted hover:text-red-400 hover:bg-surface-container-high bg-surface-container-low"
                   title={t('dashboard.stopScanBtn')}
+                  aria-label={t('dashboard.stopScanBtn')}
                 >
                   <X className="w-4 h-4" />
                 </button>
               )}
-              <div className="text-xs bg-surface-container-low px-3 py-1.5 rounded border border-surface-border text-sage-muted">
-                {!isThisEventScanning
-                  ? (language === 'he' ? 'לחץ להמשך סריקה' : 'Click Play to Resume')
-                  : isThisEventPaused
-                    ? t('dashboard.statusPaused')
-                    : formatETA(thisEventEta)}
-              </div>
-              <div className="font-mono bg-surface-container-low px-2.5 py-1 rounded border border-surface-border text-xs text-on-background font-bold">
-                {isThisEventScanning
-                  ? `${thisEventScannedCount} / ${thisEventTotalToScan}`
-                  : `${photos.filter(p => p.processed).length} / ${photos.length || event.photoCount || 0}`}
+            </div>
+          </div>
+
+          {/* Progress Bar & Percentage */}
+          <div className="flex flex-col gap-2.5">
+            <div className="flex items-center justify-between text-xs text-sage-muted font-body-md">
+              <span>{language === 'he' ? 'התקדמות סריקת התמונות' : 'Photo Scanning Progress'}</span>
+              <span className="font-mono font-bold text-copper-accent text-sm" dir="ltr" style={{ unicodeBidi: 'isolate' }}>
+                {Math.round(
+                  ((isThisEventScanning ? thisEventTotalToScan : (photos.length || event.photoCount)) > 0
+                    ? ((isThisEventScanning ? thisEventScannedCount : photos.filter(p => p.processed).length) / (isThisEventScanning ? thisEventTotalToScan : (photos.length || event.photoCount || 1)))
+                    : 0) * 100
+                )}%
+              </span>
+            </div>
+            <div className="w-full bg-surface-container-low rounded-full h-3 overflow-hidden border border-surface-border/60 p-0.5">
+              <div
+                className="bg-copper-accent h-full rounded-full transition-all duration-300 ease-out relative"
+                style={{
+                  width: `${
+                    (isThisEventScanning ? thisEventTotalToScan : (photos.length || event.photoCount)) > 0
+                      ? ((isThisEventScanning ? thisEventScannedCount : photos.filter(p => p.processed).length) / (isThisEventScanning ? thisEventTotalToScan : (photos.length || event.photoCount || 1))) * 100
+                      : 0
+                  }%`,
+                }}
+              >
+                <div className="absolute inset-0 bg-white/20 animate-pulse rounded-full"></div>
               </div>
             </div>
           </div>
 
-          <div className="w-full bg-surface-container-low rounded-full h-2 overflow-hidden border border-surface-border">
-            <div
-              className="bg-copper-accent h-2 rounded-full transition-all duration-300 ease-out relative"
-              style={{
-                width: `${
-                  (isThisEventScanning ? thisEventTotalToScan : (photos.length || event.photoCount)) > 0
-                    ? ((isThisEventScanning ? thisEventScannedCount : photos.filter(p => p.processed).length) / (isThisEventScanning ? thisEventTotalToScan : (photos.length || event.photoCount || 1))) * 100
-                    : 0
-                }%`,
-              }}
-            >
-              <div className="absolute inset-0 bg-white/10 animate-pulse"></div>
-            </div>
+          {/* Local Processing & Privacy Reassurance */}
+          <div className="flex items-center justify-center gap-2 pt-1 text-sage-muted text-xs sm:text-sm text-center font-body-md">
+            <ShieldCheck className="w-4 h-4 text-sage-muted/70 shrink-0" />
+            <p className="m-0 leading-relaxed">
+              {language === 'he' 
+                ? 'אנא השאר את הדפדפן פתוח במהלך הסריקה. המערכת מעבדת את התמונות מקומית במכשיר שלך ואינה מעלה אותן לשרת.' 
+                : 'Please keep the browser open. Processing is entirely local on your device; images are not sent to any servers.'}
+            </p>
           </div>
-
-          <p className="font-body-md text-sage-muted text-xs leading-relaxed text-center m-0">
-            {language === 'he' 
-              ? 'אנא השאר את הדפדפן פתוח במהלך הסריקה. המערכת מעבדת את התמונות מקומית במכשיר שלך ואינה מעלה אותן לשרת.' 
-              : 'Please keep the browser open. Processing is entirely local on your device; images are not sent to any servers.'}
-          </p>
 
           {(thisEventScanError === 'auth_expired' || isCurrentProviderExpired) && (
             <div className="flex flex-col items-center gap-4 bg-red-500/10 border border-red-500/20 rounded-xl p-5 text-center mt-2">
