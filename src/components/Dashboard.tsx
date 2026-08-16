@@ -20,7 +20,7 @@ import {
   CheckCircle2, Loader2, Clock, Copy, Check, X,
   Plus, Play, Pause, FolderOpen, Search, Menu, BarChart2, Settings, Shield,
   Sun, Moon, AlertTriangle, Upload, Sparkles, LayoutGrid, List, Filter, ChevronDown, MoreHorizontal,
-  Crown, Info
+  Crown
 } from 'lucide-react';
 import { createGoogleFolder } from '../services/google';
 import { createDropboxFolder } from '../services/dropbox';
@@ -1831,43 +1831,6 @@ export function Dashboard() {
               </button>
             </div>
 
-            {/* Quota limit helper badge & progress */}
-            <div className="p-3 rounded-xl bg-surface-container-low border border-surface-border flex flex-col gap-2 text-start">
-              <div className="flex items-center justify-between text-xs text-sage-muted">
-                <div className="flex items-center gap-1.5 font-medium text-on-background">
-                  {quotaStatus.isAdmin ? (
-                    <Shield className="w-3.5 h-3.5 text-copper-accent" />
-                  ) : quotaStatus.isPremium ? (
-                    <Crown className="w-3.5 h-3.5 text-amber-400" />
-                  ) : (
-                    <Info className="w-3.5 h-3.5 text-copper-accent" />
-                  )}
-                  <span>{quotaStatus.tierName}</span>
-                </div>
-                <span className="font-mono text-[11px] font-semibold text-on-background">
-                  {quotaStatus.isAdmin
-                    ? t('dashboard.monthlyUsageUnlimited')
-                    : `${pendingPhotos.length} / ${quotaStatus.maxPhotosPerEvent.toLocaleString()} (${Math.round((pendingPhotos.length / quotaStatus.maxPhotosPerEvent) * 100)}%)`}
-                </span>
-              </div>
-
-              {!quotaStatus.isAdmin && (
-                <div className="w-full bg-surface-container-high rounded-full h-1.5 overflow-hidden border border-surface-border/40">
-                  <div
-                    className={`h-full rounded-full transition-all duration-300 ${
-                      pendingPhotos.length > quotaStatus.maxPhotosPerEvent
-                        ? 'bg-red-400'
-                        : pendingPhotos.length / quotaStatus.maxPhotosPerEvent >= 0.75
-                        ? 'bg-amber-400'
-                        : 'bg-emerald-400'
-                    }`}
-                    style={{
-                      width: `${Math.min(100, Math.max(pendingPhotos.length > 0 ? 5 : 0, Math.round((pendingPhotos.length / quotaStatus.maxPhotosPerEvent) * 100)))}%`,
-                    }}
-                  />
-                </div>
-              )}
-            </div>
 
             <div className="flex flex-col gap-2 text-start">
               <label className="text-xs font-bold uppercase tracking-wider text-sage-muted">
@@ -1975,43 +1938,6 @@ export function Dashboard() {
               </button>
             </div>
 
-            {/* Quota limit helper badge & progress */}
-            <div className="p-3 rounded-xl bg-surface-container-low border border-surface-border flex flex-col gap-2 text-start">
-              <div className="flex items-center justify-between text-xs text-sage-muted">
-                <div className="flex items-center gap-1.5 font-medium text-on-background">
-                  {quotaStatus.isAdmin ? (
-                    <Shield className="w-3.5 h-3.5 text-copper-accent" />
-                  ) : quotaStatus.isPremium ? (
-                    <Crown className="w-3.5 h-3.5 text-amber-400" />
-                  ) : (
-                    <Info className="w-3.5 h-3.5 text-copper-accent" />
-                  )}
-                  <span>{quotaStatus.tierName}</span>
-                </div>
-                <span className="font-mono text-[11px] font-semibold text-on-background">
-                  {quotaStatus.isAdmin
-                    ? t('dashboard.monthlyUsageUnlimited')
-                    : `${selectedLocalFiles.length} / ${quotaStatus.maxPhotosPerEvent.toLocaleString()} (${Math.round((selectedLocalFiles.length / quotaStatus.maxPhotosPerEvent) * 100)}%)`}
-                </span>
-              </div>
-
-              {!quotaStatus.isAdmin && (
-                <div className="w-full bg-surface-container-high rounded-full h-1.5 overflow-hidden border border-surface-border/40">
-                  <div
-                    className={`h-full rounded-full transition-all duration-300 ${
-                      selectedLocalFiles.length > quotaStatus.maxPhotosPerEvent
-                        ? 'bg-red-400'
-                        : selectedLocalFiles.length / quotaStatus.maxPhotosPerEvent >= 0.75
-                        ? 'bg-amber-400'
-                        : 'bg-emerald-400'
-                    }`}
-                    style={{
-                      width: `${Math.min(100, Math.max(selectedLocalFiles.length > 0 ? 5 : 0, Math.round((selectedLocalFiles.length / quotaStatus.maxPhotosPerEvent) * 100)))}%`,
-                    }}
-                  />
-                </div>
-              )}
-            </div>
 
             <p className="text-xs text-sage-muted m-0 text-start">
               {language === 'he'
@@ -2132,43 +2058,6 @@ export function Dashboard() {
               </button>
             </div>
 
-            {/* Quota limit helper badge & progress */}
-            <div className="p-3 rounded-xl bg-surface-container-low border border-surface-border flex flex-col gap-2 text-start">
-              <div className="flex items-center justify-between text-xs text-sage-muted">
-                <div className="flex items-center gap-1.5 font-medium text-on-background">
-                  {quotaStatus.isAdmin ? (
-                    <Shield className="w-3.5 h-3.5 text-copper-accent" />
-                  ) : quotaStatus.isPremium ? (
-                    <Crown className="w-3.5 h-3.5 text-amber-400" />
-                  ) : (
-                    <Info className="w-3.5 h-3.5 text-copper-accent" />
-                  )}
-                  <span>{quotaStatus.tierName}</span>
-                </div>
-                <span className="font-mono text-[11px] font-semibold text-on-background">
-                  {quotaStatus.isAdmin
-                    ? t('dashboard.monthlyUsageUnlimited')
-                    : `${selectedLocalFiles.length} / ${quotaStatus.maxPhotosPerEvent.toLocaleString()} (${Math.round((selectedLocalFiles.length / quotaStatus.maxPhotosPerEvent) * 100)}%)`}
-                </span>
-              </div>
-
-              {!quotaStatus.isAdmin && (
-                <div className="w-full bg-surface-container-high rounded-full h-1.5 overflow-hidden border border-surface-border/40">
-                  <div
-                    className={`h-full rounded-full transition-all duration-300 ${
-                      selectedLocalFiles.length > quotaStatus.maxPhotosPerEvent
-                        ? 'bg-red-400'
-                        : selectedLocalFiles.length / quotaStatus.maxPhotosPerEvent >= 0.75
-                        ? 'bg-amber-400'
-                        : 'bg-emerald-400'
-                    }`}
-                    style={{
-                      width: `${Math.min(100, Math.max(selectedLocalFiles.length > 0 ? 5 : 0, Math.round((selectedLocalFiles.length / quotaStatus.maxPhotosPerEvent) * 100)))}%`,
-                    }}
-                  />
-                </div>
-              )}
-            </div>
 
             <p className="text-xs text-sage-muted m-0 text-start">
               {language === 'he'
