@@ -37,12 +37,15 @@ export function LegalPage({ defaultTab = 'privacy' }: LegalPageProps) {
             <a href="/#how-it-works" className="font-label-sm text-xs uppercase tracking-wider text-sage-muted hover:text-copper-accent transition-colors duration-300 no-underline">
               {t('landing.howItWorksBtn')}
             </a>
+            <a href="/#app-purpose" className="font-label-sm text-xs uppercase tracking-wider text-sage-muted hover:text-copper-accent transition-colors duration-300 no-underline">
+              {t('landing.purposeNavBtn')}
+            </a>
+            <Link to="/privacy" className="font-label-sm text-xs uppercase tracking-wider text-sage-muted hover:text-copper-accent transition-colors duration-300 no-underline">
+              {t('landing.privacyNavBtn')}
+            </Link>
             <a href="/#faq" className="font-label-sm text-xs uppercase tracking-wider text-sage-muted hover:text-copper-accent transition-colors duration-300 no-underline">
               {t('landing.faqNavBtn')}
             </a>
-            <Link to="/privacy" className="font-label-sm text-xs uppercase tracking-wider text-sage-muted hover:text-copper-accent transition-colors duration-300 no-underline">
-              {language === 'he' ? 'פרטיות' : 'Privacy'}
-            </Link>
             {user && (
               <Link to="/dashboard" className="font-label-sm text-xs uppercase tracking-wider text-sage-muted hover:text-copper-accent transition-colors duration-300 no-underline">
                 {t('dashboard.myDashboard')}

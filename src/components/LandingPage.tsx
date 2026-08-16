@@ -114,6 +114,15 @@ export function LandingPage() {
             </li>
             <li>
               <a
+                href="#app-purpose"
+                onClick={(e) => handleScrollTo(e, 'app-purpose')}
+                className="font-label-sm text-xs uppercase tracking-wider text-on-surface-variant hover:text-copper-accent transition-colors duration-300 no-underline cursor-pointer"
+              >
+                {t('landing.purposeNavBtn')}
+              </a>
+            </li>
+            <li>
+              <a
                 href="#privacy"
                 onClick={(e) => handleScrollTo(e, 'privacy')}
                 className="font-label-sm text-xs uppercase tracking-wider text-on-surface-variant hover:text-copper-accent transition-colors duration-300 no-underline cursor-pointer"
@@ -220,6 +229,17 @@ export function LandingPage() {
               >
                 <FolderUp className="w-4 h-4 text-copper-accent" />
                 <span className="font-label-sm text-xs uppercase tracking-wider">{t('landing.howItWorksBtn')}</span>
+              </a>
+              <a
+                href="#app-purpose"
+                onClick={(e) => {
+                  setMobileMenuOpen(false);
+                  handleScrollTo(e, 'app-purpose');
+                }}
+                className="flex items-center gap-3 font-bold py-3 px-4 rounded-lg text-sage-muted hover:text-on-background hover:bg-surface-container transition-all text-start cursor-pointer no-underline w-full"
+              >
+                <Sparkles className="w-4 h-4 text-copper-accent" />
+                <span className="font-label-sm text-xs uppercase tracking-wider">{t('landing.purposeNavBtn')}</span>
               </a>
               <a
                 href="#privacy"
@@ -450,32 +470,30 @@ export function LandingPage() {
           </div>
         </section>
 
-        {/* Merged Application Purpose & Absolute Privacy Section */}
+        {/* Application Purpose Section */}
         <section
-          id="privacy"
-          className="relative py-24 px-6 overflow-hidden scroll-mt-20 border-t border-surface-border/20 bg-surface-container-low/30"
+          id="app-purpose"
+          className="relative py-24 px-6 overflow-hidden scroll-mt-20 border-t border-surface-border/20 bg-surface-container-low/30 backdrop-blur-sm"
         >
-          {/* Support #app-purpose anchor */}
-          <div id="app-purpose" className="scroll-mt-24" />
           <div className="absolute inset-0 bg-gradient-to-b from-transparent via-primary-container/5 to-transparent pointer-events-none" />
 
           <div className="max-w-6xl mx-auto w-full relative z-10">
             {/* Header */}
             <div className="text-center mb-16">
               <div className="inline-flex items-center justify-center p-4 bg-surface-container border border-surface-border rounded-full mb-6 shadow-sm">
-                <Shield className="w-8 h-8 text-copper-accent" />
+                <Sparkles className="w-8 h-8 text-copper-accent" />
               </div>
               <h2 className="font-display-lg text-3xl md:text-5xl text-on-background m-0">
-                {t('landing.privacyTitle')}
+                {t('landing.purposeTitle')}
               </h2>
               <div className="botanical-divider w-40 mx-auto my-4" />
               <p className="font-body-lg text-sage-muted text-base md:text-lg mt-2 max-w-2xl mx-auto leading-relaxed m-0">
-                {t('landing.privacyDesc')}
+                {t('landing.purposeSub')}
               </p>
             </div>
 
             {/* Two-Column Utility Cards (Who It Is For) */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-8 mb-12 text-start">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-8 text-start">
               {/* For Organizers */}
               <div className="p-8 rounded-2xl bg-surface-container border border-surface-border hover:border-copper-accent/35 transition-all shadow-sm flex flex-col">
                 <div className="w-12 h-12 rounded-xl bg-surface-container-high flex items-center justify-center mb-6 border border-surface-border/50">
@@ -501,6 +519,28 @@ export function LandingPage() {
                   {t('landing.purposeGuestDesc')}
                 </p>
               </div>
+            </div>
+          </div>
+        </section>
+
+        {/* Absolute Privacy Section */}
+        <section
+          id="privacy"
+          className="relative py-24 px-6 overflow-hidden scroll-mt-20 border-t border-surface-border/20 bg-background/50"
+        >
+          <div className="max-w-6xl mx-auto w-full relative z-10">
+            {/* Header */}
+            <div className="text-center mb-16">
+              <div className="inline-flex items-center justify-center p-4 bg-surface-container border border-surface-border rounded-full mb-6 shadow-sm">
+                <Shield className="w-8 h-8 text-copper-accent" />
+              </div>
+              <h2 className="font-display-lg text-3xl md:text-5xl text-on-background m-0">
+                {t('landing.privacyTitle')}
+              </h2>
+              <div className="botanical-divider w-40 mx-auto my-4" />
+              <p className="font-body-lg text-sage-muted text-base md:text-lg mt-2 max-w-2xl mx-auto leading-relaxed m-0">
+                {t('landing.privacyDesc')}
+              </p>
             </div>
 
             {/* Bento Grid Features (Privacy Architecture) */}
@@ -547,7 +587,6 @@ export function LandingPage() {
                 </p>
               </div>
             </div>
-
 
             {/* The EventTag Promise Banner */}
             <div className="relative overflow-hidden rounded-xl bg-surface-container border border-surface-border p-8 md:p-12 flex flex-col md:flex-row items-center justify-between gap-8 group text-start">

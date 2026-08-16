@@ -58,20 +58,30 @@ export function Footer() {
               </li>
               <li>
                 <a
+                  href="/#app-purpose"
+                  onClick={(e) => handleNavClick(e, 'app-purpose')}
+                  className="hover:text-copper-accent transition-colors no-underline cursor-pointer font-body-md text-sage-muted block"
+                >
+                  {t('landing.purposeNavBtn')}
+                </a>
+              </li>
+              <li>
+                <a
+                  href="/#privacy"
+                  onClick={(e) => handleNavClick(e, 'privacy')}
+                  className="hover:text-copper-accent transition-colors no-underline cursor-pointer font-body-md text-sage-muted block"
+                >
+                  {t('landing.privacyNavBtn')}
+                </a>
+              </li>
+              <li>
+                <a
                   href="/#faq"
                   onClick={(e) => handleNavClick(e, 'faq')}
                   className="hover:text-copper-accent transition-colors no-underline cursor-pointer font-body-md text-sage-muted block"
                 >
                   {t('landing.faqNavBtn')}
                 </a>
-              </li>
-              <li>
-                <Link
-                  to="/privacy"
-                  className="hover:text-copper-accent transition-colors no-underline cursor-pointer font-body-md text-sage-muted block"
-                >
-                  {t('landing.privacyTitle')}
-                </Link>
               </li>
             </ul>
           </div>
