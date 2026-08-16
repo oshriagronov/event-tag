@@ -23,7 +23,6 @@ import {
 } from 'lucide-react';
 import { createGoogleFolder } from '../services/google';
 import { createDropboxFolder } from '../services/dropbox';
-import { openGooglePicker } from '../services/googlePicker';
 import { ShareModal } from './ShareModal';
 import { handleShareEvent } from '../utils/shareUtils';
 import { useScanner } from '../contexts/ScannerContext';
@@ -351,31 +350,6 @@ export function Dashboard() {
       }
     } finally {
       setCreating(false);
-    }
-  };
-
-  const handleOpenGooglePicker = async () => {
-    if (!googleAccessToken) {
-      connectGoogle();
-      return;
-    }
-    setShowGoogleCreateModal(false);
-    try {
-      await openGooglePicker({
-        accessToken: googleAccessToken,
-        onSelect: (folderId, folderName) => {
-          handleFolderSelected({ id: folderId, name: folderName });
-        },
-      });
-    } catch (err) {
-      console.error('Failed to open Google Picker:', err);
-      await alert({
-        title: language === 'he' ? 'שגיאה בפתיחת Google Picker' : 'Error Opening Google Picker',
-        message: language === 'he'
-          ? 'שגיאה בפתיחת חלון בחירת התיקייה ב-Google Drive. אנא נסה שוב.'
-          : 'Error launching Google Drive Picker popup. Please try again.',
-        variant: 'danger',
-      });
     }
   };
 
@@ -1878,18 +1852,6 @@ export function Dashboard() {
                 placeholder={language === 'he' ? 'למשל: חתונת יוסי ודנה 2026' : 'e.g., Yossi & Dana Wedding 2026'}
                 className="px-4 py-3 rounded bg-surface-container-low border border-surface-border focus:border-copper-accent focus:outline-none text-on-background text-sm placeholder:text-sage-muted transition-colors w-full"
               />
-            </div>
-
-            {/* Option to pick existing Drive folder via Google Picker */}
-            <div className="flex items-center justify-between text-xs text-sage-muted pt-2 border-t border-surface-border/40">
-              <span>{language === 'he' ? 'רוצה לבחור תיקייה קיימת ב-Google Drive?' : 'Want to pick an existing Drive folder?'}</span>
-              <button
-                type="button"
-                onClick={handleOpenGooglePicker}
-                className="text-copper-accent hover:underline font-bold bg-transparent border-none cursor-pointer"
-              >
-                {language === 'he' ? 'פתיחת Google Picker' : 'Open Google Picker'}
-              </button>
             </div>
 
             {/* Submit / Cancel buttons */}

@@ -62,7 +62,24 @@ export interface GoogleFile {
   modifiedTime: string;
 }
 
-const IMAGE_EXTENSIONS = ['jpg', 'jpeg', 'png', 'webp', 'heic'];
+const IMAGE_EXTENSIONS = [
+  'jpg',
+  'jpeg',
+  'png',
+  'webp',
+  'heic',
+  'heif',
+  'bmp',
+  'tiff',
+  'tif',
+  'avif',
+  'gif',
+  'raw',
+  'cr2',
+  'nef',
+  'arw',
+  'dng',
+];
 
 function isImageFile(filename: string): boolean {
   const ext = filename.split('.').pop()?.toLowerCase();
@@ -241,19 +258,22 @@ export async function uploadPhotoToGoogleDrive(
 }
 
 /**
- * List image files in a folder, with pagination support
+ * List image files in a folder, with pagination support and optional subfolder traversal
  */
 export async function listPhotosInFolder(
   accessToken: string,
-  folderId: string
+  folderId: string,
+  currentDepth = 0,
+  maxDepth = 3
 ): Promise<GoogleFile[]> {
   const allFiles: GoogleFile[] = [];
+  const subfolderIds: string[] = [];
   let pageToken: string | undefined;
 
   do {
     const parentQuery = `'${folderId}' in parents`;
-    const q = `${parentQuery} and (mimeType starts with 'image/') and trashed = false`;
-    let url = `${API_BASE}/files?q=${encodeURIComponent(q)}&fields=nextPageToken,files(id,name,size,modifiedTime)&pageSize=1000&orderBy=name`;
+    const q = `${parentQuery} and trashed = false`;
+    let url = `${API_BASE}/files?q=${encodeURIComponent(q)}&fields=nextPageToken,files(id,name,mimeType,size,modifiedTime)&pageSize=1000&orderBy=name`;
 
     if (pageToken) {
       url += `&pageToken=${encodeURIComponent(pageToken)}`;
@@ -274,10 +294,13 @@ export async function listPhotosInFolder(
     }
 
     const data = await res.json();
-    const files = data.files || [];
+    const files: Array<{ id: string; name: string; mimeType?: string; size?: string; modifiedTime?: string }> =
+      data.files || [];
 
     for (const file of files) {
-      if (isImageFile(file.name)) {
+      if (file.mimeType === 'application/vnd.google-apps.folder') {
+        subfolderIds.push(file.id);
+      } else if (isImageFile(file.name) || (file.mimeType && file.mimeType.startsWith('image/'))) {
         allFiles.push({
           id: file.id,
           name: file.name,
@@ -290,6 +313,18 @@ export async function listPhotosInFolder(
 
     pageToken = data.nextPageToken;
   } while (pageToken);
+
+  // If subfolders exist and we haven't reached max depth, recursively list photos from subfolders
+  if (subfolderIds.length > 0 && currentDepth < maxDepth) {
+    for (const subId of subfolderIds) {
+      try {
+        const subFiles = await listPhotosInFolder(accessToken, subId, currentDepth + 1, maxDepth);
+        allFiles.push(...subFiles);
+      } catch (err) {
+        console.warn(`Failed to list subfolder ${subId} in Google Drive:`, err);
+      }
+    }
+  }
 
   return allFiles;
 }
