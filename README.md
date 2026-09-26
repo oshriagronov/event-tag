@@ -41,6 +41,7 @@ EventTag is a privacy-first event photo sharing and retrieval platform designed 
 
 ### Event Organizer Experience
 - **Multi-Cloud Storage Integrations:** Connect folders directly from **Dropbox** and **Google Drive** (OneDrive marked as "Soon").
+- **Resilient Cloud Sessions:** Dropbox uses PKCE with renewable offline access; Google silently renews active sessions before expiry when available. Transient network, quota, file, and permission errors never disconnect an account.
 - **Cloud Auto-Ingest & Upload:** Ingest local photos to automatically create event folders in Dropbox or Google Drive with public view permissions.
 - **2-Worker Parallel Face Scanning:** Multi-worker pipeline performing offscreen canvas downscaling (max 1600px), face detection, 112x112 landmark alignment, and SFace WASM embedding extraction.
 - **Multi-Event Parallel Ingestion:** Scan multiple events concurrently with independent pause, resume, and cancel controls per event alongside live ETA metrics.
@@ -203,6 +204,7 @@ In Vercel Project Settings → **Environment Variables**, configure:
 ### 3. Update OAuth Authorized Redirect URIs
 In Firebase Console, Google Cloud Console, and Dropbox App Console:
 - Add your Vercel deployment URL (e.g., `https://your-app.vercel.app`) to **Authorized JavaScript origins** and **Authorized redirect URIs**.
+- In Dropbox, enable the OAuth authorization-code flow with short-lived tokens and offline access for the configured app key. Existing implicit-flow connections will need one final reconnect to upgrade.
 
 `vercel.json` in the root directory manages SPA routing rewrites (`/(.*)` -> `/index.html`) and static WASM cache headers.
 

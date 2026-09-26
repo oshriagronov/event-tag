@@ -16,7 +16,7 @@ import {
   type CloudEvent,
   type CloudPhoto,
 } from '../services/firestore';
-import { listPhotosInFolder, getPhotoThumbnailBlob, checkTokenValidity, convertToRawUrl, type CloudProvider } from '../services/cloudProviders';
+import { listPhotosInFolder, getPhotoThumbnailBlob, checkTokenValidity, convertToRawUrl, isTokenInvalidError, type CloudProvider } from '../services/cloudProviders';
 import { QRCodeSVG } from 'qrcode.react';
 import { useTranslation } from '../services/translations';
 import { useModal } from '../contexts/ModalContext';
@@ -72,8 +72,7 @@ function CloudPhotoImage({ provider = 'dropbox', driveFileId, accessToken, class
         }
       } catch (err: unknown) {
         console.error("Failed to load cloud photo blob:", err);
-        const errStr = err instanceof Error ? err.message : String(err);
-        if (errStr.includes('401') || errStr.includes('403') || errStr.includes('404') || errStr.includes('PERMISSION_DENIED')) {
+        if (isTokenInvalidError(err)) {
           checkTokenValidity(provider, accessToken).then((isValid) => {
             if (!isValid) {
               if (provider === 'dropbox') {

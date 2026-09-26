@@ -13,7 +13,7 @@ import {
   type UserUsage,
 } from '../services/firestore';
 import { FolderPicker } from './FolderPicker';
-import type { CloudProvider } from '../services/cloudProviders';
+import { isTokenInvalidError, type CloudProvider } from '../services/cloudProviders';
 import { GoogleIcon } from './GoogleIcon';
 import { DropboxIcon } from './DropboxIcon';
 import { QRCodeSVG } from 'qrcode.react';
@@ -343,14 +343,7 @@ export function Dashboard() {
         });
         return;
       }
-      const errStr = err instanceof Error ? err.message : String(err);
-      if (
-        errStr.includes('401') ||
-        errStr.includes('403') ||
-        errStr.includes('expired_access_token') ||
-        errStr.includes('PERMISSION_DENIED') ||
-        errStr.includes('insufficient')
-      ) {
+      if (isTokenInvalidError(err)) {
         markProviderExpired('google');
         const confirmed = await confirm({
           title: language === 'he' ? 'נדרשת הרשאת Google Drive' : 'Google Drive Permission Required',
@@ -429,14 +422,7 @@ export function Dashboard() {
         });
         return;
       }
-      const errStr = err instanceof Error ? err.message : String(err);
-      if (
-        errStr.includes('401') ||
-        errStr.includes('403') ||
-        errStr.includes('expired_access_token') ||
-        errStr.includes('PERMISSION_DENIED') ||
-        errStr.includes('invalid_access_token')
-      ) {
+      if (isTokenInvalidError(err)) {
         markProviderExpired('dropbox');
         const confirmed = await confirm({
           title: language === 'he' ? 'נדרשת הרשאת Dropbox' : 'Dropbox Permission Required',

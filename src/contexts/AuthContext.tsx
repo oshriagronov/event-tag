@@ -1,4 +1,4 @@
-import { createContext, useContext, useState, useEffect, useCallback, type ReactNode } from 'react';
+import { createContext, useContext, useState, useEffect, useCallback, useRef, type ReactNode } from 'react';
 import {
   signInWithPopup,
   signOut as firebaseSignOut,
@@ -71,6 +71,7 @@ interface AuthContextType {
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
+const GOOGLE_DRIVE_SCOPE = 'https://www.googleapis.com/auth/drive.file https://www.googleapis.com/auth/drive.readonly';
 
 function getInitialToken(provider: CloudProvider): string | null {
   if (typeof window === 'undefined') return null;
@@ -88,6 +89,7 @@ function getInitialToken(provider: CloudProvider): string | null {
     let p = hashParams.get('provider') || queryParams.get('provider');
     if (!p && state.includes('provider=google')) p = 'google';
     if (!p && state.includes('provider=onedrive')) p = 'onedrive';
+    if (!p) p = 'dropbox';
 
     if (error && p === provider) {
       console.error(`OAuth redirect error for ${provider}:`, error, errorDesc);
@@ -151,6 +153,19 @@ function clearLegacyStorageKeys() {
   legacyKeys.forEach((key) => localStorage.removeItem(key));
 }
 
+function createPkcePair(): Promise<{ verifier: string; challenge: string }> {
+  const verifier = Array.from(crypto.getRandomValues(new Uint8Array(32)), (byte) =>
+    byte.toString(16).padStart(2, '0')
+  ).join('');
+  return crypto.subtle.digest('SHA-256', new TextEncoder().encode(verifier)).then((digest) => ({
+    verifier,
+    challenge: btoa(String.fromCharCode(...new Uint8Array(digest)))
+      .replace(/\+/g, '-')
+      .replace(/\//g, '_')
+      .replace(/=+$/g, ''),
+  }));
+}
+
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
@@ -170,6 +185,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   });
   const [allowlist, setAllowlist] = useState<AllowlistEntry[]>([]);
   const [expiredProviders, setExpiredProviders] = useState<CloudProvider[]>([]);
+  const googleRefreshTimerRef = useRef<number | null>(null);
+  const dropboxRefreshTimerRef = useRef<number | null>(null);
 
   useEffect(() => {
     const unsubSettings = subscribeSystemSettings(
@@ -183,7 +200,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return () => unsubSettings();
   }, []);
 
-  const markProviderExpired = (provider: CloudProvider) => {
+  const markProviderExpired = useCallback((provider: CloudProvider) => {
     const uid = user?.uid || auth.currentUser?.uid;
     if (provider === 'dropbox') {
       setDropboxAccessToken(null);
@@ -196,11 +213,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (uid) localStorage.removeItem(`${uid}_onedrive_access_token`);
     }
     setExpiredProviders((prev) => Array.from(new Set([...prev, provider])));
-  };
+  }, [user?.uid]);
 
-  const dismissExpiredProviderNotice = (provider: CloudProvider) => {
+  const dismissExpiredProviderNotice = useCallback((provider: CloudProvider) => {
     setExpiredProviders((prev) => prev.filter((p) => p !== provider));
-  };
+  }, []);
 
   // Dynamically load Google Identity Services SDK only when user is authenticated
   // (not on guest pages where no user is logged in)
@@ -229,10 +246,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         return;
       }
 
+      let settled = false;
+      const finish = (token: string | null) => {
+        if (settled) return;
+        settled = true;
+        window.clearTimeout(timeoutId);
+        resolve(token);
+      };
+      const timeoutId = window.setTimeout(() => finish(null), 15_000);
+
       try {
         const tokenClient = window.google.accounts.oauth2.initTokenClient({
           client_id: clientId,
-          scope: 'https://www.googleapis.com/auth/drive.file',
+          scope: GOOGLE_DRIVE_SCOPE,
           callback: (response: { access_token?: string; expires_in?: number; error?: string }) => {
             if (response.access_token) {
               const token = response.access_token;
@@ -247,15 +273,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
                 localStorage.setItem(`${uid}_google_connected`, 'true');
               }
               dismissExpiredProviderNotice('google');
-              resolve(token);
+              finish(token);
             } else {
               console.warn('Google silent token refresh failed:', response.error);
-              resolve(null);
+              finish(null);
             }
           },
           error_callback: (err: unknown) => {
             console.debug('Google silent token refresh omitted:', err);
-            resolve(null);
+            finish(null);
           },
         });
 
@@ -263,10 +289,88 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         tokenClient.requestAccessToken({ prompt: '' });
       } catch (err) {
         console.debug('Error invoking Google silent refresh:', err);
-        resolve(null);
+        finish(null);
       }
     });
-  }, []);
+  }, [dismissExpiredProviderNotice]);
+
+  const refreshDropboxToken = useCallback(async (uid: string): Promise<string | null> => {
+    const refreshToken = localStorage.getItem(`${uid}_dropbox_refresh_token`);
+    const clientId = import.meta.env.VITE_DROPBOX_CLIENT_ID;
+    if (!refreshToken || !clientId) return null;
+
+    const response = await fetch('https://api.dropboxapi.com/oauth2/token', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: new URLSearchParams({
+        grant_type: 'refresh_token',
+        refresh_token: refreshToken,
+        client_id: clientId,
+      }),
+    });
+    if (!response.ok) {
+      if (response.status === 400 || response.status === 401) return null;
+      throw new Error(`Dropbox token refresh failed: ${response.status}`);
+    }
+    const data = await response.json() as { access_token?: string; refresh_token?: string; expires_in?: number };
+    if (!data.access_token) return null;
+    const expiresAt = Date.now() + (data.expires_in || 14_400) * 1000;
+    localStorage.setItem(`${uid}_dropbox_access_token`, data.access_token);
+    localStorage.setItem(`${uid}_dropbox_token_expires_at`, String(expiresAt));
+    localStorage.setItem(`${uid}_dropbox_connected`, 'true');
+    if (data.refresh_token) localStorage.setItem(`${uid}_dropbox_refresh_token`, data.refresh_token);
+    setDropboxAccessToken(data.access_token);
+    setIsDropboxConnected(true);
+    dismissExpiredProviderNotice('dropbox');
+    return data.access_token;
+  }, [dismissExpiredProviderNotice]);
+
+  const completeDropboxAuthorization = useCallback(async (uid: string): Promise<void> => {
+    if (typeof window === 'undefined') return;
+    const params = new URLSearchParams(window.location.search);
+    const code = params.get('code');
+    const state = params.get('state');
+    if (!code || !state?.startsWith('provider=dropbox:')) return;
+
+    const expectedState = localStorage.getItem('pending_dropbox_oauth_state');
+    const verifier = localStorage.getItem('pending_dropbox_pkce_verifier');
+    if (!expectedState || state !== expectedState || !verifier) {
+      console.error('Dropbox OAuth state validation failed.');
+      window.history.replaceState(null, '', window.location.pathname);
+      return;
+    }
+
+    try {
+      const response = await fetch('https://api.dropboxapi.com/oauth2/token', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: new URLSearchParams({
+          code,
+          grant_type: 'authorization_code',
+          client_id: import.meta.env.VITE_DROPBOX_CLIENT_ID,
+          redirect_uri: `${window.location.origin}/dashboard`,
+          code_verifier: verifier,
+        }),
+      });
+      if (!response.ok) throw new Error(`Dropbox authorization exchange failed: ${response.status}`);
+      const data = await response.json() as { access_token?: string; refresh_token?: string; expires_in?: number };
+      if (!data.access_token || !data.refresh_token) throw new Error('Dropbox did not return renewable credentials.');
+      localStorage.setItem(`${uid}_dropbox_access_token`, data.access_token);
+      localStorage.setItem(`${uid}_dropbox_refresh_token`, data.refresh_token);
+      localStorage.setItem(`${uid}_dropbox_token_expires_at`, String(Date.now() + (data.expires_in || 14_400) * 1000));
+      localStorage.setItem(`${uid}_dropbox_connected`, 'true');
+      setDropboxAccessToken(data.access_token);
+      setIsDropboxConnected(true);
+      dismissExpiredProviderNotice('dropbox');
+    } catch (error) {
+      console.error('Unable to complete Dropbox authorization:', error);
+      setExpiredProviders((prev) => Array.from(new Set([...prev, 'dropbox'])));
+    } finally {
+      localStorage.removeItem('pending_dropbox_oauth_state');
+      localStorage.removeItem('pending_dropbox_pkce_verifier');
+      window.history.replaceState(null, '', window.location.pathname);
+    }
+  }, [dismissExpiredProviderNotice]);
 
   const checkCloudConnections = useCallback(async (): Promise<CloudProvider[]> => {
     const expired: CloudProvider[] = [];
@@ -274,22 +378,25 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       return expired;
     }
 
-    if (!user) return expired;
-    const uid = user.uid;
+    const uid = auth.currentUser?.uid;
+    if (!uid) return expired;
 
     // Check Dropbox
-    const dbxConnected = localStorage.getItem(`${uid}_dropbox_connected`) === 'true' || isDropboxConnected;
-    const dbx = localStorage.getItem(`${uid}_dropbox_access_token`) || dropboxAccessToken;
+    const dbxConnected = localStorage.getItem(`${uid}_dropbox_connected`) === 'true';
+    let dbx = localStorage.getItem(`${uid}_dropbox_access_token`);
     if (dbxConnected || dbx) {
       const expiresAt = localStorage.getItem(`${uid}_dropbox_token_expires_at`);
       const isExpiredByTime = expiresAt ? Date.now() > parseInt(expiresAt, 10) - 60000 : false;
 
-      let isValid = false;
-      if (dbx && !isExpiredByTime) {
-        isValid = await checkTokenValidity('dropbox', dbx);
+      let isValid: boolean | null = null;
+      try {
+        if (!dbx || isExpiredByTime) dbx = await refreshDropboxToken(uid);
+        if (dbx) isValid = await checkTokenValidity('dropbox', dbx);
+      } catch (error) {
+        console.warn('Dropbox connection check deferred after a transient failure:', error);
       }
 
-      if (!isValid && dbxConnected) {
+      if (isValid === false && dbxConnected) {
         setDropboxAccessToken(null);
         localStorage.removeItem(`${uid}_dropbox_access_token`);
         setExpiredProviders((prev) => Array.from(new Set([...prev, 'dropbox'])));
@@ -302,24 +409,31 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
 
     // Check Google
-    const gConnected = localStorage.getItem(`${uid}_google_connected`) === 'true' || isGoogleConnected;
-    const gdrive = localStorage.getItem(`${uid}_google_access_token`) || googleAccessToken;
+    const gConnected = localStorage.getItem(`${uid}_google_connected`) === 'true';
+    const gdrive = localStorage.getItem(`${uid}_google_access_token`);
     if (gConnected || gdrive) {
       const expiresAt = localStorage.getItem(`${uid}_google_token_expires_at`);
       const isExpiredByTime = expiresAt ? Date.now() > parseInt(expiresAt, 10) - 60000 : true;
 
-      let isValid = false;
-      if (gdrive && !isExpiredByTime) {
-        isValid = await checkTokenValidity('google', gdrive);
+      let isValid: boolean | null = null;
+      try {
+        if (gdrive && !isExpiredByTime) isValid = await checkTokenValidity('google', gdrive);
+      } catch (error) {
+        console.warn('Google connection check deferred after a transient failure:', error);
       }
 
-      if (!isValid && gConnected) {
+      if (isValid === false || (!gdrive || isExpiredByTime)) {
         const refreshed = await refreshGoogleTokenSilently();
         if (!refreshed) {
-          setGoogleAccessToken(null);
-          localStorage.removeItem(`${uid}_google_access_token`);
-          setExpiredProviders((prev) => Array.from(new Set([...prev, 'google'])));
-          expired.push('google');
+          // A silent prompt can be blocked by browser privacy settings. Keep the
+          // persisted connection and only show an expired state after an explicit
+          // provider rejection, so users are not unnecessarily reauthenticated.
+          if (isValid === false) {
+            setGoogleAccessToken(null);
+            localStorage.removeItem(`${uid}_google_access_token`);
+            setExpiredProviders((prev) => Array.from(new Set([...prev, 'google'])));
+            expired.push('google');
+          }
         }
       } else if (isValid) {
         setExpiredProviders((prev) => prev.filter((p) => p !== 'google'));
@@ -329,18 +443,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
 
     // Check OneDrive
-    const odConnected = localStorage.getItem(`${uid}_onedrive_connected`) === 'true' || isOneDriveConnected;
-    const onedrive = localStorage.getItem(`${uid}_onedrive_access_token`) || onedriveAccessToken;
+    const odConnected = localStorage.getItem(`${uid}_onedrive_connected`) === 'true';
+    const onedrive = localStorage.getItem(`${uid}_onedrive_access_token`);
     if (odConnected || onedrive) {
       const expiresAt = localStorage.getItem(`${uid}_onedrive_token_expires_at`);
       const isExpiredByTime = expiresAt ? Date.now() > parseInt(expiresAt, 10) - 60000 : false;
 
-      let isValid = false;
-      if (onedrive && !isExpiredByTime) {
-        isValid = await checkTokenValidity('onedrive', onedrive);
+      let isValid: boolean | null = null;
+      try {
+        if (onedrive && !isExpiredByTime) isValid = await checkTokenValidity('onedrive', onedrive);
+      } catch (error) {
+        console.warn('OneDrive connection check deferred after a transient failure:', error);
       }
 
-      if (!isValid && odConnected) {
+      if (isValid === false && odConnected) {
         setOneDriveAccessToken(null);
         localStorage.removeItem(`${uid}_onedrive_access_token`);
         setExpiredProviders((prev) => Array.from(new Set([...prev, 'onedrive'])));
@@ -353,16 +469,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
 
     return expired;
-  }, [
-    user,
-    dropboxAccessToken,
-    googleAccessToken,
-    onedriveAccessToken,
-    isDropboxConnected,
-    isGoogleConnected,
-    isOneDriveConnected,
-    refreshGoogleTokenSilently,
-  ]);
+  }, [refreshDropboxToken, refreshGoogleTokenSilently]);
 
   useEffect(() => {
     let unsubProfile: (() => void) | undefined;
@@ -373,6 +480,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (firebaseUser) {
         const uid = firebaseUser.uid;
         clearLegacyStorageKeys();
+        await completeDropboxAuthorization(uid);
 
         // Check and apply any pending token from getInitialToken
         (['dropbox', 'google', 'onedrive'] as CloudProvider[]).forEach((p) => {
@@ -444,7 +552,35 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (unsubProfile) unsubProfile();
       if (unsubAllowlist) unsubAllowlist();
     };
-  }, [checkCloudConnections]);
+  }, [checkCloudConnections, completeDropboxAuthorization]);
+
+  useEffect(() => {
+    if (googleRefreshTimerRef.current) window.clearTimeout(googleRefreshTimerRef.current);
+    const uid = user?.uid;
+    if (!uid || !googleAccessToken) return;
+    const expiresAt = Number(localStorage.getItem(`${uid}_google_token_expires_at`));
+    if (!Number.isFinite(expiresAt)) return;
+    googleRefreshTimerRef.current = window.setTimeout(() => {
+      refreshGoogleTokenSilently().catch(() => undefined);
+    }, Math.max(0, expiresAt - Date.now() - 5 * 60_000));
+    return () => {
+      if (googleRefreshTimerRef.current) window.clearTimeout(googleRefreshTimerRef.current);
+    };
+  }, [googleAccessToken, refreshGoogleTokenSilently, user?.uid]);
+
+  useEffect(() => {
+    if (dropboxRefreshTimerRef.current) window.clearTimeout(dropboxRefreshTimerRef.current);
+    const uid = user?.uid;
+    if (!uid || !dropboxAccessToken) return;
+    const expiresAt = Number(localStorage.getItem(`${uid}_dropbox_token_expires_at`));
+    if (!Number.isFinite(expiresAt)) return;
+    dropboxRefreshTimerRef.current = window.setTimeout(() => {
+      refreshDropboxToken(uid).catch((error) => console.warn('Dropbox proactive refresh deferred:', error));
+    }, Math.max(0, expiresAt - Date.now() - 5 * 60_000));
+    return () => {
+      if (dropboxRefreshTimerRef.current) window.clearTimeout(dropboxRefreshTimerRef.current);
+    };
+  }, [dropboxAccessToken, refreshDropboxToken, user?.uid]);
 
   const isAdmin = Boolean(
     userProfile?.role === 'admin' ||
@@ -490,9 +626,34 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       alert('שגיאה: מזהה לקוח Dropbox חסר בקובץ ההגדרות (.env)');
       return;
     }
-    const redirectUri = encodeURIComponent(window.location.origin + '/dashboard');
-    const authUrl = `https://www.dropbox.com/oauth2/authorize?client_id=${clientId}&response_type=token&redirect_uri=${redirectUri}`;
-    window.location.href = authUrl;
+    const beginAuthorization = () => createPkcePair().then(({ verifier, challenge }) => {
+      const state = `provider=dropbox:${crypto.randomUUID()}`;
+      localStorage.setItem('pending_dropbox_pkce_verifier', verifier);
+      localStorage.setItem('pending_dropbox_oauth_state', state);
+      const params = new URLSearchParams({
+        client_id: clientId,
+        response_type: 'code',
+        token_access_type: 'offline',
+        code_challenge_method: 'S256',
+        code_challenge: challenge,
+        redirect_uri: `${window.location.origin}/dashboard`,
+        state,
+      });
+      window.location.assign(`https://www.dropbox.com/oauth2/authorize?${params.toString()}`);
+    }).catch((error) => {
+      console.error('Unable to start Dropbox authorization:', error);
+      alert('לא ניתן להתחיל את החיבור ל-Dropbox. נסה שוב.');
+    });
+    const uid = auth.currentUser?.uid;
+    if (!uid) {
+      void beginAuthorization();
+      return;
+    }
+    // A visible reconnect action first tries the existing renewable session.
+    // Most apparent expirations therefore finish without another OAuth prompt.
+    void refreshDropboxToken(uid).then((token) => {
+      if (!token) void beginAuthorization();
+    }).catch(() => beginAuthorization());
   };
 
   const disconnectDropbox = () => {
@@ -503,6 +664,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       localStorage.removeItem(`${uid}_dropbox_access_token`);
       localStorage.removeItem(`${uid}_dropbox_token_expires_at`);
       localStorage.removeItem(`${uid}_dropbox_connected`);
+      localStorage.removeItem(`${uid}_dropbox_refresh_token`);
     }
     localStorage.removeItem('dropbox_access_token');
     localStorage.removeItem('dropbox_token_expires_at');
@@ -510,9 +672,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setExpiredProviders((prev) => prev.filter((p) => p !== 'dropbox'));
   };
 
-  const clearDropboxToken = () => {
+  const clearDropboxToken = useCallback(() => {
     markProviderExpired('dropbox');
-  };
+  }, [markProviderExpired]);
 
   const connectGoogle = () => {
     const clientId = import.meta.env.VITE_GOOGLE_CLIENT_ID;
@@ -527,7 +689,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       try {
         const tokenClient = window.google.accounts.oauth2.initTokenClient({
           client_id: clientId,
-          scope: 'https://www.googleapis.com/auth/drive.file',
+          scope: GOOGLE_DRIVE_SCOPE,
           callback: (response: { access_token?: string; expires_in?: number; error?: string }) => {
             if (response.access_token) {
               const token = response.access_token;
@@ -553,7 +715,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
 
     const redirectUri = encodeURIComponent(window.location.origin + '/dashboard');
-    const scope = encodeURIComponent('https://www.googleapis.com/auth/drive.file');
+    const scope = encodeURIComponent(GOOGLE_DRIVE_SCOPE);
     const authUrl = `https://accounts.google.com/o/oauth2/v2/auth?client_id=${clientId}&redirect_uri=${redirectUri}&response_type=token&scope=${scope}&state=provider%3Dgoogle`;
     window.location.href = authUrl;
   };
@@ -573,9 +735,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setExpiredProviders((prev) => prev.filter((p) => p !== 'google'));
   };
 
-  const clearGoogleToken = () => {
+  const clearGoogleToken = useCallback(() => {
     markProviderExpired('google');
-  };
+  }, [markProviderExpired]);
 
   const connectOneDrive = () => {
     const clientId = import.meta.env.VITE_ONEDRIVE_CLIENT_ID;
@@ -605,9 +767,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setExpiredProviders((prev) => prev.filter((p) => p !== 'onedrive'));
   };
 
-  const clearOneDriveToken = () => {
+  const clearOneDriveToken = useCallback(() => {
     markProviderExpired('onedrive');
-  };
+  }, [markProviderExpired]);
 
   return (
     <AuthContext.Provider

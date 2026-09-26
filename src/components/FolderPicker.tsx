@@ -10,7 +10,7 @@ import {
   FolderOpen,
   AlertCircle,
 } from 'lucide-react';
-import { listFolders, countPhotosInFolder, type CloudProvider } from '../services/cloudProviders';
+import { listFolders, countPhotosInFolder, isAuthorizationError, isTokenInvalidError, type CloudProvider } from '../services/cloudProviders';
 import type { DropboxFolder as DriveFolder } from '../services/dropbox';
 import { useTranslation } from '../services/translations';
 import { useAuth } from '../contexts/AuthContext';
@@ -63,14 +63,17 @@ export function FolderPicker({ provider, accessToken, onSelect, onCancel }: Fold
     } catch (err) {
       console.error('Error loading folders:', err);
       const providerName = provider === 'dropbox' ? 'Dropbox' : provider === 'google' ? 'Google Drive' : 'OneDrive';
-      const errStr = err instanceof Error ? err.message : String(err);
-      
-      if (errStr.includes('401') || errStr.includes('403') || errStr.includes('expired_access_token') || errStr.includes('invalid_token') || errStr.includes('unregistered callers') || errStr.includes('PERMISSION_DENIED')) {
+      if (isTokenInvalidError(err)) {
         markProviderExpired(provider);
         setIsExpired(true);
         setError(language === 'he' 
           ? `תוקף החיבור לחשבון ${providerName} פג. אנא התחבר מחדש.` 
           : `Connection to ${providerName} has expired. Please log in again.`);
+      } else if (provider === 'google' && isAuthorizationError(err)) {
+        setIsExpired(true);
+        setError(language === 'he'
+          ? 'נדרש אישור חד-פעמי נוסף לקריאת התיקיות שנבחרו ב-Google Drive.'
+          : 'A one-time permission update is needed to read selected Google Drive folders.');
       } else {
         setError(
           err instanceof Error

@@ -27,9 +27,18 @@ async function fetchWithRetry(
       });
       clearTimeout(id);
 
-      // Return immediately on success or non-retryable auth/not-found statuses
+      // Auth and not-found responses require caller-specific handling. Retry only
+      // transient provider failures and respect server-directed backoff when present.
       if (res.ok || res.status === 401 || res.status === 403 || res.status === 404) {
         return res;
+      }
+      if (res.status === 429 || res.status >= 500) {
+        const retryAfter = Number(res.headers.get('Retry-After'));
+        const delay = Number.isFinite(retryAfter) ? retryAfter * 1000 : (attempt + 1) * 1000;
+        if (attempt < maxRetries) {
+          await new Promise((r) => setTimeout(r, Math.min(delay, 30_000)));
+          continue;
+        }
       }
       throw new Error(`Google Drive API error: ${res.status} - ${res.statusText}`);
     } catch (err: unknown) {
@@ -400,9 +409,14 @@ export async function checkTokenValidity(accessToken: string): Promise<boolean> 
       5000,
       1
     );
-    return res.ok;
-  } catch {
-    return false;
+    if (res.ok) return true;
+    // tokeninfo returns 400/401 for an invalid or expired access token. A
+    // transport failure must remain distinguishable from an invalid session.
+    if (res.status === 400 || res.status === 401) return false;
+    throw new Error(`Google token validation failed: ${res.status}`);
+  } catch (err) {
+    if (err instanceof Error && err.message.startsWith('Google token validation failed')) throw err;
+    throw err;
   }
 }
 

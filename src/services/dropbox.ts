@@ -7,30 +7,36 @@ const API_BASE = 'https://api.dropboxapi.com/2';
 const CONTENT_BASE = 'https://content.dropboxapi.com/2';
 
 /**
- * Helper to execute fetch with a timeout using AbortController
+ * Helper to execute fetch with a timeout and bounded retries for transient failures.
  */
 async function fetchWithTimeout(
   url: string,
   options: RequestInit = {},
   timeoutMs = 15000
 ): Promise<Response> {
-  const controller = new AbortController();
-  const id = setTimeout(() => controller.abort(), timeoutMs);
-
-  try {
-    const res = await fetch(url, {
-      ...options,
-      signal: controller.signal,
-    });
-    clearTimeout(id);
-    return res;
-  } catch (err: unknown) {
-    clearTimeout(id);
-    if (err instanceof Error && err.name === 'AbortError') {
-      throw new Error(`Request timed out after ${timeoutMs}ms`, { cause: err });
+  let lastError: unknown;
+  for (let attempt = 0; attempt < 3; attempt++) {
+    const controller = new AbortController();
+    const id = setTimeout(() => controller.abort(), timeoutMs);
+    try {
+      const res = await fetch(url, { ...options, signal: controller.signal });
+      clearTimeout(id);
+      if ((res.status === 429 || res.status >= 500) && attempt < 2) {
+        const retryAfter = Number(res.headers.get('Retry-After'));
+        const delay = Number.isFinite(retryAfter) ? retryAfter * 1000 : (attempt + 1) * 1000;
+        await new Promise((resolve) => setTimeout(resolve, Math.min(delay, 30_000)));
+        continue;
+      }
+      return res;
+    } catch (err: unknown) {
+      clearTimeout(id);
+      lastError = err instanceof Error && err.name === 'AbortError'
+        ? new Error(`Request timed out after ${timeoutMs}ms`, { cause: err })
+        : err;
+      if (attempt < 2) await new Promise((resolve) => setTimeout(resolve, (attempt + 1) * 1000));
     }
-    throw err;
   }
+  throw lastError;
 }
 
 export interface DropboxFolder {
@@ -209,11 +215,16 @@ export async function checkTokenValidity(accessToken: string): Promise<boolean> 
       },
       body: 'null',
     }, 5000);
-    return res.ok;
-  } catch {
-    return false;
+    if (res.ok || res.status === 403) return true;
+    if (res.status === 401) return false;
+    throw new Error(`Dropbox token validation failed: ${res.status}`);
+  } catch (err) {
+    if (err instanceof Error && err.message.startsWith('Dropbox token validation failed')) throw err;
+    throw err;
   }
 }
+
+const sharedLinkPromises = new Map<string, Promise<string>>();
 
 /**
  * Count image files in a folder (for display purposes)
@@ -263,6 +274,23 @@ export async function getPhotoThumbnailBlob(
  * Get or create a public shared link for a file
  */
 export async function getOrCreateSharedLink(
+  accessToken: string,
+  fileId: string
+): Promise<string> {
+  const cacheKey = fileId;
+  const cached = sharedLinkPromises.get(cacheKey);
+  if (cached) return cached;
+  const request = getOrCreateSharedLinkUncached(accessToken, fileId);
+  sharedLinkPromises.set(cacheKey, request);
+  try {
+    return await request;
+  } catch (error) {
+    sharedLinkPromises.delete(cacheKey);
+    throw error;
+  }
+}
+
+async function getOrCreateSharedLinkUncached(
   accessToken: string,
   fileId: string
 ): Promise<string> {
@@ -477,5 +505,4 @@ export async function uploadPhotoToDropbox(
     modifiedTime: String(data.client_modified || new Date().toISOString()),
   };
 }
-
 

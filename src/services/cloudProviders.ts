@@ -24,6 +24,20 @@ import {
 export type CloudProvider = 'dropbox' | 'google' | 'onedrive';
 
 /**
+ * Only an explicit invalid/revoked credential may disconnect a provider. Network,
+ * quota and authorization failures are actionable, but do not invalidate a session.
+ */
+export function isTokenInvalidError(error: unknown): boolean {
+  const message = error instanceof Error ? error.message : String(error);
+  return /(?:\b401\b|invalid[_ -]?(?:access[_ -]?)?token|expired_access_token|token (?:has )?expired|invalid_grant|revoked)/i.test(message);
+}
+
+export function isAuthorizationError(error: unknown): boolean {
+  const message = error instanceof Error ? error.message : String(error);
+  return /(?:\b403\b|permission_denied|insufficient(?:[_ -]permissions?)?|forbidden|unregistered callers)/i.test(message);
+}
+
+/**
  * List folders in a parent folder depending on provider
  */
 export async function listFolders(

@@ -1,6 +1,6 @@
 import { createContext, useContext, useState, useRef, useEffect, type ReactNode } from 'react';
 import * as faceapi from '@vladmandic/face-api';
-import { getPhotoBlob, checkTokenValidity, getOrCreateSharedLink, convertToRawUrl, type CloudProvider } from '../services/cloudProviders';
+import { getPhotoBlob, checkTokenValidity, getOrCreateSharedLink, convertToRawUrl, isTokenInvalidError, type CloudProvider } from '../services/cloudProviders';
 import { getONNXSession, extractEmbedding } from '../services/onnxModel';
 import { alignFace } from '../services/faceAlignment';
 import { uploadPhotoToGoogleDrive } from '../services/google';
@@ -20,6 +20,7 @@ import { isFirebaseQuotaOrDemandError } from '../services/quotaService';
 
 export interface EventScanState {
   eventId: string;
+  provider: CloudProvider;
   isScanning: boolean;
   isPaused: boolean;
   scannedCount: number;
@@ -178,26 +179,33 @@ export function ScannerProvider({ children }: { children: ReactNode }) {
 
   const pausedEventsRef = useRef<Map<string, boolean>>(new Map());
   const cancelledEventsRef = useRef<Map<string, boolean>>(new Map());
+  const providerTokensRef = useRef<Record<CloudProvider, string | null>>({
+    google: null,
+    dropbox: null,
+    onedrive: null,
+  });
 
   const { googleAccessToken, onedriveAccessToken, dropboxAccessToken, markProviderExpired } = useAuth();
   const { alert } = useModal();
 
   useEffect(() => {
-    const hasAnyToken = Boolean(googleAccessToken || onedriveAccessToken || dropboxAccessToken);
-    if (hasAnyToken) {
-      setScanStates((prev) => {
-        let changed = false;
-        const next = { ...prev };
-        for (const [id, state] of Object.entries(next)) {
-          if (state.scanError === 'auth_expired') {
+    providerTokensRef.current = {
+      google: googleAccessToken,
+      dropbox: dropboxAccessToken,
+      onedrive: onedriveAccessToken,
+    };
+    setScanStates((prev) => {
+      let changed = false;
+      const next = { ...prev };
+      for (const [id, state] of Object.entries(next)) {
+        if (state.scanError === 'auth_expired' && providerTokensRef.current[state.provider]) {
             next[id] = { ...state, scanError: null, isPaused: false };
             pausedEventsRef.current.set(id, false);
             changed = true;
-          }
         }
-        return changed ? next : prev;
-      });
-    }
+      }
+      return changed ? next : prev;
+    });
   }, [googleAccessToken, onedriveAccessToken, dropboxAccessToken]);
 
   const activeScanningEventIds = Object.keys(scanStates).filter(
@@ -291,6 +299,7 @@ export function ScannerProvider({ children }: { children: ReactNode }) {
 
     const initialState: EventScanState = {
       eventId,
+      provider,
       isScanning: true,
       isPaused: false,
       scannedCount: alreadyProcessed,
@@ -321,11 +330,13 @@ export function ScannerProvider({ children }: { children: ReactNode }) {
     // Cache preloaded blobs for downloads
     const preloadCache = new Map<string, Promise<Blob>>();
 
+    const getActiveToken = () => providerTokensRef.current[provider] || accessToken;
+
     function preloadDriveFile(fileId: string): Promise<Blob> {
       if (preloadCache.has(fileId)) return preloadCache.get(fileId)!;
 
       const promise = (async () => {
-        return await getPhotoBlob(provider, accessToken, fileId);
+        return await getPhotoBlob(provider, getActiveToken(), fileId);
       })();
 
       preloadCache.set(fileId, promise);
@@ -377,7 +388,7 @@ export function ScannerProvider({ children }: { children: ReactNode }) {
 
           // If it is processed but lacks a valid publicUrl, generate publicUrl and update Firestore
           try {
-            const sharedLink = await getOrCreateSharedLink(provider, accessToken, photo.driveFileId);
+            const sharedLink = await getOrCreateSharedLink(provider, getActiveToken(), photo.driveFileId);
             const publicUrl = convertToRawUrl(provider, sharedLink);
 
             photosBuffer.push({
@@ -400,7 +411,7 @@ export function ScannerProvider({ children }: { children: ReactNode }) {
             console.error(`Failed to generate publicUrl for processed photo ${photo.fileName}:`, sharedLinkErr);
             const errStr = sharedLinkErr instanceof Error ? sharedLinkErr.message : String(sharedLinkErr);
             
-            if (errStr.includes('401') || errStr.includes('403') || errStr.includes('PERMISSION_DENIED') || errStr.includes('unregistered callers')) {
+            if (isTokenInvalidError(sharedLinkErr)) {
               markProviderExpired(provider);
               pausedEventsRef.current.set(eventId, true);
               updateEventState({ scanError: 'auth_expired', isPaused: true });
@@ -437,7 +448,7 @@ export function ScannerProvider({ children }: { children: ReactNode }) {
           const { width, height, detections } = await processPhotoLocally(fileBlob);
 
           // Get or create public shared link for the photo
-          const sharedLink = await getOrCreateSharedLink(provider, accessToken, photo.driveFileId);
+          const sharedLink = await getOrCreateSharedLink(provider, getActiveToken(), photo.driveFileId);
           const publicUrl = convertToRawUrl(provider, sharedLink);
 
           // Add photo updates to buffer
@@ -484,7 +495,6 @@ export function ScannerProvider({ children }: { children: ReactNode }) {
           }
         } catch (err: unknown) {
           console.error(`Error scanning photo ${photo.fileName}:`, err);
-          const errStr = err instanceof Error ? err.message : String(err);
           const photoId = photo.id || photo.driveFileId;
           const currentRetries = (photoRetryMap.get(photoId) || 0) + 1;
           photoRetryMap.set(photoId, currentRetries);
@@ -497,7 +507,7 @@ export function ScannerProvider({ children }: { children: ReactNode }) {
             continue;
           }
 
-          if (errStr.includes('401') || errStr.includes('403') || errStr.includes('PERMISSION_DENIED') || errStr.includes('unregistered callers')) {
+          if (isTokenInvalidError(err)) {
             markProviderExpired(provider);
             pausedEventsRef.current.set(eventId, true);
             updateEventState({ scanError: 'auth_expired', isPaused: true });
@@ -507,7 +517,7 @@ export function ScannerProvider({ children }: { children: ReactNode }) {
           }
 
           try {
-            const isValid = await checkTokenValidity(provider, accessToken);
+            const isValid = await checkTokenValidity(provider, getActiveToken());
             if (!isValid) {
               markProviderExpired(provider);
               pausedEventsRef.current.set(eventId, true);
@@ -637,6 +647,7 @@ export function ScannerProvider({ children }: { children: ReactNode }) {
     const totalToScan = files.length;
     const initialState: EventScanState = {
       eventId,
+      provider: 'google',
       isScanning: true,
       isPaused: false,
       scannedCount: 0,
@@ -673,10 +684,7 @@ export function ScannerProvider({ children }: { children: ReactNode }) {
       while (nextFileIndex < files.length) {
         if (cancelledEventsRef.current.get(eventId)) break;
 
-        while (pausedEventsRef.current.get(eventId)) {
-          if (cancelledEventsRef.current.get(eventId)) break;
-          await new Promise((resolve) => setTimeout(resolve, 200));
-        }
+        if (pausedEventsRef.current.get(eventId)) break;
 
         if (cancelledEventsRef.current.get(eventId)) break;
 
@@ -741,17 +749,11 @@ export function ScannerProvider({ children }: { children: ReactNode }) {
             pausedEventsRef.current.set(eventId, true);
             break;
           }
-          const errStr = err instanceof Error ? err.message : String(err);
-          if (
-            errStr.includes('401') ||
-            errStr.includes('403') ||
-            errStr.includes('expired_access_token') ||
-            errStr.includes('invalid_token') ||
-            errStr.includes('PERMISSION_DENIED')
-          ) {
+          if (isTokenInvalidError(err)) {
             markProviderExpired('google');
             updateEventState({ scanError: 'auth_expired', isPaused: true });
             pausedEventsRef.current.set(eventId, true);
+            break;
           }
         }
       }
@@ -763,12 +765,14 @@ export function ScannerProvider({ children }: { children: ReactNode }) {
       const workers = Array.from({ length: Math.min(CONCURRENCY, files.length) }, () => worker());
       await Promise.all(workers);
 
-      if (!cancelledEventsRef.current.get(eventId)) {
+      if (!cancelledEventsRef.current.get(eventId) && !pausedEventsRef.current.get(eventId)) {
         await updateCloudEvent(eventId, {
           status: 'ready',
           photoCount: scannedCount,
           faceCount: totalFacesFound,
         });
+      } else if (pausedEventsRef.current.get(eventId)) {
+        await updateCloudEvent(eventId, { status: 'pending' });
       }
     } catch (err) {
       console.error(`Scanning error for local Google upload event ${eventId}:`, err);
@@ -808,6 +812,7 @@ export function ScannerProvider({ children }: { children: ReactNode }) {
     const totalToScan = files.length;
     const initialState: EventScanState = {
       eventId,
+      provider: 'dropbox',
       isScanning: true,
       isPaused: false,
       scannedCount: 0,
@@ -844,10 +849,7 @@ export function ScannerProvider({ children }: { children: ReactNode }) {
       while (nextFileIndex < files.length) {
         if (cancelledEventsRef.current.get(eventId)) break;
 
-        while (pausedEventsRef.current.get(eventId)) {
-          if (cancelledEventsRef.current.get(eventId)) break;
-          await new Promise((resolve) => setTimeout(resolve, 200));
-        }
+        if (pausedEventsRef.current.get(eventId)) break;
 
         if (cancelledEventsRef.current.get(eventId)) break;
 
@@ -918,15 +920,7 @@ export function ScannerProvider({ children }: { children: ReactNode }) {
             pausedEventsRef.current.set(eventId, true);
             break;
           }
-          const errStr = err instanceof Error ? err.message : String(err);
-
-          if (
-            errStr.includes('401') ||
-            errStr.includes('403') ||
-            errStr.includes('expired_access_token') ||
-            errStr.includes('invalid_token') ||
-            errStr.includes('PERMISSION_DENIED')
-          ) {
+          if (isTokenInvalidError(err)) {
             markProviderExpired('dropbox');
             updateEventState({ scanError: 'auth_expired', isPaused: true });
             pausedEventsRef.current.set(eventId, true);
@@ -942,12 +936,14 @@ export function ScannerProvider({ children }: { children: ReactNode }) {
       const workers = Array.from({ length: Math.min(CONCURRENCY, files.length) }, () => worker());
       await Promise.all(workers);
 
-      if (!cancelledEventsRef.current.get(eventId)) {
+      if (!cancelledEventsRef.current.get(eventId) && !pausedEventsRef.current.get(eventId)) {
         await updateCloudEvent(eventId, {
           status: 'ready',
           photoCount: scannedCount,
           faceCount: totalFacesFound,
         });
+      } else if (pausedEventsRef.current.get(eventId)) {
+        await updateCloudEvent(eventId, { status: 'pending' });
       }
     } catch (err) {
       console.error(`Scanning error for local Dropbox upload event ${eventId}:`, err);
