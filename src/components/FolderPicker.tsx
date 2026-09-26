@@ -10,7 +10,7 @@ import {
   FolderOpen,
   AlertCircle,
 } from 'lucide-react';
-import { listFolders, countPhotosInFolder, isAuthorizationError, isTokenInvalidError, type CloudProvider } from '../services/cloudProviders';
+import { listFolders, countPhotosInFolder, isTokenInvalidError, type CloudProvider } from '../services/cloudProviders';
 import type { DropboxFolder as DriveFolder } from '../services/dropbox';
 import { useTranslation } from '../services/translations';
 import { useAuth } from '../contexts/AuthContext';
@@ -69,11 +69,6 @@ export function FolderPicker({ provider, accessToken, onSelect, onCancel }: Fold
         setError(language === 'he' 
           ? `תוקף החיבור לחשבון ${providerName} פג. אנא התחבר מחדש.` 
           : `Connection to ${providerName} has expired. Please log in again.`);
-      } else if (provider === 'google' && isAuthorizationError(err)) {
-        setIsExpired(true);
-        setError(language === 'he'
-          ? 'נדרש אישור חד-פעמי נוסף לקריאת התיקיות שנבחרו ב-Google Drive.'
-          : 'A one-time permission update is needed to read selected Google Drive folders.');
       } else {
         setError(
           err instanceof Error

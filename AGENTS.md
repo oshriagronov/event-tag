@@ -34,7 +34,7 @@ You are an expert Frontend Engineer and Client-Side Machine Learning specialist.
   - **ShareModal & shareUtils:** Native OS Web Share API integration (`navigator.share`) with automatic fallback to a custom multi-platform share modal (WhatsApp, Telegram, Email, Facebook, X/Twitter, QR Code).
 - **Cloud Storage Integrations:**
   - **Dropbox API:** PKCE OAuth authorization-code connection with offline token renewal, direct folder/file stream ingestion, automated event folder creation, public-link delegation (`makeFolderPublic`), local photo upload, and 2-worker parallel face scanning.
-  - **Google Drive API:** `drive.file` upload plus read-only folder browsing scope, proactive silent token renewal, client-side local photo upload to automated Drive event folders, public-link delegation (`makeFolderPublic`), and 2-worker parallel face scanning.
+  - **Google Drive API:** Non-sensitive `drive.file` authorization for files created by or explicitly opened with EventTag, proactive silent token renewal, client-side local photo upload to automated Drive event folders, public-link delegation (`makeFolderPublic`), and 2-worker parallel face scanning.
 - **Deployment & Hosting:** Optimized for Vercel deployment with `vercel.json` SPA route rewrites (`/(.*)` -> `/index.html`), static WASM model cache headers, and consent-gated Vercel Analytics (`@vercel/analytics`) & Speed Insights (`@vercel/speed-insights`) via `VercelTrackers` as well as Firebase Analytics via `FirebaseAnalytics`.
 
 - **Local Utilities & Caching:** `jszip` (client-side ZIP packaging for batch photo downloads), `qrcode.react` (share link QR codes), `dexie` (client-side IndexedDB caching).

@@ -71,7 +71,9 @@ interface AuthContextType {
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
-const GOOGLE_DRIVE_SCOPE = 'https://www.googleapis.com/auth/drive.file https://www.googleapis.com/auth/drive.readonly';
+// Keep Drive authorization non-sensitive: this app only manages files it
+// creates or that the user explicitly opens with the app.
+const GOOGLE_DRIVE_SCOPE = 'https://www.googleapis.com/auth/drive.file';
 
 function getInitialToken(provider: CloudProvider): string | null {
   if (typeof window === 'undefined') return null;
