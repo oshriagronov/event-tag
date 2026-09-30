@@ -41,11 +41,11 @@ EventTag is a privacy-first event photo sharing and retrieval platform designed 
 
 ### Event Organizer Experience
 - **Multi-Cloud Storage Integrations:** Connect folders directly from **Dropbox** and **Google Drive** (OneDrive marked as "Soon").
-- **Resilient Cloud Sessions:** Dropbox uses PKCE with renewable offline access; Google silently renews active sessions before expiry when available. Transient network, quota, file, and permission errors never disconnect an account.
+- **Resilient Cloud Sessions:** Dropbox uses PKCE with renewable offline access; Google uses the authorization-code flow through a small serverless token broker (`api/google-token.ts`) so access tokens renew automatically past the 1-hour limit. Transient network, quota, file, and permission errors never disconnect an account.
+- **Long-Running Uploads:** Every provider request uses a freshly renewed token. Uploads and scans pause (keeping all pending files in memory) on expired sessions, permission problems, or quota limits and resume automatically after reconnecting; network failures retry with backoff. A screen wake lock and a leave-page warning keep large uploads alive.
 - **Cloud Auto-Ingest & Upload:** Ingest local photos to automatically create event folders in Dropbox or Google Drive with public view permissions.
 - **2-Worker Parallel Face Scanning:** Multi-worker pipeline performing offscreen canvas downscaling (max 1600px), face detection, 112x112 landmark alignment, and SFace WASM embedding extraction.
 - **Multi-Event Parallel Ingestion:** Scan multiple events concurrently with independent pause, resume, and cancel controls per event alongside live ETA metrics.
-- **Automatic Face Clustering:** On-device incremental clustering groups detected faces into distinct guest profiles.
 - **Dynamic Tier & Quota Limits:** Dynamic tier limits (`standard`, `premium`, `admin`) enforced client-side (`quotaService`) and on Firestore security rules, with graceful capacity error handling.
 
 ### Admin Management Suite (`/admin`)
@@ -105,14 +105,17 @@ src/
 │   ├── dropbox.ts              # Dropbox Chooser & file streaming integration
 │   ├── faceAlignment.ts        # Facial landmark alignment (112x112 similarity transform)
 │   ├── faceMatching.ts         # Face vector distance & similarity matching
-│   ├── firestore.ts            # Firestore CRUD & batched descriptor writer
+│   ├── firestore.ts            # Firestore CRUD & atomic batched scan-result writer
 │   ├── google.ts               # Google Drive API REST v3 integration
-│   ├── modelLoader.ts          # SFace WASM model asset loader
+│   ├── modelLoader.ts          # Shared face-api + SFace model loader (retries after failed loads)
 │   ├── onnxModel.ts            # ONNX Runtime Web (SFace WASM 128-dim embedding extractor)
 │   ├── quotaService.ts         # Dynamic tier quota calculator & capacity error handler
 │   └── translations.ts         # Hebrew/English localization strings
 └── utils/
     └── shareUtils.ts           # Web Share API & fallback share link helpers
+
+api/
+└── google-token.ts             # Vercel Function: Google OAuth code exchange & token refresh (holds the client secret)
 ```
 
 ### Data Flow
@@ -123,9 +126,8 @@ Cloud Storage (Google Drive / Dropbox)
     → @vladmandic/face-api (SSD MobileNet V1 Detection + 68 Landmarks)
       → Landmark Alignment (112x112 similarity transform)
         → ONNX Runtime Web (SFace WASM 128-dim vector extraction)
-          → Incremental Face Clustering (L2 Euclidean distance matching)
-            → Firebase Firestore Batched Write (Descriptors & metadata only)
-              → Real-time Dashboard & Guest Selfie Search UI
+          → Firebase Firestore Atomic Batched Write (Descriptors & metadata only)
+            → Guest Selfie Search (L2 Euclidean distance matching, threshold 0.85)
 ```
 
 ### Firestore Database Schema
@@ -199,6 +201,9 @@ In Vercel Project Settings → **Environment Variables**, configure:
 - `VITE_FIREBASE_APP_ID`
 - `VITE_DROPBOX_CLIENT_ID`
 - `VITE_GOOGLE_CLIENT_ID`
+- `VITE_GOOGLE_OFFLINE_ACCESS=true` (enables the Google authorization-code flow)
+- `GOOGLE_CLIENT_SECRET` (server-only; never prefix with `VITE_`)
+- `GOOGLE_OAUTH_ALLOWED_ORIGINS` (optional, comma-separated origins allowed to call the token broker)
 - `VITE_ONEDRIVE_CLIENT_ID`
 
 ### 3. Update OAuth Authorized Redirect URIs
@@ -206,7 +211,9 @@ In Firebase Console, Google Cloud Console, and Dropbox App Console:
 - Add your Vercel deployment URL (e.g., `https://your-app.vercel.app`) to **Authorized JavaScript origins** and **Authorized redirect URIs**.
 - In Dropbox, enable the OAuth authorization-code flow with short-lived tokens and offline access for the configured app key. Existing implicit-flow connections will need one final reconnect to upgrade.
 
-`vercel.json` in the root directory manages SPA routing rewrites (`/(.*)` -> `/index.html`) and static WASM cache headers.
+- For Google Drive, the OAuth client must be a **Web application** client; the GIS popup code flow uses the `postmessage` redirect URI, so only the JavaScript origin needs to be registered. Users connected before offline access was enabled reconnect once to obtain a refresh token.
+
+`vercel.json` in the root directory manages SPA routing rewrites (every path except `/api/*` -> `/index.html`) and static WASM cache headers. Run `vercel dev` locally to serve the token broker; without it (or with `VITE_GOOGLE_OFFLINE_ACCESS` unset), Google falls back to 1-hour tokens and uploads pause for a one-click reconnect.
 
 
 ## Privacy & Security

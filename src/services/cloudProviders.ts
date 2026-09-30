@@ -7,7 +7,6 @@ import {
   checkTokenValidity as dbxCheckToken,
   convertToRawDropboxUrl,
   createDropboxFolder,
-  makeFolderPublic as dbxMakeFolderPublic,
   uploadPhotoToDropbox,
 } from './dropbox';
 
@@ -18,7 +17,6 @@ import {
   getPhotoThumbnailBlob as googleGetThumbnail,
   getOrCreateSharedLink as googleGetOrCreateSharedLink,
   checkTokenValidity as googleCheckToken,
-  countPhotosInFolder as googleCountPhotos,
 } from './google';
 
 export type CloudProvider = 'dropbox' | 'google' | 'onedrive';
@@ -29,12 +27,12 @@ export type CloudProvider = 'dropbox' | 'google' | 'onedrive';
  */
 export function isTokenInvalidError(error: unknown): boolean {
   const message = error instanceof Error ? error.message : String(error);
-  return /(?:\b401\b|invalid[_ -]?(?:access[_ -]?)?token|expired_access_token|token (?:has )?expired|invalid_grant|revoked)/i.test(message);
+  return /(?::\s*401\b|invalid[_ -]?(?:access[_ -]?)?token|expired_access_token|token (?:has )?expired|invalid_grant|revoked)/i.test(message);
 }
 
 export function isAuthorizationError(error: unknown): boolean {
   const message = error instanceof Error ? error.message : String(error);
-  return /(?:\b403\b|permission_denied|insufficient(?:[_ -]permissions?)?|forbidden|unregistered callers)/i.test(message);
+  return /(?::\s*403\b|permission_denied|insufficient(?:[_ -]permissions?)?|forbidden|unregistered callers)/i.test(message);
 }
 
 /**
@@ -123,25 +121,13 @@ export async function getOrCreateSharedLink(
   throw new Error(`Provider ${provider} not supported yet.`);
 }
 
-/**
- * Check if a Google Drive access token is valid
- */
-export async function checkGoogleToken(accessToken: string): Promise<boolean> {
-  return googleCheckToken(accessToken);
-}
-
-/**
- * Check if a Microsoft OneDrive access token is valid
- */
-export async function checkOneDriveToken(accessToken: string): Promise<boolean> {
-  try {
-    const res = await fetch('https://graph.microsoft.com/v1.0/me', {
-      headers: { Authorization: `Bearer ${accessToken}` },
-    });
-    return res.ok;
-  } catch {
-    return false;
-  }
+async function checkOneDriveToken(accessToken: string): Promise<boolean> {
+  const res = await fetch('https://graph.microsoft.com/v1.0/me', {
+    headers: { Authorization: `Bearer ${accessToken}` },
+  });
+  if (res.ok) return true;
+  if (res.status === 401) return false;
+  throw new Error(`OneDrive token validation failed: ${res.status}`);
 }
 
 /**
@@ -156,7 +142,7 @@ export async function checkTokenValidity(
     return dbxCheckToken(accessToken);
   }
   if (provider === 'google') {
-    return checkGoogleToken(accessToken);
+    return googleCheckToken(accessToken);
   }
   if (provider === 'onedrive') {
     return checkOneDriveToken(accessToken);
@@ -191,26 +177,29 @@ export function convertToRawUrl(
 }
 
 /**
- * Count photos in folder depending on provider
+ * Count photos in folder depending on provider (0 when the listing fails)
  */
 export async function countPhotosInFolder(
   provider: CloudProvider,
   accessToken: string,
   folderId: string
 ): Promise<number> {
-  if (provider === 'dropbox') {
-    try {
-      const photos = await listPhotosInFolder(provider, accessToken, folderId);
-      return photos.length;
-    } catch (err) {
-      console.error('Failed to count photos in Dropbox folder:', err);
-      return 0;
-    }
+  try {
+    const photos = await listPhotosInFolder(provider, accessToken, folderId);
+    return photos.length;
+  } catch (err) {
+    console.error(`Failed to count photos in ${provider} folder:`, err);
+    return 0;
   }
-  if (provider === 'google') {
-    return googleCountPhotos(accessToken, folderId);
-  }
-  return 0;
 }
 
-export { createDropboxFolder, dbxMakeFolderPublic as makeDropboxFolderPublic, uploadPhotoToDropbox };
+/**
+ * Transient failures (network drops, timeouts, throttling, provider 5xx) are
+ * worth retrying automatically; everything else needs a user decision.
+ */
+export function isTransientError(error: unknown): boolean {
+  const message = error instanceof Error ? `${error.name} ${error.message}` : String(error);
+  return /(?:timed out|timeout|failed to fetch|networkerror|network request failed|load failed|aborterror|:\s*429\b|:\s*5\d\d\b|rate ?limit|too_many)/i.test(message);
+}
+
+export { createDropboxFolder, uploadPhotoToDropbox };

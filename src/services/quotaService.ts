@@ -135,7 +135,10 @@ export function getUserQuotaStatus(
 export function isFirebaseQuotaOrDemandError(error: unknown): boolean {
   if (!error) return false;
 
-  const err = error as { code?: string; message?: string; status?: number; details?: string };
+  const err = error as { name?: string; code?: string; message?: string; status?: number; details?: string };
+  // Only Firebase errors qualify. Cloud-provider failures such as a Drive 503 or
+  // 429 are transient and handled by the provider retry logic instead.
+  if (err.name !== 'FirebaseError' && typeof err.code !== 'string') return false;
   const code = (err.code || '').toLowerCase();
   const message = (err.message || '').toLowerCase();
   const details = (err.details || '').toLowerCase();

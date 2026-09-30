@@ -39,6 +39,16 @@ async function fetchWithTimeout(
   throw lastError;
 }
 
+/**
+ * Convert a failed Dropbox response into an error whose message the shared
+ * classifiers understand. Only 401 marks the token as invalid; 403 (missing
+ * scope) is an authorization problem that must not disconnect the provider.
+ */
+async function dropboxError(res: Response, context: string): Promise<Error> {
+  const detail = await res.text().catch(() => '');
+  return new Error(`Dropbox API error: ${res.status} - ${context}: ${detail}`);
+}
+
 export interface DropboxFolder {
   id: string;
   name: string;
@@ -203,44 +213,24 @@ export async function getPhotoBlob(
 }
 
 /**
- * Check if the Dropbox access token is still valid
+ * Check if the Dropbox access token is still valid. Returns false only when
+ * Dropbox explicitly rejects the token; transport failures are thrown.
  */
 export async function checkTokenValidity(accessToken: string): Promise<boolean> {
-  try {
-    const res = await fetchWithTimeout(`${API_BASE}/users/get_current_account`, {
-      method: 'POST',
-      headers: {
-        Authorization: `Bearer ${accessToken}`,
-        'Content-Type': 'application/json',
-      },
-      body: 'null',
-    }, 5000);
-    if (res.ok || res.status === 403) return true;
-    if (res.status === 401) return false;
-    throw new Error(`Dropbox token validation failed: ${res.status}`);
-  } catch (err) {
-    if (err instanceof Error && err.message.startsWith('Dropbox token validation failed')) throw err;
-    throw err;
-  }
+  const res = await fetchWithTimeout(`${API_BASE}/users/get_current_account`, {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${accessToken}`,
+      'Content-Type': 'application/json',
+    },
+    body: 'null',
+  }, 5000);
+  if (res.ok || res.status === 403) return true;
+  if (res.status === 401) return false;
+  throw new Error(`Dropbox token validation failed: ${res.status}`);
 }
 
 const sharedLinkPromises = new Map<string, Promise<string>>();
-
-/**
- * Count image files in a folder (for display purposes)
- */
-export async function countPhotosInFolder(
-  accessToken: string,
-  folderId: string
-): Promise<number> {
-  try {
-    const photos = await listPhotosInFolder(accessToken, folderId);
-    return photos.length;
-  } catch (err) {
-    console.error('Failed to count photos in Dropbox folder:', err);
-    return 0;
-  }
-}
 
 /**
  * Download a photo thumbnail as a Blob
@@ -423,19 +413,7 @@ export async function createDropboxFolder(
     }),
   });
 
-  if (!res.ok) {
-    const error = await res.text();
-    if (
-      res.status === 401 ||
-      res.status === 403 ||
-      error.includes('expired') ||
-      error.includes('invalid_access_token') ||
-      error.includes('PERMISSION_DENIED')
-    ) {
-      throw new Error(`Dropbox API error: 401 - expired_access_token - ${error}`);
-    }
-    throw new Error(`Failed to create folder in Dropbox (${res.status}): ${error}`);
-  }
+  if (!res.ok) throw await dropboxError(res, 'create folder');
 
   const data = await res.json();
   const metadata = data.metadata || {};
@@ -482,19 +460,7 @@ export async function uploadPhotoToDropbox(
     60000
   );
 
-  if (!res.ok) {
-    const error = await res.text();
-    if (
-      res.status === 401 ||
-      res.status === 403 ||
-      error.includes('expired') ||
-      error.includes('invalid_access_token') ||
-      error.includes('PERMISSION_DENIED')
-    ) {
-      throw new Error(`Dropbox API error: 401 - expired_access_token - ${error}`);
-    }
-    throw new Error(`Failed to upload photo to Dropbox (${res.status}): ${error}`);
-  }
+  if (!res.ok) throw await dropboxError(res, `upload ${file.name}`);
 
   const data = await res.json();
   return {

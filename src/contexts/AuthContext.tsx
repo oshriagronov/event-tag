@@ -31,6 +31,16 @@ declare global {
           }) => {
             requestAccessToken: (overrideConfig?: { prompt?: string }) => void;
           };
+          initCodeClient: (config: {
+            client_id: string;
+            scope: string;
+            ux_mode: 'popup';
+            callback: (response: { code?: string; error?: string }) => void;
+            error_callback?: (err: unknown) => void;
+          }) => {
+            requestCode: () => void;
+          };
+          revoke?: (token: string, done?: () => void) => void;
         };
       };
     };
@@ -55,9 +65,6 @@ interface AuthContextType {
   expiredProviders: CloudProvider[];
   signIn: () => Promise<void>;
   signOut: () => Promise<void>;
-  clearDropboxToken: () => void;
-  clearGoogleToken: () => void;
-  clearOneDriveToken: () => void;
   connectDropbox: () => void;
   disconnectDropbox: () => void;
   connectGoogle: () => void;
@@ -65,7 +72,13 @@ interface AuthContextType {
   connectOneDrive: () => void;
   disconnectOneDrive: () => void;
   checkCloudConnections: () => Promise<CloudProvider[]>;
-  refreshGoogleTokenSilently: () => Promise<string | null>;
+  /**
+   * Return an access token that stays valid for at least a few minutes,
+   * renewing it when needed. Pass `rejectedToken` after a 401 to renew unless
+   * another caller already replaced that token. Resolves to null only when the
+   * provider requires the user to reconnect; transient renewal failures throw.
+   */
+  getFreshAccessToken: (provider: CloudProvider, options?: { rejectedToken?: string }) => Promise<string | null>;
   markProviderExpired: (provider: CloudProvider) => void;
   dismissExpiredProviderNotice: (provider: CloudProvider) => void;
 }
@@ -74,6 +87,34 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 // Keep Drive authorization non-sensitive: this app only manages files it
 // creates or that the user explicitly opens with the app.
 const GOOGLE_DRIVE_SCOPE = 'https://www.googleapis.com/auth/drive.file';
+// Google access tokens live for one hour and the implicit/token flow cannot be
+// renewed without a user click. When the serverless token broker is deployed
+// (see api/google-token.ts) the authorization-code flow is used instead, which
+// yields a refresh token so long-running uploads never lose authorization.
+const GOOGLE_OFFLINE_ACCESS = import.meta.env.VITE_GOOGLE_OFFLINE_ACCESS === 'true';
+const GOOGLE_TOKEN_ENDPOINT = '/api/google-token';
+// Renew tokens this long before they expire.
+const TOKEN_RENEWAL_MARGIN_MS = 5 * 60_000;
+
+class ReconnectRequiredError extends Error {}
+
+async function requestGoogleTokenBroker(
+  body: { grant_type: 'authorization_code'; code: string } | { grant_type: 'refresh_token'; refresh_token: string }
+): Promise<{ access_token: string; expires_in: number; refresh_token?: string }> {
+  const res = await fetch(GOOGLE_TOKEN_ENDPOINT, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  });
+  const data = await res.json().catch(() => ({})) as { access_token?: string; expires_in?: number; refresh_token?: string; error?: string };
+  if (res.status === 401 || data.error === 'invalid_grant') {
+    throw new ReconnectRequiredError('Google refresh token was revoked or expired');
+  }
+  if (!res.ok || !data.access_token) {
+    throw new Error(`Google token broker error: ${res.status} ${data.error || ''}`.trim());
+  }
+  return { access_token: data.access_token, expires_in: data.expires_in || 3600, refresh_token: data.refresh_token };
+}
 
 function getInitialToken(provider: CloudProvider): string | null {
   if (typeof window === 'undefined') return null;
@@ -237,10 +278,25 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     document.head.appendChild(script);
   }, [user]);
 
+  const storeGoogleToken = useCallback((token: string, expiresInSec: number, refreshToken?: string) => {
+    const uid = auth.currentUser?.uid;
+    if (uid) {
+      localStorage.setItem(`${uid}_google_access_token`, token);
+      localStorage.setItem(`${uid}_google_token_expires_at`, String(Date.now() + expiresInSec * 1000));
+      localStorage.setItem(`${uid}_google_connected`, 'true');
+      if (refreshToken) localStorage.setItem(`${uid}_google_refresh_token`, refreshToken);
+    }
+    setGoogleAccessToken(token);
+    setIsGoogleConnected(true);
+    dismissExpiredProviderNotice('google');
+  }, [dismissExpiredProviderNotice]);
+
   /**
-   * Attempt to renew Google access token silently via Google Identity Services (GIS)
+   * Ask Google Identity Services for a new token without a consent prompt.
+   * Browsers usually block this popup when it is not triggered by a click, so
+   * it is only a fallback for deployments without the token broker.
    */
-  const refreshGoogleTokenSilently = useCallback((): Promise<string | null> => {
+  const requestGoogleTokenViaGis = useCallback((): Promise<string | null> => {
     return new Promise((resolve) => {
       const clientId = import.meta.env.VITE_GOOGLE_CLIENT_ID;
       if (!clientId || typeof window === 'undefined' || !window.google?.accounts?.oauth2) {
@@ -261,21 +317,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         const tokenClient = window.google.accounts.oauth2.initTokenClient({
           client_id: clientId,
           scope: GOOGLE_DRIVE_SCOPE,
-          callback: (response: { access_token?: string; expires_in?: number; error?: string }) => {
+          callback: (response) => {
             if (response.access_token) {
-              const token = response.access_token;
-              const expiresIn = response.expires_in || 3600;
-              const expiresAt = Date.now() + expiresIn * 1000;
-              setGoogleAccessToken(token);
-              setIsGoogleConnected(true);
-              const uid = auth.currentUser?.uid;
-              if (uid) {
-                localStorage.setItem(`${uid}_google_access_token`, token);
-                localStorage.setItem(`${uid}_google_token_expires_at`, expiresAt.toString());
-                localStorage.setItem(`${uid}_google_connected`, 'true');
-              }
-              dismissExpiredProviderNotice('google');
-              finish(token);
+              storeGoogleToken(response.access_token, response.expires_in || 3600);
+              finish(response.access_token);
             } else {
               console.warn('Google silent token refresh failed:', response.error);
               finish(null);
@@ -286,15 +331,35 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             finish(null);
           },
         });
-
-        // Request access token silently without showing prompt if user granted permissions before
         tokenClient.requestAccessToken({ prompt: '' });
       } catch (err) {
         console.debug('Error invoking Google silent refresh:', err);
         finish(null);
       }
     });
-  }, [dismissExpiredProviderNotice]);
+  }, [storeGoogleToken]);
+
+  /**
+   * Renew the Google access token: the stored refresh token first (works
+   * unattended, indefinitely), silent GIS as a fallback. Resolves to null when
+   * the user must reconnect; throws on transient failures.
+   */
+  const refreshGoogleToken = useCallback(async (): Promise<string | null> => {
+    const uid = auth.currentUser?.uid;
+    const refreshToken = uid ? localStorage.getItem(`${uid}_google_refresh_token`) : null;
+    if (uid && refreshToken) {
+      try {
+        const data = await requestGoogleTokenBroker({ grant_type: 'refresh_token', refresh_token: refreshToken });
+        storeGoogleToken(data.access_token, data.expires_in, data.refresh_token);
+        return data.access_token;
+      } catch (err) {
+        if (!(err instanceof ReconnectRequiredError)) throw err;
+        localStorage.removeItem(`${uid}_google_refresh_token`);
+        return null;
+      }
+    }
+    return requestGoogleTokenViaGis();
+  }, [requestGoogleTokenViaGis, storeGoogleToken]);
 
   const refreshDropboxToken = useCallback(async (uid: string): Promise<string | null> => {
     const refreshToken = localStorage.getItem(`${uid}_dropbox_refresh_token`);
@@ -374,6 +439,39 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   }, [dismissExpiredProviderNotice]);
 
+  const inflightRefreshRef = useRef<Partial<Record<CloudProvider, Promise<string | null>>>>({});
+
+  const getFreshAccessToken = useCallback(async (
+    provider: CloudProvider,
+    { rejectedToken }: { rejectedToken?: string } = {}
+  ): Promise<string | null> => {
+    const uid = auth.currentUser?.uid;
+    if (!uid) return null;
+    const token = localStorage.getItem(`${uid}_${provider}_access_token`);
+    const expiresAt = Number(localStorage.getItem(`${uid}_${provider}_token_expires_at`));
+    const hasKnownExpiry = Number.isFinite(expiresAt) && expiresAt > 0;
+    const isRejected = rejectedToken !== undefined && token === rejectedToken;
+    if (token && !isRejected && (!hasKnownExpiry || expiresAt - Date.now() > TOKEN_RENEWAL_MARGIN_MS)) {
+      return token;
+    }
+    // OneDrive uses the implicit flow and cannot be renewed without the user.
+    if (provider === 'onedrive') return isRejected ? null : token;
+
+    // Parallel upload workers share a single renewal request.
+    let refresh = inflightRefreshRef.current[provider];
+    if (!refresh) {
+      refresh = (provider === 'google' ? refreshGoogleToken() : refreshDropboxToken(uid)).finally(() => {
+        delete inflightRefreshRef.current[provider];
+      });
+      inflightRefreshRef.current[provider] = refresh;
+    }
+    const renewed = await refresh;
+    if (renewed) return renewed;
+    // Renewal needs a user gesture; a token that has not expired yet still works.
+    if (!isRejected && token && hasKnownExpiry && expiresAt > Date.now()) return token;
+    return null;
+  }, [refreshDropboxToken, refreshGoogleToken]);
+
   const checkCloudConnections = useCallback(async (): Promise<CloudProvider[]> => {
     const expired: CloudProvider[] = [];
     if (typeof window !== 'undefined' && window.location.pathname.startsWith('/event/')) {
@@ -425,7 +523,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
 
       if (isValid === false || (!gdrive || isExpiredByTime)) {
-        const refreshed = await refreshGoogleTokenSilently();
+        let refreshed: string | null = null;
+        try {
+          refreshed = await refreshGoogleToken();
+        } catch (error) {
+          console.warn('Google token renewal deferred after a transient failure:', error);
+        }
         if (!refreshed) {
           // A silent prompt can be blocked by browser privacy settings. Keep the
           // persisted connection and only show an expired state after an explicit
@@ -471,7 +574,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
 
     return expired;
-  }, [refreshDropboxToken, refreshGoogleTokenSilently]);
+  }, [refreshDropboxToken, refreshGoogleToken]);
 
   useEffect(() => {
     let unsubProfile: (() => void) | undefined;
@@ -563,12 +666,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const expiresAt = Number(localStorage.getItem(`${uid}_google_token_expires_at`));
     if (!Number.isFinite(expiresAt)) return;
     googleRefreshTimerRef.current = window.setTimeout(() => {
-      refreshGoogleTokenSilently().catch(() => undefined);
-    }, Math.max(0, expiresAt - Date.now() - 5 * 60_000));
+      getFreshAccessToken('google').catch((error) => console.warn('Google proactive refresh deferred:', error));
+    }, Math.max(0, expiresAt - Date.now() - TOKEN_RENEWAL_MARGIN_MS));
     return () => {
       if (googleRefreshTimerRef.current) window.clearTimeout(googleRefreshTimerRef.current);
     };
-  }, [googleAccessToken, refreshGoogleTokenSilently, user?.uid]);
+  }, [googleAccessToken, getFreshAccessToken, user?.uid]);
 
   useEffect(() => {
     if (dropboxRefreshTimerRef.current) window.clearTimeout(dropboxRefreshTimerRef.current);
@@ -577,16 +680,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const expiresAt = Number(localStorage.getItem(`${uid}_dropbox_token_expires_at`));
     if (!Number.isFinite(expiresAt)) return;
     dropboxRefreshTimerRef.current = window.setTimeout(() => {
-      refreshDropboxToken(uid).catch((error) => console.warn('Dropbox proactive refresh deferred:', error));
-    }, Math.max(0, expiresAt - Date.now() - 5 * 60_000));
+      getFreshAccessToken('dropbox').catch((error) => console.warn('Dropbox proactive refresh deferred:', error));
+    }, Math.max(0, expiresAt - Date.now() - TOKEN_RENEWAL_MARGIN_MS));
     return () => {
       if (dropboxRefreshTimerRef.current) window.clearTimeout(dropboxRefreshTimerRef.current);
     };
-  }, [dropboxAccessToken, refreshDropboxToken, user?.uid]);
+  }, [dropboxAccessToken, getFreshAccessToken, user?.uid]);
 
   const isAdmin = Boolean(
     userProfile?.role === 'admin' ||
-      user?.email === 'admin@eventtag.com' ||
+      (user?.emailVerified && user.email === 'admin@eventtag.com') ||
       (import.meta.env.VITE_ADMIN_EMAIL && user?.email === import.meta.env.VITE_ADMIN_EMAIL)
   );
 
@@ -674,10 +777,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setExpiredProviders((prev) => prev.filter((p) => p !== 'dropbox'));
   };
 
-  const clearDropboxToken = useCallback(() => {
-    markProviderExpired('dropbox');
-  }, [markProviderExpired]);
-
   const connectGoogle = () => {
     const clientId = import.meta.env.VITE_GOOGLE_CLIENT_ID;
     if (!clientId) {
@@ -686,26 +785,56 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       return;
     }
 
-    // Try Google Identity Services GIS popup client first
-    if (typeof window !== 'undefined' && window.google?.accounts?.oauth2) {
+    const oauth2 = typeof window !== 'undefined' ? window.google?.accounts?.oauth2 : undefined;
+
+    // Preferred: authorization-code flow through the token broker, which
+    // returns a refresh token so the connection survives the 1-hour expiry.
+    if (GOOGLE_OFFLINE_ACCESS && oauth2?.initCodeClient) {
       try {
-        const tokenClient = window.google.accounts.oauth2.initTokenClient({
+        const codeClient = oauth2.initCodeClient({
           client_id: clientId,
           scope: GOOGLE_DRIVE_SCOPE,
-          callback: (response: { access_token?: string; expires_in?: number; error?: string }) => {
+          ux_mode: 'popup',
+          callback: (response) => {
+            if (!response.code) {
+              console.warn('Google authorization was not completed:', response.error);
+              return;
+            }
+            requestGoogleTokenBroker({ grant_type: 'authorization_code', code: response.code })
+              .then((data) => {
+                const uid = auth.currentUser?.uid;
+                const hasStoredRefreshToken = Boolean(uid && localStorage.getItem(`${uid}_google_refresh_token`));
+                if (!data.refresh_token && !hasStoredRefreshToken) {
+                  // Google only issues a refresh token on first consent (e.g. the
+                  // grant was created on another device). Revoking the grant makes
+                  // the next connect show consent again and return one.
+                  oauth2.revoke?.(data.access_token);
+                  alert('כדי לאפשר העלאות ארוכות ללא הפסקה, יש לאשר את הגישה ל-Google Drive פעם נוספת. לחץ שוב על "התחבר".');
+                  return;
+                }
+                storeGoogleToken(data.access_token, data.expires_in, data.refresh_token);
+              })
+              .catch((error) => {
+                console.error('Unable to complete Google authorization:', error);
+                alert('לא ניתן להשלים את החיבור ל-Google Drive. נסה שוב.');
+              });
+          },
+        });
+        codeClient.requestCode();
+        return;
+      } catch (err) {
+        console.warn('GIS code client failed, falling back to token client:', err);
+      }
+    }
+
+    if (oauth2) {
+      try {
+        const tokenClient = oauth2.initTokenClient({
+          client_id: clientId,
+          scope: GOOGLE_DRIVE_SCOPE,
+          callback: (response) => {
             if (response.access_token) {
-              const token = response.access_token;
-              const expiresIn = response.expires_in || 3600;
-              const expiresAt = Date.now() + expiresIn * 1000;
-              setGoogleAccessToken(token);
-              setIsGoogleConnected(true);
-              const uid = auth.currentUser?.uid;
-              if (uid) {
-                localStorage.setItem(`${uid}_google_access_token`, token);
-                localStorage.setItem(`${uid}_google_token_expires_at`, expiresAt.toString());
-                localStorage.setItem(`${uid}_google_connected`, 'true');
-              }
-              dismissExpiredProviderNotice('google');
+              storeGoogleToken(response.access_token, response.expires_in || 3600);
             }
           },
         });
@@ -727,6 +856,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setGoogleAccessToken(null);
     setIsGoogleConnected(false);
     if (uid) {
+      // Revoking the grant also guarantees a fresh refresh token on reconnect.
+      const grant = localStorage.getItem(`${uid}_google_refresh_token`) || localStorage.getItem(`${uid}_google_access_token`);
+      if (grant) window.google?.accounts?.oauth2?.revoke?.(grant);
+      localStorage.removeItem(`${uid}_google_refresh_token`);
       localStorage.removeItem(`${uid}_google_access_token`);
       localStorage.removeItem(`${uid}_google_token_expires_at`);
       localStorage.removeItem(`${uid}_google_connected`);
@@ -736,10 +869,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     localStorage.removeItem('google_connected');
     setExpiredProviders((prev) => prev.filter((p) => p !== 'google'));
   };
-
-  const clearGoogleToken = useCallback(() => {
-    markProviderExpired('google');
-  }, [markProviderExpired]);
 
   const connectOneDrive = () => {
     const clientId = import.meta.env.VITE_ONEDRIVE_CLIENT_ID;
@@ -769,10 +898,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setExpiredProviders((prev) => prev.filter((p) => p !== 'onedrive'));
   };
 
-  const clearOneDriveToken = useCallback(() => {
-    markProviderExpired('onedrive');
-  }, [markProviderExpired]);
-
   return (
     <AuthContext.Provider
       value={{
@@ -793,9 +918,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         expiredProviders,
         signIn,
         signOut,
-        clearDropboxToken,
-        clearGoogleToken,
-        clearOneDriveToken,
         connectDropbox,
         disconnectDropbox,
         connectGoogle,
@@ -803,7 +925,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         connectOneDrive,
         disconnectOneDrive,
         checkCloudConnections,
-        refreshGoogleTokenSilently,
+        getFreshAccessToken,
         markProviderExpired,
         dismissExpiredProviderNotice,
       }}

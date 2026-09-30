@@ -5,56 +5,67 @@
 
 const API_BASE = 'https://www.googleapis.com/drive/v3';
 
+const RATE_LIMIT_REASONS = /rateLimitExceeded|userRateLimitExceeded|sharingRateLimitExceeded/;
+
+function backoffDelay(attempt: number, retryAfterHeader: string | null): number {
+  const retryAfter = Number(retryAfterHeader);
+  if (retryAfterHeader && Number.isFinite(retryAfter)) return Math.min(retryAfter * 1000, 60_000);
+  // Exponential backoff with jitter: ~1s, 2s, 4s, 8s ... capped at 30s
+  return Math.min(1000 * 2 ** attempt, 30_000) + Math.random() * 500;
+}
+
 /**
- * Helper to execute fetch with a timeout using AbortController and automatic retries
+ * Execute a Drive request with a per-attempt timeout and bounded retries for
+ * transient failures (network errors, timeouts, 429, 5xx and Drive's 403
+ * rate-limit responses). Every other response is returned to the caller.
  */
 async function fetchWithRetry(
   url: string,
   options: RequestInit = {},
   timeoutMs = 35000,
-  maxRetries = 2
+  maxRetries = 3
 ): Promise<Response> {
   let lastErr: unknown;
 
   for (let attempt = 0; attempt <= maxRetries; attempt++) {
     const controller = new AbortController();
-    const id = setTimeout(() => controller.abort(), timeoutMs);
-
+    const timer = setTimeout(() => controller.abort(), timeoutMs);
     try {
-      const res = await fetch(url, {
-        ...options,
-        signal: controller.signal,
-      });
-      clearTimeout(id);
+      const res = await fetch(url, { ...options, signal: controller.signal });
+      clearTimeout(timer);
 
-      // Auth and not-found responses require caller-specific handling. Retry only
-      // transient provider failures and respect server-directed backoff when present.
-      if (res.ok || res.status === 401 || res.status === 403 || res.status === 404) {
-        return res;
+      let retryable = res.status === 429 || res.status >= 500;
+      if (res.status === 403) {
+        retryable = RATE_LIMIT_REASONS.test(await res.clone().text().catch(() => ''));
       }
-      if (res.status === 429 || res.status >= 500) {
-        const retryAfter = Number(res.headers.get('Retry-After'));
-        const delay = Number.isFinite(retryAfter) ? retryAfter * 1000 : (attempt + 1) * 1000;
-        if (attempt < maxRetries) {
-          await new Promise((r) => setTimeout(r, Math.min(delay, 30_000)));
-          continue;
-        }
-      }
-      throw new Error(`Google Drive API error: ${res.status} - ${res.statusText}`);
+      if (!retryable || attempt === maxRetries) return res;
+
+      await new Promise((r) => setTimeout(r, backoffDelay(attempt, res.headers.get('Retry-After'))));
     } catch (err: unknown) {
-      clearTimeout(id);
-      lastErr = err;
+      clearTimeout(timer);
+      lastErr = err instanceof Error && err.name === 'AbortError'
+        ? new Error(`Request timed out after ${timeoutMs}ms`, { cause: err })
+        : err;
       if (attempt < maxRetries) {
-        // Exponential backoff before retry (1s, 2s)
-        await new Promise((r) => setTimeout(r, (attempt + 1) * 1000));
+        await new Promise((r) => setTimeout(r, backoffDelay(attempt, null)));
       }
     }
   }
 
-  if (lastErr instanceof Error && lastErr.name === 'AbortError') {
-    throw new Error(`Request timed out after ${timeoutMs}ms`, { cause: lastErr });
-  }
   throw lastErr;
+}
+
+/**
+ * Convert a failed Drive response into an error whose message the shared
+ * classifiers understand: 401 means the token is invalid (renew it), 403 is an
+ * authorization/quota problem that must not disconnect the provider.
+ */
+async function driveError(res: Response, context: string): Promise<Error> {
+  const detail = await res.text().catch(() => '');
+  if (res.status === 401) {
+    return new Error(`Google Drive API error: 401 - invalid_token - ${context}: ${detail}`);
+  }
+  return new Error(`Google Drive API error: ${res.status} - ${context}: ${detail}`);
 }
 
 export interface GoogleFolder {
@@ -105,32 +116,27 @@ export async function listFolders(
   const parentQuery = (parentFolderId && parentFolderId !== 'root')
     ? `'${parentFolderId}' in parents`
     : `'root' in parents`;
-
   const q = `${parentQuery} and mimeType = 'application/vnd.google-apps.folder' and trashed = false`;
-  const url = `${API_BASE}/files?q=${encodeURIComponent(q)}&fields=nextPageToken,files(id,name)&pageSize=100&orderBy=name`;
 
-  const res = await fetchWithRetry(url, {
-    headers: {
-      Authorization: `Bearer ${accessToken}`,
-    },
-  });
+  const folders: GoogleFolder[] = [];
+  let pageToken: string | undefined;
+  do {
+    let url = `${API_BASE}/files?q=${encodeURIComponent(q)}&fields=nextPageToken,files(id,name)&pageSize=1000&orderBy=name`;
+    if (pageToken) url += `&pageToken=${encodeURIComponent(pageToken)}`;
 
-  if (!res.ok) {
-    const error = await res.text();
-    if (res.status === 401 || error.includes('invalid_token') || error.includes('expired_access_token')) {
-      throw new Error(`Google Drive API error: 401 - expired_access_token - ${error}`);
+    const res = await fetchWithRetry(url, {
+      headers: { Authorization: `Bearer ${accessToken}` },
+    });
+    if (!res.ok) throw await driveError(res, 'list folders');
+
+    const data = await res.json() as { files?: Array<{ id: string; name: string }>; nextPageToken?: string };
+    for (const file of data.files || []) {
+      folders.push({ id: file.id, name: file.name, path: file.name });
     }
-    throw new Error(`Google Drive API error: ${res.status} - ${error}`);
-  }
+    pageToken = data.nextPageToken;
+  } while (pageToken);
 
-  const data = await res.json();
-  const files = data.files || [];
-
-  return files.map((file: { id: string; name: string }) => ({
-    id: file.id,
-    name: file.name,
-    path: file.name,
-  }));
+  return folders;
 }
 
 /**
@@ -185,18 +191,7 @@ export async function createGoogleFolder(
     body: JSON.stringify(metadata),
   });
 
-  if (!res.ok) {
-    const error = await res.text();
-    if (
-      res.status === 401 ||
-      res.status === 403 ||
-      error.includes('PERMISSION_DENIED') ||
-      error.includes('insufficient')
-    ) {
-      throw new Error(`Google Drive API error: 401 - expired_access_token - ${error}`);
-    }
-    throw new Error(`Failed to create folder in Google Drive (${res.status}): ${error}`);
-  }
+  if (!res.ok) throw await driveError(res, 'create folder');
 
   const data = await res.json();
 
@@ -239,22 +234,11 @@ export async function uploadPhotoToGoogleDrive(
       },
       body: formData,
     },
-    60000,
-    2
+    120000,
+    3
   );
 
-  if (!res.ok) {
-    const error = await res.text();
-    if (
-      res.status === 401 ||
-      res.status === 403 ||
-      error.includes('PERMISSION_DENIED') ||
-      error.includes('insufficient')
-    ) {
-      throw new Error(`Google Drive API error: 401 - expired_access_token - ${error}`);
-    }
-    throw new Error(`Failed to upload photo to Google Drive (${res.status}): ${error}`);
-  }
+  if (!res.ok) throw await driveError(res, `upload ${file.name}`);
 
   const data = await res.json();
   return {
@@ -294,13 +278,7 @@ export async function listPhotosInFolder(
       },
     });
 
-    if (!res.ok) {
-      const error = await res.text();
-      if (res.status === 401 || error.includes('invalid_token') || error.includes('expired_access_token')) {
-        throw new Error(`Google Drive API error: 401 - expired_access_token - ${error}`);
-      }
-      throw new Error(`Google Drive API error: ${res.status} - ${error}`);
-    }
+    if (!res.ok) throw await driveError(res, 'list photos');
 
     const data = await res.json();
     const files: Array<{ id: string; name: string; mimeType?: string; size?: string; modifiedTime?: string }> =
@@ -354,13 +332,10 @@ export async function getPhotoBlob(
         Authorization: `Bearer ${accessToken}`,
       },
     },
-    timeoutMs,
-    2
+    timeoutMs
   );
 
-  if (!res.ok) {
-    throw new Error(`Failed to download Google Drive file ${fileId}: ${res.status}`);
-  }
+  if (!res.ok) throw await driveError(res, `download ${fileId}`);
 
   return await res.blob();
 }
@@ -399,41 +374,19 @@ export async function getPhotoThumbnailBlob(
 }
 
 /**
- * Check if the Google access token is valid
+ * Check if the Google access token is valid. Returns false only when Google
+ * explicitly rejects the token; transport failures are thrown.
  */
 export async function checkTokenValidity(accessToken: string): Promise<boolean> {
-  try {
-    const res = await fetchWithRetry(
-      `https://www.googleapis.com/oauth2/v3/tokeninfo?access_token=${accessToken}`,
-      {},
-      5000,
-      1
-    );
-    if (res.ok) return true;
-    // tokeninfo returns 400/401 for an invalid or expired access token. A
-    // transport failure must remain distinguishable from an invalid session.
-    if (res.status === 400 || res.status === 401) return false;
-    throw new Error(`Google token validation failed: ${res.status}`);
-  } catch (err) {
-    if (err instanceof Error && err.message.startsWith('Google token validation failed')) throw err;
-    throw err;
-  }
-}
-
-/**
- * Count image files in a folder (for display purposes)
- */
-export async function countPhotosInFolder(
-  accessToken: string,
-  folderId: string
-): Promise<number> {
-  try {
-    const photos = await listPhotosInFolder(accessToken, folderId);
-    return photos.length;
-  } catch (err) {
-    console.error('Failed to count photos in Google Drive folder:', err);
-    return 0;
-  }
+  const res = await fetchWithRetry(
+    `https://www.googleapis.com/oauth2/v3/tokeninfo?access_token=${encodeURIComponent(accessToken)}`,
+    {},
+    5000,
+    1
+  );
+  if (res.ok) return true;
+  if (res.status === 400 || res.status === 401) return false;
+  throw new Error(`Google token validation failed: ${res.status}`);
 }
 
 /**

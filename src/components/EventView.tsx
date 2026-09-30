@@ -16,7 +16,7 @@ import {
   type CloudEvent,
   type CloudPhoto,
 } from '../services/firestore';
-import { listPhotosInFolder, getPhotoThumbnailBlob, checkTokenValidity, convertToRawUrl, isTokenInvalidError, type CloudProvider } from '../services/cloudProviders';
+import { listPhotosInFolder, getPhotoThumbnailBlob, convertToRawUrl, isTokenInvalidError, type CloudProvider } from '../services/cloudProviders';
 import { QRCodeSVG } from 'qrcode.react';
 import { useTranslation } from '../services/translations';
 import { useModal } from '../contexts/ModalContext';
@@ -38,7 +38,7 @@ function CloudPhotoImage({ provider = 'dropbox', driveFileId, accessToken, class
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
   const [fallbackToBlob, setFallbackToBlob] = useState(false);
-  const { clearDropboxToken, clearGoogleToken, clearOneDriveToken } = useAuth();
+  const { getFreshAccessToken, markProviderExpired } = useAuth();
 
   useEffect(() => {
     let active = true;
@@ -73,17 +73,10 @@ function CloudPhotoImage({ provider = 'dropbox', driveFileId, accessToken, class
       } catch (err: unknown) {
         console.error("Failed to load cloud photo blob:", err);
         if (isTokenInvalidError(err)) {
-          checkTokenValidity(provider, accessToken).then((isValid) => {
-            if (!isValid) {
-              if (provider === 'dropbox') {
-                clearDropboxToken();
-              } else if (provider === 'google') {
-                clearGoogleToken();
-              } else if (provider === 'onedrive') {
-                clearOneDriveToken();
-              }
-            }
-          }).catch(() => {});
+          // Renewal updates the token prop, which reloads this image
+          getFreshAccessToken(provider, { rejectedToken: accessToken }).then((renewed) => {
+            if (!renewed) markProviderExpired(provider);
+          }).catch(() => undefined);
         }
         if (active) {
           setError(true);
@@ -100,7 +93,7 @@ function CloudPhotoImage({ provider = 'dropbox', driveFileId, accessToken, class
         URL.revokeObjectURL(url);
       }
     };
-  }, [driveFileId, accessToken, provider, publicUrl, fallbackToBlob, size, clearDropboxToken, clearGoogleToken, clearOneDriveToken]);
+  }, [driveFileId, accessToken, provider, publicUrl, fallbackToBlob, size, getFreshAccessToken, markProviderExpired]);
 
   if (error) {
     return (
@@ -145,6 +138,7 @@ export function EventView({ eventId, onBack }: EventViewProps) {
     connectDropbox,
     connectGoogle,
     connectOneDrive,
+    getFreshAccessToken,
   } = useAuth();
   const { t, isRtl, language } = useTranslation();
   const { confirm, alert } = useModal();
@@ -228,8 +222,7 @@ export function EventView({ eventId, onBack }: EventViewProps) {
   const handleStartScan = useCallback(async () => {
     if (!event) return;
     const provider = event.provider || 'dropbox';
-    const token = currentProviderToken;
-    if (!token) return;
+    if (!currentProviderToken) return;
 
     const canProceed = await checkParallelScanWarning();
     if (!canProceed) return;
@@ -244,6 +237,8 @@ export function EventView({ eventId, onBack }: EventViewProps) {
       if (existingPhotos.length > 0) {
         photosToScan = existingPhotos;
       } else if (event.driveFolderId && event.driveFolderId !== 'selected_files') {
+        const token = await getFreshAccessToken(provider);
+        if (!token) throw new Error(language === 'he' ? 'נדרש חיבור מחדש לספק הענן.' : 'Please reconnect your cloud provider.');
         const driveFiles = await listPhotosInFolder(provider, token, event.driveFolderId);
         if (driveFiles.length > 0) {
           const basePhotos = driveFiles.map(file => ({
@@ -272,7 +267,7 @@ export function EventView({ eventId, onBack }: EventViewProps) {
         return;
       }
 
-      startCloudScanning(eventId, photosToScan, token, provider);
+      void startCloudScanning(eventId, photosToScan, provider);
     } catch (err) {
       console.error('Failed to start scanning:', err);
       await alert({
@@ -283,7 +278,7 @@ export function EventView({ eventId, onBack }: EventViewProps) {
       await updateCloudEvent(eventId, { status: 'pending' });
       setEvent(prev => prev ? { ...prev, status: 'pending' } : null);
     }
-  }, [event, currentProviderToken, checkParallelScanWarning, eventId, language, alert, startCloudScanning]);
+  }, [event, currentProviderToken, getFreshAccessToken, checkParallelScanWarning, eventId, language, alert, startCloudScanning]);
 
   const hasAutoStartedRef = useRef(false);
 
@@ -305,8 +300,7 @@ export function EventView({ eventId, onBack }: EventViewProps) {
   const handleRescanAll = async () => {
     if (!event) return;
     const provider = event.provider || 'dropbox';
-    const token = currentProviderToken;
-    if (!token) return;
+    if (!currentProviderToken) return;
 
     const confirmed = await confirm({
       title: language === 'he' ? 'סריקה מחדש' : 'Rescan All Photos',
@@ -344,7 +338,7 @@ export function EventView({ eventId, onBack }: EventViewProps) {
       } : null);
       
       setLoading(false);
-      startCloudScanning(eventId, resetPhotos, token, provider);
+      void startCloudScanning(eventId, resetPhotos, provider);
     } catch (err) {
       console.error('Failed to reset and rescan:', err);
       await alert({

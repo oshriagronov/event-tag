@@ -2,19 +2,17 @@ import * as ort from 'onnxruntime-web';
 
 let sessionPromise: Promise<ort.InferenceSession> | null = null;
 
-export async function getONNXSession(): Promise<ort.InferenceSession> {
-  if (sessionPromise) return sessionPromise;
-
-  sessionPromise = (async () => {
-    const modelUrl = '/models/mobilefacenet.onnx';
-    // Use WASM for 100% stability and correctness. SFace runs extremely fast on WASM.
-    const session = await ort.InferenceSession.create(modelUrl, {
+export function getONNXSession(): Promise<ort.InferenceSession> {
+  if (!sessionPromise) {
+    // WASM is used for stability and correctness; SFace runs fast enough on it.
+    sessionPromise = ort.InferenceSession.create('/models/mobilefacenet.onnx', {
       executionProviders: ['wasm'],
+    }).catch((err) => {
+      // Do not cache a failed load; the next call retries.
+      sessionPromise = null;
+      throw err;
     });
-    console.log('ONNX SFace Session initialized. Inputs:', session.inputNames, 'Outputs:', session.outputNames);
-    return session;
-  })();
-
+  }
   return sessionPromise;
 }
 
@@ -79,6 +77,7 @@ export async function extractEmbedding(alignedCanvas: HTMLCanvasElement): Promis
   // Return L2-normalized embedding
   return l2Normalize(rawEmbedding);
 }
+
 export function warmUpONNX(): void {
   getONNXSession().catch((err) => {
     console.error('Failed to pre-load or warm up ONNX SFace model:', err);

@@ -102,6 +102,16 @@ function GuestPhotoImage({
   );
 }
 
+/**
+ * Name a downloaded photo after its original file, with an extension that
+ * matches the actual image data (Drive thumbnails are always JPEG).
+ */
+function downloadFileName(originalName: string | undefined, blob: Blob, fallbackBase: string): string {
+  const ext = blob.type.includes('png') ? 'png' : blob.type.includes('webp') ? 'webp' : 'jpg';
+  const base = (originalName || fallbackBase).replace(/\.(jpe?g|png|webp|heic|heif|gif|bmp|tiff?|avif)$/i, '');
+  return `${base}.${ext}`;
+}
+
 export function GuestView({ eventId }: GuestViewProps) {
   const { t, isRtl, language } = useTranslation();
   const { alert } = useModal();
@@ -388,13 +398,11 @@ export function GuestView({ eventId }: GuestViewProps) {
         }
 
         if (blob && blob.size > 0) {
-          const ext = blob.type.includes('png') ? 'png' : 'jpg';
-          const baseName = match.fileName || `photo_${i + 1}.${ext}`;
-          let finalFileName = baseName.endsWith(`.${ext}`) ? baseName : `${baseName}.${ext}`;
-          if (usedNames.has(finalFileName)) {
+          let finalFileName = downloadFileName(match.fileName, blob, `photo_${i + 1}`);
+          if (usedNames.has(finalFileName.toLowerCase())) {
             finalFileName = `photo_${i + 1}_${finalFileName}`;
           }
-          usedNames.add(finalFileName);
+          usedNames.add(finalFileName.toLowerCase());
 
           zip.file(finalFileName, blob);
           fetchedCount++;
@@ -461,9 +469,7 @@ export function GuestView({ eventId }: GuestViewProps) {
     }
 
     if (blob && blob.size > 0) {
-      const ext = blob.type.includes('png') ? 'png' : 'jpg';
-      const baseName = match?.fileName || `photo_${driveFileId}.${ext}`;
-      const finalFileName = baseName.endsWith(`.${ext}`) ? baseName : `${baseName}.${ext}`;
+      const finalFileName = downloadFileName(match?.fileName, blob, `photo_${driveFileId}`);
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;

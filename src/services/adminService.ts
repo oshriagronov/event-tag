@@ -163,9 +163,10 @@ export async function ensureUserProfile(user: User): Promise<UserProfile> {
   const userRef = doc(firestore, 'users', user.uid);
   const snap = await getDoc(userRef);
 
-  const isInitialAdmin =
-    user.email === 'admin@eventtag.com' ||
-    (import.meta.env.VITE_ADMIN_EMAIL && user.email === import.meta.env.VITE_ADMIN_EMAIL);
+  // Security rules only let the built-in admin address (verified) self-assign
+  // the admin role; VITE_ADMIN_EMAIL is a client-side convenience and must be
+  // promoted by an existing admin or in the Firebase console.
+  const isInitialAdmin = user.emailVerified && user.email === 'admin@eventtag.com';
 
   if (!snap.exists()) {
     const newProfile: UserProfile = {

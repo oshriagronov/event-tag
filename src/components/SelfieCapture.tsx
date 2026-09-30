@@ -9,7 +9,8 @@ import { useState, useRef, useCallback, useEffect } from 'react';
 import * as faceapi from '@vladmandic/face-api';
 import { Camera, Upload, RotateCcw, Loader2, AlertCircle, CheckCircle2, X, Sparkles } from 'lucide-react';
 import { useTranslation } from '../services/translations';
-import { getONNXSession, extractEmbedding } from '../services/onnxModel';
+import { extractEmbedding } from '../services/onnxModel';
+import { ensureModelsLoaded } from '../services/modelLoader';
 import { alignFace } from '../services/faceAlignment';
 
 interface SelfieCaptureProps {
@@ -18,29 +19,34 @@ interface SelfieCaptureProps {
 
 type CaptureMode = 'select' | 'camera' | 'preview';
 
-// Singleton model loading state
-let modelsLoaded = false;
-let modelsLoading = false;
-let modelLoadPromise: Promise<void> | null = null;
+const SELFIE_MIN_CONFIDENCE = 0.38;
+const SELFIE_MAX_DIM = 1024;
+// Orientations tried when no face is found upright (phone held sideways and
+// no EXIF orientation available).
+const FALLBACK_ROTATIONS = [90, 270, 180] as const;
 
-async function ensureModelsLoaded(): Promise<void> {
-  if (modelsLoaded) return;
-  if (modelsLoading && modelLoadPromise) return modelLoadPromise;
+type FaceSource = HTMLVideoElement | HTMLCanvasElement;
 
-  modelsLoading = true;
-  modelLoadPromise = (async () => {
-    const MODEL_URL = '/models';
-    await Promise.all([
-      faceapi.nets.ssdMobilenetv1.loadFromUri(MODEL_URL),
-      faceapi.nets.faceLandmark68Net.loadFromUri(MODEL_URL),
-    ]);
-    // Initialize the SFace ONNX session
-    await getONNXSession();
-    modelsLoaded = true;
-    modelsLoading = false;
-  })();
+/** Draw a source onto a canvas, downscaled to SELFIE_MAX_DIM and rotated. */
+function toCanvas(source: CanvasImageSource, width: number, height: number, rotation = 0): HTMLCanvasElement {
+  const scale = Math.min(1, SELFIE_MAX_DIM / Math.max(width, height));
+  const w = Math.round(width * scale);
+  const h = Math.round(height * scale);
+  const sideways = rotation === 90 || rotation === 270;
+  const canvas = document.createElement('canvas');
+  canvas.width = sideways ? h : w;
+  canvas.height = sideways ? w : h;
+  const ctx = canvas.getContext('2d');
+  if (!ctx) throw new Error('Could not get 2D canvas context');
+  ctx.translate(canvas.width / 2, canvas.height / 2);
+  ctx.rotate((rotation * Math.PI) / 180);
+  ctx.drawImage(source, -w / 2, -h / 2, w, h);
+  return canvas;
+}
 
-  return modelLoadPromise;
+async function detectFaces(source: FaceSource) {
+  const options = new faceapi.SsdMobilenetv1Options({ minConfidence: SELFIE_MIN_CONFIDENCE });
+  return faceapi.detectAllFaces(source, options).withFaceLandmarks();
 }
 
 function isMobileDevice(): boolean {
@@ -120,7 +126,7 @@ export function SelfieCapture({ onCapture }: SelfieCaptureProps) {
   };
 
   const processSelfieImage = async (
-    imageElement: HTMLImageElement | HTMLVideoElement,
+    source: HTMLVideoElement | ImageBitmap,
     originalSrc?: string
   ) => {
     setLoading(true);
@@ -129,40 +135,35 @@ export function SelfieCapture({ onCapture }: SelfieCaptureProps) {
     try {
       await ensureModelsLoaded();
 
-      // Downscale image if it is too large to prevent out-of-memory crashes on mobile browsers
-      const maxDim = 1024;
-      let detectionSource: HTMLImageElement | HTMLVideoElement | HTMLCanvasElement = imageElement;
-      
-      if (imageElement instanceof HTMLImageElement) {
-        const w = imageElement.naturalWidth;
-        const h = imageElement.naturalHeight;
-        if (Math.max(w, h) > maxDim) {
-          const scale = maxDim / Math.max(w, h);
-          const canvas = document.createElement('canvas');
-          canvas.width = Math.round(w * scale);
-          canvas.height = Math.round(h * scale);
-          const ctx = canvas.getContext('2d');
-          if (ctx) {
-            ctx.drawImage(imageElement, 0, 0, canvas.width, canvas.height);
-            detectionSource = canvas;
-          }
+      const width = source instanceof HTMLVideoElement ? source.videoWidth : source.width;
+      const height = source instanceof HTMLVideoElement ? source.videoHeight : source.height;
+
+      // Try upright first, then the other orientations
+      let detectionSource: FaceSource = toCanvas(source, width, height);
+      let detections = await detectFaces(detectionSource);
+      if (source instanceof ImageBitmap) {
+        for (const rotation of FALLBACK_ROTATIONS) {
+          if (detections.length > 0) break;
+          detectionSource = toCanvas(source, width, height, rotation);
+          detections = await detectFaces(detectionSource);
         }
       }
 
-      // Find face landmarks
-      const detection = await faceapi
-        .detectSingleFace(detectionSource)
-        .withFaceLandmarks();
-
-      if (!detection) {
-        const detections = await faceapi.detectAllFaces(detectionSource);
-        if (detections.length > 1) {
-          setError(t('selfieCapture.multipleFacesDetected', { count: detections.length }));
-        } else {
-          setError(t('selfieCapture.noFaceDetected'));
-        }
+      if (detections.length === 0) {
+        setError(t('selfieCapture.noFaceDetected'));
         return;
       }
+
+      // With several faces, accept the selfie only when one face clearly
+      // dominates (e.g. people in the background); otherwise ask for a retake.
+      const byArea = [...detections].sort(
+        (a, b) => b.detection.box.area - a.detection.box.area
+      );
+      if (byArea.length > 1 && byArea[0].detection.box.area < byArea[1].detection.box.area * 1.5) {
+        setError(t('selfieCapture.multipleFacesDetected', { count: detections.length }));
+        return;
+      }
+      const detection = byArea[0];
 
       // Align and crop face to 112x112
       const alignedCanvas = alignFace(detectionSource, detection.landmarks);
@@ -206,26 +207,28 @@ export function SelfieCapture({ onCapture }: SelfieCaptureProps) {
   };
 
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
+    const input = e.target;
+    const file = input.files?.[0];
+    // Reset so choosing the same file again still triggers a change event
+    input.value = '';
     if (!file) return;
 
     setError(null);
     setLoading(true);
 
-    const reader = new FileReader();
-    reader.onload = (event) => {
-      const originalSrc = event.target?.result as string;
-      const img = new Image();
-      img.onload = async () => {
-        await processSelfieImage(img, originalSrc);
-      };
-      img.onerror = () => {
-        setError(t('selfieCapture.noFaceDetected'));
-        setLoading(false);
-      };
-      img.src = originalSrc;
-    };
-    reader.readAsDataURL(file);
+    let bitmap: ImageBitmap | null = null;
+    try {
+      // Applies the EXIF orientation so portrait phone photos are upright
+      bitmap = await createImageBitmap(file, { imageOrientation: 'from-image' });
+      const previewCanvas = toCanvas(bitmap, bitmap.width, bitmap.height);
+      await processSelfieImage(bitmap, previewCanvas.toDataURL('image/jpeg', 0.9));
+    } catch (err) {
+      console.error('Failed to read selfie image:', err);
+      setError(t('selfieCapture.noFaceDetected'));
+      setLoading(false);
+    } finally {
+      bitmap?.close();
+    }
   };
 
   const handleConfirm = () => {

@@ -14,11 +14,17 @@ service cloud.firestore {
       return str is string && str.size() >= min && str.size() <= max;
     }
 
+    // Email claims are only trustworthy once the address is verified; otherwise
+    // anyone could register an unverified account with a privileged address.
+    function hasVerifiedEmail() {
+      return request.auth.token.email != null && request.auth.token.email_verified == true;
+    }
+
     function isAdmin() {
       return isAuthenticated() && (
         (exists(/databases/$(database)/documents/users/$(request.auth.uid))
           && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin')
-        || (request.auth.token.email != null && request.auth.token.email == 'admin@eventtag.com')
+        || (hasVerifiedEmail() && request.auth.token.email == 'admin@eventtag.com')
       );
     }
 
@@ -37,7 +43,7 @@ service cloud.firestore {
     function isUserAllowlisted() {
       return !exists(/databases/$(database)/documents/system/config)
         || get(/databases/$(database)/documents/system/config).data.allowlistMode != true
-        || (request.auth.token.email != null
+        || (hasVerifiedEmail()
             && exists(/databases/$(database)/documents/allowlist/$(request.auth.token.email.lower())));
     }
 
@@ -77,8 +83,9 @@ service cloud.firestore {
       allow get: if isAuthenticated() && (isOwner(userId) || isAdmin());
       allow list: if isAdmin();
       allow create: if isOwner(userId)
-        && (!request.resource.data.keys().hasAny(['role']) || request.resource.data.role == 'user')
-        && (!request.resource.data.keys().hasAny(['status']) || request.resource.data.status == 'active');
+        && (!request.resource.data.keys().hasAny(['role']) || request.resource.data.role == 'user' || isAdmin())
+        && (!request.resource.data.keys().hasAny(['status']) || request.resource.data.status == 'active')
+        && (!request.resource.data.keys().hasAny(['premiumUntil']) || request.resource.data.premiumUntil == null);
       allow update: if isAdmin() || (
         isOwner(userId)
         && !request.resource.data.diff(resource.data).affectedKeys().hasAny(['role', 'status', 'premiumUntil', 'email'])

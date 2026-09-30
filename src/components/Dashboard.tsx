@@ -66,6 +66,7 @@ export function Dashboard() {
     disconnectOneDrive,
     dismissExpiredProviderNotice,
     markProviderExpired,
+    getFreshAccessToken,
   } = useAuth();
   const { theme, setTheme, setLanguage } = useSettings();
   const { resetConsent } = useConsent();
@@ -310,8 +311,11 @@ export function Dashboard() {
 
     setCreating(true);
     try {
+      const token = await getFreshAccessToken('google');
+      if (!token) throw new Error('Google Drive API error: 401 - invalid_token - reconnect required');
+
       // 1. Create a dedicated folder in user's Google Drive via API with drive.file scope
-      const googleFolder = await createGoogleFolder(googleAccessToken, newEventName.trim());
+      const googleFolder = await createGoogleFolder(token, newEventName.trim());
 
       // 2. Create the Cloud Event document in Firestore
       const eventId = await createCloudEvent(
@@ -326,7 +330,7 @@ export function Dashboard() {
       await recordUserPhotoUsage(user.uid, selectedLocalFiles.length);
 
       // 3. Trigger 2-worker parallel face scanning & Google Drive upload task
-      startLocalGoogleUploadAndScan(eventId, googleFolder.id, selectedLocalFiles, googleAccessToken);
+      void startLocalGoogleUploadAndScan(eventId, googleFolder.id, selectedLocalFiles);
 
       // 4. Reset modal state and navigate to event page
       setShowGoogleCreateModal(false);
@@ -389,8 +393,11 @@ export function Dashboard() {
 
     setCreating(true);
     try {
+      const token = await getFreshAccessToken('dropbox');
+      if (!token) throw new Error('Dropbox API error: 401 - invalid_token - reconnect required');
+
       // 1. Create a dedicated folder in user's Dropbox via API
-      const dropboxFolder = await createDropboxFolder(dropboxAccessToken, newEventName.trim());
+      const dropboxFolder = await createDropboxFolder(token, newEventName.trim());
 
       // 2. Create the Cloud Event document in Firestore
       const eventId = await createCloudEvent(
@@ -405,7 +412,7 @@ export function Dashboard() {
       await recordUserPhotoUsage(user.uid, selectedLocalFiles.length);
 
       // 3. Trigger 2-worker parallel face scanning & Dropbox upload task
-      startLocalDropboxUploadAndScan(eventId, dropboxFolder.path, selectedLocalFiles, dropboxAccessToken);
+      void startLocalDropboxUploadAndScan(eventId, dropboxFolder.path, selectedLocalFiles);
 
       // 4. Reset modal state and navigate to event page
       setShowDropboxCreateModal(false);
@@ -1317,7 +1324,7 @@ export function Dashboard() {
                               <p className="font-label-sm text-xs text-sage-muted font-bold tracking-wider mb-1 m-0">
                                 {event.createdAt && typeof event.createdAt === 'object' && 'toDate' in event.createdAt
                                   ? event.createdAt.toDate().toLocaleDateString(language === 'he' ? 'he-IL' : 'en-US').replace(/\//g, '.')
-                                  : '17.07.2026'}
+                                  : ''}
                               </p>
                               <h3 className="font-display-lg text-2xl font-bold text-on-background group-hover:text-copper-accent transition-colors line-clamp-1 m-0">
                                 {event.name}

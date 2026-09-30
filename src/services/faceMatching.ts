@@ -4,7 +4,7 @@
  * Runs entirely client-side — no server cost
  */
 
-import { getAllFaceDescriptors, getCloudPhotos, type CloudFaceEntry } from './firestore';
+import { getAllFaceDescriptors, getCloudPhotos } from './firestore';
 
 export interface MatchResult {
   driveFileId: string;
@@ -32,22 +32,21 @@ function euclideanDistance(v1: number[], v2: number[]): number {
  * Match a selfie descriptor against all faces in an event.
  * Returns matching photos sorted by similarity (closest first).
  *
- * @param selfieDescriptor - The 512-dim face descriptor from the selfie
+ * @param selfieDescriptor - The 128-dim L2-normalized SFace descriptor from the selfie
  * @param eventId - The Firestore event ID
- * @param threshold - Maximum Euclidean distance to consider a match (default: 0.55)
+ * @param threshold - Maximum Euclidean distance to consider a match
  */
 export async function matchSelfieToEvent(
   selfieDescriptor: number[],
   eventId: string,
   threshold = 0.90
 ): Promise<MatchResult[]> {
-  // Fetch all face descriptors for this event from Firestore
-  const allFaces = await getAllFaceDescriptors(eventId);
-
+  const [allFaces, photos] = await Promise.all([
+    getAllFaceDescriptors(eventId),
+    getCloudPhotos(eventId),
+  ]);
   if (allFaces.length === 0) return [];
 
-  // Fetch all photos to map photoId to publicUrl & fileName
-  const photos = await getCloudPhotos(eventId);
   const photoMap = new Map<string, { publicUrl?: string; fileName?: string }>();
   for (const photo of photos) {
     if (photo.id) {
@@ -76,42 +75,6 @@ export async function matchSelfieToEvent(
   matches.sort((a, b) => a.distance - b.distance);
 
   // Deduplicate by photo — keep the best match per photo
-  const seenPhotos = new Set<string>();
-  const uniqueMatches: MatchResult[] = [];
-  for (const match of matches) {
-    if (!seenPhotos.has(match.driveFileId)) {
-      seenPhotos.add(match.driveFileId);
-      uniqueMatches.push(match);
-    }
-  }
-
-  return uniqueMatches;
-}
-
-/**
- * Quick match with pre-fetched descriptors (avoids re-fetching from Firestore)
- */
-export function matchSelfieAgainstFaces(
-  selfieDescriptor: number[],
-  allFaces: CloudFaceEntry[],
-  threshold = 0.90
-): MatchResult[] {
-  const matches: MatchResult[] = [];
-
-  for (const face of allFaces) {
-    const dist = euclideanDistance(selfieDescriptor, face.embedding);
-    if (dist < threshold) {
-      matches.push({
-        driveFileId: face.driveFileId,
-        photoId: face.photoId,
-        distance: dist,
-        box: face.box,
-      });
-    }
-  }
-
-  matches.sort((a, b) => a.distance - b.distance);
-
   const seenPhotos = new Set<string>();
   const uniqueMatches: MatchResult[] = [];
   for (const match of matches) {

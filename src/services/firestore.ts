@@ -60,8 +60,6 @@ export interface CloudFaceEntry {
   box: { x: number; y: number; width: number; height: number };
 }
 
-
-
 // ---- Event CRUD ----
 
 export async function createCloudEvent(
@@ -93,27 +91,11 @@ export async function getCloudEvent(eventId: string): Promise<CloudEvent | null>
   return { id: docSnap.id, ...docSnap.data() } as CloudEvent;
 }
 
-
-
-export async function getOwnerEvents(ownerId: string): Promise<CloudEvent[]> {
-  const q = query(
-    collection(firestore, 'events'),
-    where('ownerId', '==', ownerId)
-  );
-  const snapshot = await getDocs(q);
-  const events = snapshot.docs.map((d) => ({ id: d.id, ...d.data() } as CloudEvent));
-  
-  // Sort in-memory descending by createdAt to avoid composite index requirements
-  events.sort((a, b) => {
-    const timeA = a.createdAt && typeof a.createdAt === 'object' && 'seconds' in a.createdAt 
-      ? a.createdAt.seconds * 1000 
-      : Date.now();
-    const timeB = b.createdAt && typeof b.createdAt === 'object' && 'seconds' in b.createdAt 
-      ? b.createdAt.seconds * 1000 
-      : Date.now();
-    return timeB - timeA;
-  });
-  return events;
+function createdAtMillis(event: CloudEvent): number {
+  // Pending serverTimestamps have no seconds yet; treat them as "now".
+  return event.createdAt && typeof event.createdAt === 'object' && 'seconds' in event.createdAt
+    ? event.createdAt.seconds * 1000
+    : Date.now();
 }
 
 export function subscribeOwnerEvents(
@@ -130,16 +112,8 @@ export function subscribeOwnerEvents(
     q,
     (snapshot) => {
       const events = snapshot.docs.map((d) => ({ id: d.id, ...d.data() } as CloudEvent));
-      // Sort in-memory descending by createdAt to handle pending serverTimestamps smoothly
-      events.sort((a, b) => {
-        const timeA = a.createdAt && typeof a.createdAt === 'object' && 'seconds' in a.createdAt 
-          ? a.createdAt.seconds * 1000 
-          : Date.now();
-        const timeB = b.createdAt && typeof b.createdAt === 'object' && 'seconds' in b.createdAt 
-          ? b.createdAt.seconds * 1000 
-          : Date.now();
-        return timeB - timeA;
-      });
+      // Sort in memory (newest first) to avoid a composite index requirement
+      events.sort((a, b) => createdAtMillis(b) - createdAtMillis(a));
       onUpdate(events);
     },
     onError
@@ -153,45 +127,33 @@ export async function updateCloudEvent(
   await updateDoc(doc(firestore, 'events', eventId), updates);
 }
 
+// Firestore allows at most 500 writes per batch.
+const WRITE_BATCH_LIMIT = 400;
+
+async function deleteSubcollection(eventId: string, name: 'photos' | 'faceBatches'): Promise<void> {
+  const snap = await getDocs(collection(firestore, 'events', eventId, name));
+  for (let i = 0; i < snap.docs.length; i += WRITE_BATCH_LIMIT) {
+    const batch = writeBatch(firestore);
+    snap.docs.slice(i, i + WRITE_BATCH_LIMIT).forEach((d) => batch.delete(d.ref));
+    await batch.commit();
+  }
+}
+
 export async function deleteCloudEvent(eventId: string): Promise<void> {
-  // Delete photos subcollection
-  const photosSnap = await getDocs(collection(firestore, 'events', eventId, 'photos'));
-  const batch1 = writeBatch(firestore);
-  photosSnap.docs.forEach((d) => batch1.delete(d.ref));
-  if (photosSnap.docs.length > 0) await batch1.commit();
-
-  // Delete face batches subcollection
-  const facesSnap = await getDocs(collection(firestore, 'events', eventId, 'faceBatches'));
-  const batch2 = writeBatch(firestore);
-  facesSnap.docs.forEach((d) => batch2.delete(d.ref));
-  if (facesSnap.docs.length > 0) await batch2.commit();
-
-  // Delete the event document itself
+  await deleteSubcollection(eventId, 'photos');
+  await deleteSubcollection(eventId, 'faceBatches');
   await deleteDoc(doc(firestore, 'events', eventId));
 }
 
 // ---- Photo CRUD ----
-
-export async function addCloudPhoto(
-  eventId: string,
-  photo: Omit<CloudPhoto, 'id'>
-): Promise<string> {
-  const docRef = await addDoc(
-    collection(firestore, 'events', eventId, 'photos'),
-    photo
-  );
-  return docRef.id;
-}
 
 export async function addCloudPhotosBatch(
   eventId: string,
   photos: Omit<CloudPhoto, 'id'>[]
 ): Promise<string[]> {
   const ids: string[] = [];
-  // Firestore batch limit is 500
-  const BATCH_SIZE = 400;
-  for (let i = 0; i < photos.length; i += BATCH_SIZE) {
-    const chunk = photos.slice(i, i + BATCH_SIZE);
+  for (let i = 0; i < photos.length; i += WRITE_BATCH_LIMIT) {
+    const chunk = photos.slice(i, i + WRITE_BATCH_LIMIT);
     const batch = writeBatch(firestore);
     const chunkIds: string[] = [];
     for (const photo of chunk) {
@@ -212,85 +174,41 @@ export async function getCloudPhotos(eventId: string): Promise<CloudPhoto[]> {
   return snapshot.docs.map((d) => ({ id: d.id, ...d.data() } as CloudPhoto));
 }
 
-export async function updateCloudPhoto(
-  eventId: string,
-  photoId: string,
-  updates: Partial<CloudPhoto>
-): Promise<void> {
-  await updateDoc(doc(firestore, 'events', eventId, 'photos', photoId), updates);
-}
-
-export async function updateCloudPhotosBatch(
-  eventId: string,
-  photoUpdates: { id: string; updates: Partial<CloudPhoto> }[]
-): Promise<void> {
-  const batch = writeBatch(firestore);
-  for (const update of photoUpdates) {
-    const docRef = doc(firestore, 'events', eventId, 'photos', update.id);
-    batch.update(docRef, update.updates);
-  }
-  await batch.commit();
-}
-
 // ---- Face Descriptor Storage (Batched) ----
-// Store faces in batches of ~100 per document to minimize Firestore reads
+// Faces are stored ~100 per document to minimize guest-side reads.
 
 const FACES_PER_BATCH = 100;
 
-export async function addFaceDescriptors(
-  eventId: string,
-  faces: CloudFaceEntry[]
-): Promise<void> {
-  // Get current batches to determine next batch index
-  const existingBatches = await getDocs(
-    collection(firestore, 'events', eventId, 'faceBatches')
-  );
-  let nextBatchIndex = existingBatches.size;
-
-  for (let i = 0; i < faces.length; i += FACES_PER_BATCH) {
-    const chunk = faces.slice(i, i + FACES_PER_BATCH);
-    await addDoc(collection(firestore, 'events', eventId, 'faceBatches'), {
-      batchIndex: nextBatchIndex++,
-      faces: chunk,
-    });
-  }
+/** Allocate a photo document ID locally (no network) so writes can be batched. */
+export function newCloudPhotoId(eventId: string): string {
+  return doc(collection(firestore, 'events', eventId, 'photos')).id;
 }
 
-export async function appendFaceDescriptors(
+/**
+ * Atomically persist a chunk of scan results: photo documents (created or
+ * merged), their face descriptors, and the event progress counters. Either
+ * everything in the chunk is stored or nothing is, so a photo is never marked
+ * processed without its faces.
+ */
+export async function commitScanResults(
   eventId: string,
-  newFaces: CloudFaceEntry[]
+  photos: { id: string; data: Partial<Omit<CloudPhoto, 'id'>> }[],
+  faces: CloudFaceEntry[],
+  progress?: Pick<CloudEvent, 'photoCount' | 'faceCount'>
 ): Promise<void> {
-  // Get existing batches
-  const existingSnap = await getDocs(
-    collection(firestore, 'events', eventId, 'faceBatches')
-  );
-  const batches = existingSnap.docs.map((d) => ({
-    id: d.id,
-    ...(d.data() as CloudFaceBatch),
-  }));
-  
-  // Find the last batch — if it has room, append to it first
-  batches.sort((a, b) => a.batchIndex - b.batchIndex);
-  const remaining = [...newFaces];
-  
-  if (batches.length > 0) {
-    const lastBatch = batches[batches.length - 1];
-    const lastBatchFaces = lastBatch.faces || [];
-    const spaceInLast = FACES_PER_BATCH - lastBatchFaces.length;
-    
-    if (spaceInLast > 0) {
-      const toAppend = remaining.splice(0, spaceInLast);
-      await updateDoc(
-        doc(firestore, 'events', eventId, 'faceBatches', lastBatch.id!),
-        { faces: [...lastBatchFaces, ...toAppend] }
-      );
-    }
+  if (photos.length === 0 && faces.length === 0 && !progress) return;
+  const batch = writeBatch(firestore);
+  for (const photo of photos) {
+    batch.set(doc(firestore, 'events', eventId, 'photos', photo.id), photo.data, { merge: true });
   }
-  
-  // Create new batches for remaining faces
-  if (remaining.length > 0) {
-    await addFaceDescriptors(eventId, remaining);
+  for (let i = 0; i < faces.length; i += FACES_PER_BATCH) {
+    batch.set(doc(collection(firestore, 'events', eventId, 'faceBatches')), {
+      batchIndex: Date.now() + i,
+      faces: faces.slice(i, i + FACES_PER_BATCH),
+    });
   }
+  if (progress) batch.update(doc(firestore, 'events', eventId), progress);
+  await batch.commit();
 }
 
 export async function getAllFaceDescriptors(
@@ -318,8 +236,7 @@ export async function resetCloudEventForScanning(eventId: string): Promise<void>
   // 2. Get all photos of the event
   const photosSnap = await getDocs(collection(firestore, 'events', eventId, 'photos'));
 
-  // 3. Reset photos processed status in batches of 400
-  const BATCH_SIZE = 400;
+  // 3. Reset photos processed status in chunks below the batch limit
   let batch = writeBatch(firestore);
   let opCount = 0;
 
@@ -331,7 +248,7 @@ export async function resetCloudEventForScanning(eventId: string): Promise<void>
     });
     opCount++;
 
-    if (opCount >= BATCH_SIZE) {
+    if (opCount >= WRITE_BATCH_LIMIT) {
       await batch.commit();
       batch = writeBatch(firestore);
       opCount = 0;
@@ -350,7 +267,7 @@ export async function resetCloudEventForScanning(eventId: string): Promise<void>
     batch.delete(docSnap.ref);
     opCount++;
 
-    if (opCount >= BATCH_SIZE) {
+    if (opCount >= WRITE_BATCH_LIMIT) {
       await batch.commit();
       batch = writeBatch(firestore);
       opCount = 0;
@@ -368,21 +285,6 @@ export interface UserUsage {
   cycleReset?: Timestamp | Date;
   photosThisCycle: number;
   updatedAt?: unknown;
-}
-
-/**
- * Fetch current 30-day rolling photo usage for a user
- */
-export async function getUserUsage(userId: string): Promise<UserUsage | null> {
-  try {
-    const docRef = doc(firestore, 'users', userId, 'usage', 'current');
-    const snap = await getDoc(docRef);
-    if (!snap.exists()) return null;
-    return snap.data() as UserUsage;
-  } catch (err) {
-    console.error('Error fetching user usage:', err);
-    return null;
-  }
 }
 
 /**

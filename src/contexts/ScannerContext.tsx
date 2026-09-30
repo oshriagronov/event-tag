@@ -1,15 +1,22 @@
 import { createContext, useContext, useState, useRef, useEffect, type ReactNode } from 'react';
 import * as faceapi from '@vladmandic/face-api';
-import { getPhotoBlob, checkTokenValidity, getOrCreateSharedLink, convertToRawUrl, isTokenInvalidError, type CloudProvider } from '../services/cloudProviders';
-import { getONNXSession, extractEmbedding } from '../services/onnxModel';
+import {
+  getPhotoBlob,
+  getOrCreateSharedLink,
+  convertToRawUrl,
+  isAuthorizationError,
+  isTokenInvalidError,
+  isTransientError,
+  type CloudProvider,
+} from '../services/cloudProviders';
+import { extractEmbedding } from '../services/onnxModel';
+import { ensureModelsLoaded } from '../services/modelLoader';
 import { alignFace } from '../services/faceAlignment';
 import { uploadPhotoToGoogleDrive } from '../services/google';
 import { uploadPhotoToDropbox } from '../services/dropbox';
 import {
-  addCloudPhoto,
-  updateCloudPhoto,
-  updateCloudPhotosBatch,
-  appendFaceDescriptors,
+  commitScanResults,
+  newCloudPhotoId,
   updateCloudEvent,
   type CloudFaceEntry,
   type CloudPhoto,
@@ -17,6 +24,8 @@ import {
 import { useAuth } from './AuthContext';
 import { useModal } from './ModalContext';
 import { isFirebaseQuotaOrDemandError } from '../services/quotaService';
+
+type ScanError = 'auth_expired' | 'network_error' | 'demand_limit';
 
 export interface EventScanState {
   eventId: string;
@@ -26,7 +35,7 @@ export interface EventScanState {
   scannedCount: number;
   totalToScan: number;
   etaSeconds: number | null;
-  scanError: 'auth_expired' | 'network_error' | 'demand_limit' | null;
+  scanError: ScanError | null;
 }
 
 interface ScannerContextType {
@@ -37,27 +46,12 @@ interface ScannerContextType {
   etaSeconds: number | null;
   activeScanningEventId: string | null;
   activeScanningEventIds: string[];
-  scanError: 'auth_expired' | 'network_error' | 'demand_limit' | null;
+  scanError: ScanError | null;
   isEventScanning: (eventId: string) => boolean;
   getEventScanState: (eventId: string) => EventScanState | undefined;
-  startCloudScanning: (
-    eventId: string,
-    photos: CloudPhoto[],
-    accessToken: string,
-    provider: CloudProvider
-  ) => Promise<void>;
-  startLocalGoogleUploadAndScan: (
-    eventId: string,
-    googleFolderId: string,
-    files: File[],
-    accessToken: string
-  ) => Promise<void>;
-  startLocalDropboxUploadAndScan: (
-    eventId: string,
-    dropboxFolderIdOrPath: string,
-    files: File[],
-    accessToken: string
-  ) => Promise<void>;
+  startCloudScanning: (eventId: string, photos: CloudPhoto[], provider: CloudProvider) => Promise<void>;
+  startLocalGoogleUploadAndScan: (eventId: string, googleFolderId: string, files: File[]) => Promise<void>;
+  startLocalDropboxUploadAndScan: (eventId: string, dropboxFolderPath: string, files: File[]) => Promise<void>;
   togglePause: (eventId?: string) => void;
   stopScanning: (eventId: string) => void;
 }
@@ -66,112 +60,117 @@ const ScannerContext = createContext<ScannerContextType | undefined>(undefined);
 
 // Number of images to preload ahead of the current processing image
 const PRELOAD_AHEAD = 2;
+// Parallel workers for local upload + scan
+const UPLOAD_CONCURRENCY = 2;
+// Flush buffered results to Firestore every N photos or M faces
+const FLUSH_PHOTO_THRESHOLD = 15;
+const FLUSH_FACE_THRESHOLD = 50;
+// Quick automatic retries for transient failures before showing a network error
+const MAX_QUICK_RETRIES = 4;
+// While in the network-error state, retry automatically after this delay
+const NETWORK_AUTO_RESUME_MS = 60_000;
+const MAX_DETECTION_DIM = 1600;
 
-// Singleton model loading state
-let modelsLoaded = false;
-let modelsLoading = false;
-let modelLoadPromise: Promise<void> | null = null;
+const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
-async function ensureModelsLoaded(): Promise<void> {
-  if (modelsLoaded) return;
-  if (modelsLoading && modelLoadPromise) return modelLoadPromise;
+/** Thrown when the provider can only be re-authorized by the user. */
+class ReconnectRequiredError extends Error {}
 
-  modelsLoading = true;
-  modelLoadPromise = (async () => {
-    const MODEL_URL = '/models';
-    await Promise.all([
-      faceapi.nets.ssdMobilenetv1.loadFromUri(MODEL_URL),
-      faceapi.nets.faceLandmark68Net.loadFromUri(MODEL_URL),
-    ]);
-    // Initialize the SFace ONNX session
-    await getONNXSession();
-    modelsLoaded = true;
-    modelsLoading = false;
-    console.log('TFJS SSD/Landmarks and ONNX SFace initialized');
-  })();
+class UnreadableImageError extends Error {}
 
-  return modelLoadPromise;
-}
-
-/**
- * Process a photo blob locally using face-api.js client-side
- */
-async function processPhotoLocally(fileBlob: Blob): Promise<{
+interface LocalScanResult {
   width: number;
   height: number;
   detections: Array<{
     embedding: number[];
     box: { x: number; y: number; width: number; height: number };
   }>;
-}> {
+}
+
+/**
+ * Detect faces and extract embeddings entirely in the browser.
+ */
+async function processPhotoLocally(fileBlob: Blob): Promise<LocalScanResult> {
   await ensureModelsLoaded();
 
   const blobUrl = URL.createObjectURL(fileBlob);
-  const img = new Image();
-  img.src = blobUrl;
-
-  await new Promise<void>((resolve, reject) => {
-    img.onload = () => resolve();
-    img.onerror = (e) => reject(e);
-  });
-
-  const width = img.naturalWidth;
-  const height = img.naturalHeight;
-
-  // Conditionally downscale to a maximum dimension of 1600px for speed while maintaining high detection quality
-  const MAX_DIM = 1600;
-  let detectionSource: HTMLImageElement | HTMLCanvasElement = img;
-
-  if (Math.max(width, height) > MAX_DIM) {
-    const scale = MAX_DIM / Math.max(width, height);
-    const canvasWidth = Math.round(width * scale);
-    const canvasHeight = Math.round(height * scale);
-
-    const canvas = document.createElement('canvas');
-    canvas.width = canvasWidth;
-    canvas.height = canvasHeight;
-    const ctx = canvas.getContext('2d');
-    if (ctx) {
-      ctx.drawImage(img, 0, 0, canvasWidth, canvasHeight);
-      detectionSource = canvas;
-    }
-  }
-
-  const srcWidth = detectionSource instanceof HTMLCanvasElement ? detectionSource.width : width;
-  const srcHeight = detectionSource instanceof HTMLCanvasElement ? detectionSource.height : height;
-
-  // Run face-api.js detection with optimized confidence threshold to capture more faces at angles/shadows
-  const options = new faceapi.SsdMobilenetv1Options({ minConfidence: 0.45 });
-  const detections = await faceapi
-    .detectAllFaces(detectionSource, options)
-    .withFaceLandmarks();
-
-  URL.revokeObjectURL(blobUrl);
-
-  const results = [];
-  for (const det of detections) {
-    const box = det.detection.box;
-    // Bounding box in relative percentages for overlay rendering
-    const relBox = {
-      x: box.x / srcWidth,
-      y: box.y / srcHeight,
-      width: box.width / srcWidth,
-      height: box.height / srcHeight,
-    };
-
-    // Align and crop the face using landmarks to 112x112
-    const alignedCanvas = alignFace(detectionSource, det.landmarks);
-
-    // Extract embedding using SFace ONNX model
-    const embedding = await extractEmbedding(alignedCanvas);
-
-    results.push({
-      embedding,
-      box: relBox,
+  try {
+    const img = new Image();
+    await new Promise<void>((resolve, reject) => {
+      img.onload = () => resolve();
+      img.onerror = () => reject(new UnreadableImageError('Image could not be decoded'));
+      img.src = blobUrl;
     });
-  }
 
-  return { width, height, detections: results };
+    const width = img.naturalWidth;
+    const height = img.naturalHeight;
+
+    // Downscale large images to keep WebGL memory bounded and inference fast
+    let detectionSource: HTMLImageElement | HTMLCanvasElement = img;
+    if (Math.max(width, height) > MAX_DETECTION_DIM) {
+      const scale = MAX_DETECTION_DIM / Math.max(width, height);
+      const canvas = document.createElement('canvas');
+      canvas.width = Math.round(width * scale);
+      canvas.height = Math.round(height * scale);
+      const ctx = canvas.getContext('2d');
+      if (ctx) {
+        ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+        detectionSource = canvas;
+      }
+    }
+
+    const srcWidth = detectionSource instanceof HTMLCanvasElement ? detectionSource.width : width;
+    const srcHeight = detectionSource instanceof HTMLCanvasElement ? detectionSource.height : height;
+
+    const options = new faceapi.SsdMobilenetv1Options({ minConfidence: 0.45 });
+    const detections = await faceapi.detectAllFaces(detectionSource, options).withFaceLandmarks();
+
+    const results: LocalScanResult['detections'] = [];
+    for (const det of detections) {
+      const box = det.detection.box;
+      const alignedCanvas = alignFace(detectionSource, det.landmarks);
+      results.push({
+        embedding: await extractEmbedding(alignedCanvas),
+        // Relative box for overlay rendering
+        box: {
+          x: box.x / srcWidth,
+          y: box.y / srcHeight,
+          width: box.width / srcWidth,
+          height: box.height / srcHeight,
+        },
+      });
+    }
+
+    return { width, height, detections: results };
+  } finally {
+    URL.revokeObjectURL(blobUrl);
+  }
+}
+
+const hasValidPublicUrl = (photo: CloudPhoto) =>
+  Boolean(photo.publicUrl && !photo.publicUrl.includes('/2.0/files/'));
+
+type FailureKind = 'auth' | 'authorization' | 'demand' | 'transient' | 'permanent';
+
+function classifyFailure(err: unknown): FailureKind {
+  if (err instanceof ReconnectRequiredError) return 'auth';
+  if (isFirebaseQuotaOrDemandError(err)) return 'demand';
+  if (isTokenInvalidError(err)) return 'auth';
+  if (isTransientError(err)) return 'transient';
+  if (isAuthorizationError(err)) return 'authorization';
+  return 'permanent';
+}
+
+type RecoveryOutcome = 'retry' | 'skip' | 'cancelled';
+
+interface RecoveryOptions {
+  /** 'pause' keeps retrying instead of skipping the item (used for saves). */
+  onPermanent?: 'skip' | 'pause';
+  /**
+   * Treat a 403 as "reconnect with the right permissions" instead of a
+   * per-file problem. Used for uploads, where every file would fail alike.
+   */
+  pauseOnAuthorization?: boolean;
 }
 
 export function ScannerProvider({ children }: { children: ReactNode }) {
@@ -179,17 +178,13 @@ export function ScannerProvider({ children }: { children: ReactNode }) {
 
   const pausedEventsRef = useRef<Map<string, boolean>>(new Map());
   const cancelledEventsRef = useRef<Map<string, boolean>>(new Map());
-  const providerTokensRef = useRef<Record<CloudProvider, string | null>>({
-    google: null,
-    dropbox: null,
-    onedrive: null,
-  });
 
-  const { googleAccessToken, onedriveAccessToken, dropboxAccessToken, markProviderExpired } = useAuth();
+  const { googleAccessToken, onedriveAccessToken, dropboxAccessToken, markProviderExpired, getFreshAccessToken } = useAuth();
   const { alert } = useModal();
 
+  // Resume scans that were paused for re-authorization once a token is back.
   useEffect(() => {
-    providerTokensRef.current = {
+    const tokens: Record<CloudProvider, string | null> = {
       google: googleAccessToken,
       dropbox: dropboxAccessToken,
       onedrive: onedriveAccessToken,
@@ -198,24 +193,48 @@ export function ScannerProvider({ children }: { children: ReactNode }) {
       let changed = false;
       const next = { ...prev };
       for (const [id, state] of Object.entries(next)) {
-        if (state.scanError === 'auth_expired' && providerTokensRef.current[state.provider]) {
-            next[id] = { ...state, scanError: null, isPaused: false };
-            pausedEventsRef.current.set(id, false);
-            changed = true;
+        if (state.scanError === 'auth_expired' && tokens[state.provider]) {
+          next[id] = { ...state, scanError: null, isPaused: false };
+          pausedEventsRef.current.set(id, false);
+          changed = true;
         }
       }
       return changed ? next : prev;
     });
   }, [googleAccessToken, onedriveAccessToken, dropboxAccessToken]);
 
-  const activeScanningEventIds = Object.keys(scanStates).filter(
-    (id) => scanStates[id]?.isScanning
-  );
+  const activeScanningEventIds = Object.keys(scanStates).filter((id) => scanStates[id]?.isScanning);
   const isScanning = activeScanningEventIds.length > 0;
-  const activeScanningEventId =
-    activeScanningEventIds.length > 0
-      ? activeScanningEventIds[activeScanningEventIds.length - 1]
-      : null;
+  const activeScanningEventId = activeScanningEventIds.length > 0
+    ? activeScanningEventIds[activeScanningEventIds.length - 1]
+    : null;
+
+  // Long uploads must survive the device idling: keep the screen awake and
+  // warn before the tab is closed (local files cannot be recovered after that).
+  useEffect(() => {
+    if (!isScanning) return;
+    let wakeLock: WakeLockSentinel | null = null;
+    let disposed = false;
+    const acquire = async () => {
+      if (disposed || document.visibilityState !== 'visible' || !('wakeLock' in navigator)) return;
+      try {
+        wakeLock = await navigator.wakeLock.request('screen');
+      } catch {
+        // Wake lock is best effort (denied by battery saver, unsupported, ...)
+      }
+    };
+    const onVisibility = () => { if (!wakeLock || wakeLock.released) void acquire(); };
+    const onBeforeUnload = (e: BeforeUnloadEvent) => { e.preventDefault(); };
+    void acquire();
+    document.addEventListener('visibilitychange', onVisibility);
+    window.addEventListener('beforeunload', onBeforeUnload);
+    return () => {
+      disposed = true;
+      document.removeEventListener('visibilitychange', onVisibility);
+      window.removeEventListener('beforeunload', onBeforeUnload);
+      void wakeLock?.release().catch(() => undefined);
+    };
+  }, [isScanning]);
 
   const primaryState = activeScanningEventId ? scanStates[activeScanningEventId] : undefined;
   const isPaused = primaryState?.isPaused ?? false;
@@ -227,736 +246,465 @@ export function ScannerProvider({ children }: { children: ReactNode }) {
   const isEventScanning = (eventId: string) => Boolean(scanStates[eventId]?.isScanning);
   const getEventScanState = (eventId: string) => scanStates[eventId];
 
+  const updateEventState = (eventId: string, updates: Partial<EventScanState>) => {
+    setScanStates((prev) => {
+      const current = prev[eventId];
+      if (!current) return prev;
+      return { ...prev, [eventId]: { ...current, ...updates } };
+    });
+  };
+
+  const setPaused = (eventId: string, paused: boolean, error: ScanError | null = null) => {
+    pausedEventsRef.current.set(eventId, paused);
+    updateEventState(eventId, { isPaused: paused, scanError: error });
+  };
+
   const togglePause = (eventId?: string) => {
     const targetId = eventId || activeScanningEventId;
     if (!targetId) return;
-
-    const currentPaused = pausedEventsRef.current.get(targetId) ?? false;
-    const nextPaused = !currentPaused;
-
+    const nextPaused = !(pausedEventsRef.current.get(targetId) ?? false);
     pausedEventsRef.current.set(targetId, nextPaused);
-
     setScanStates((prev) => {
       const state = prev[targetId];
       if (!state) return prev;
       return {
         ...prev,
-        [targetId]: {
-          ...state,
-          isPaused: nextPaused,
-          scanError: nextPaused ? state.scanError : null,
-        },
+        [targetId]: { ...state, isPaused: nextPaused, scanError: nextPaused ? state.scanError : null },
       };
     });
   };
 
   const stopScanning = (eventId: string) => {
     if (!eventId) return;
-
     cancelledEventsRef.current.set(eventId, true);
     pausedEventsRef.current.set(eventId, false);
-
     setScanStates((prev) => {
       const next = { ...prev };
       delete next[eventId];
       return next;
     });
-
     updateCloudEvent(eventId, { status: 'pending' }).catch((err) =>
       console.error(`Failed to update status for stopped event ${eventId}:`, err)
     );
   };
 
+  const isCancelled = (eventId: string) => Boolean(cancelledEventsRef.current.get(eventId));
+
+  /** Wait while the event is paused. Resolves to false if the scan was cancelled. */
+  const waitWhilePaused = async (eventId: string): Promise<boolean> => {
+    while (pausedEventsRef.current.get(eventId)) {
+      if (isCancelled(eventId)) return false;
+      await sleep(300);
+    }
+    return !isCancelled(eventId);
+  };
+
   /**
-   * Cloud scanning flow using client-side face-api.js and Firestore
+   * Run a provider request with a token that is renewed when close to expiry.
+   * A 401 triggers one renewal and a retry before giving up.
    */
-  const startCloudScanning = async (
+  const withProviderToken = async <T,>(provider: CloudProvider, request: (token: string) => Promise<T>): Promise<T> => {
+    const token = await getFreshAccessToken(provider);
+    if (!token) throw new ReconnectRequiredError(`${provider} requires reconnection`);
+    try {
+      return await request(token);
+    } catch (err) {
+      if (!isTokenInvalidError(err)) throw err;
+      const renewed = await getFreshAccessToken(provider, { rejectedToken: token });
+      if (!renewed) throw new ReconnectRequiredError(`${provider} requires reconnection`);
+      return request(renewed);
+    }
+  };
+
+  /**
+   * Decide how to continue after a failed step. Auth and quota problems pause
+   * the scan (keeping every pending file in memory) until the user reconnects
+   * or resumes; transient failures back off and retry automatically.
+   */
+  const recoverFromFailure = async (
     eventId: string,
-    photos: CloudPhoto[],
-    accessToken: string,
-    provider: CloudProvider
-  ) => {
+    provider: CloudProvider,
+    err: unknown,
+    attempt: number,
+    { onPermanent = 'skip', pauseOnAuthorization = false }: RecoveryOptions = {}
+  ): Promise<RecoveryOutcome> => {
+    if (isCancelled(eventId)) return 'cancelled';
+    let kind = classifyFailure(err);
+    if (kind === 'authorization' && !pauseOnAuthorization) kind = 'permanent';
+
+    if (kind === 'auth' || kind === 'authorization') {
+      // Only a rejected token clears the connection; a permission problem keeps
+      // it, and reconnecting (granting access) resumes the scan either way.
+      if (kind === 'auth') markProviderExpired(provider);
+      setPaused(eventId, true, 'auth_expired');
+      return (await waitWhilePaused(eventId)) ? 'retry' : 'cancelled';
+    }
+    if (kind === 'demand') {
+      setPaused(eventId, true, 'demand_limit');
+      return (await waitWhilePaused(eventId)) ? 'retry' : 'cancelled';
+    }
+    if (kind === 'permanent' && onPermanent === 'skip') return 'skip';
+
+    if (kind === 'transient' && attempt <= MAX_QUICK_RETRIES) {
+      await sleep(Math.min(1000 * 2 ** attempt, 20_000));
+      return isCancelled(eventId) ? 'cancelled' : 'retry';
+    }
+
+    // Persistent network trouble: surface it, but keep retrying on our own so
+    // an unattended upload recovers when connectivity returns.
+    setPaused(eventId, true, 'network_error');
+    const resumeAt = Date.now() + NETWORK_AUTO_RESUME_MS;
+    while (pausedEventsRef.current.get(eventId)) {
+      if (isCancelled(eventId)) return 'cancelled';
+      if (Date.now() >= resumeAt && navigator.onLine) {
+        setPaused(eventId, false);
+        break;
+      }
+      await sleep(500);
+    }
+    return isCancelled(eventId) ? 'cancelled' : 'retry';
+  };
+
+  /**
+   * Buffer of scan results that are committed atomically in chunks.
+   */
+  const createResultBuffer = (eventId: string, provider: CloudProvider) => {
+    let photos: { id: string; data: Partial<CloudPhoto> }[] = [];
+    let faces: CloudFaceEntry[] = [];
+
+    const commit = async (progress?: { photoCount: number; faceCount: number }) => {
+      const photoChunk = photos;
+      const faceChunk = faces;
+      photos = [];
+      faces = [];
+      try {
+        await commitScanResults(eventId, photoChunk, faceChunk, progress);
+      } catch (err) {
+        // Put the chunk back so nothing is lost when the write is retried
+        photos = [...photoChunk, ...photos];
+        faces = [...faceChunk, ...faces];
+        throw err;
+      }
+    };
+
+    return {
+      add(photo: { id: string; data: Partial<CloudPhoto> }, newFaces: CloudFaceEntry[]) {
+        photos.push(photo);
+        faces.push(...newFaces);
+      },
+      get shouldFlush() {
+        return photos.length >= FLUSH_PHOTO_THRESHOLD || faces.length >= FLUSH_FACE_THRESHOLD;
+      },
+      /** Commit buffered results, pausing/retrying on failure. */
+      async flush(progress: () => { photoCount: number; faceCount: number }): Promise<boolean> {
+        for (let attempt = 1; photos.length > 0 || faces.length > 0; attempt++) {
+          try {
+            await commit(progress());
+          } catch (err) {
+            console.error('Failed to save scan results:', err);
+            const outcome = await recoverFromFailure(eventId, provider, err, attempt, { onPermanent: 'pause' });
+            if (outcome !== 'retry') return false;
+          }
+        }
+        return true;
+      },
+    };
+  };
+
+  const alertAlreadyScanning = () =>
+    alert({
+      title: 'סריקה פעילה',
+      message: 'סריקה עבור אירוע זה כבר מתבצעת ברקע.',
+      variant: 'info',
+    });
+
+  const beginScan = (eventId: string, provider: CloudProvider, scannedCount: number, total: number, etaSeconds: number) => {
+    cancelledEventsRef.current.set(eventId, false);
+    pausedEventsRef.current.set(eventId, false);
+    setScanStates((prev) => ({
+      ...prev,
+      [eventId]: {
+        eventId,
+        provider,
+        isScanning: true,
+        isPaused: false,
+        scannedCount,
+        totalToScan: total,
+        etaSeconds,
+        scanError: null,
+      },
+    }));
+  };
+
+  const endScan = (eventId: string) => {
+    setScanStates((prev) => {
+      const next = { ...prev };
+      delete next[eventId];
+      return next;
+    });
+    pausedEventsRef.current.delete(eventId);
+    cancelledEventsRef.current.delete(eventId);
+  };
+
+  /** Mark the event ready, retrying through transient/quota failures. */
+  const finalizeEvent = async (eventId: string, provider: CloudProvider, photoCount: number, faceCount: number) => {
+    for (let attempt = 1; ; attempt++) {
+      try {
+        await updateCloudEvent(eventId, { status: 'ready', photoCount, faceCount });
+        return;
+      } catch (err) {
+        console.error(`Failed to finalize event ${eventId}:`, err);
+        if ((await recoverFromFailure(eventId, provider, err, attempt, { onPermanent: 'pause' })) !== 'retry') return;
+      }
+    }
+  };
+
+  /**
+   * Scan photos that already live in cloud storage.
+   */
+  const startCloudScanning = async (eventId: string, photos: CloudPhoto[], provider: CloudProvider) => {
     if (isEventScanning(eventId)) {
-      await alert({
-        title: 'סריקה פעילה',
-        message: 'סריקה עבור אירוע זה כבר מתבצעת ברקע.',
-        variant: 'info',
-      });
+      await alertAlreadyScanning();
       return;
     }
 
-    cancelledEventsRef.current.set(eventId, false);
-    pausedEventsRef.current.set(eventId, false);
+    const alreadyDone = photos.filter((p) => p.processed && hasValidPublicUrl(p)).length;
+    beginScan(eventId, provider, alreadyDone, photos.length, Math.round((photos.length - alreadyDone) * 2.5));
 
-    const isPhotoValid = (p: CloudPhoto) =>
-      Boolean(
-        p.publicUrl &&
-          !p.publicUrl.includes('/2.0/files/')
-      );
-
-    const alreadyProcessed = photos.filter((p) => p.processed && isPhotoValid(p)).length;
-    const initialRemaining = photos.length - alreadyProcessed;
-
-    const initialState: EventScanState = {
-      eventId,
-      provider,
-      isScanning: true,
-      isPaused: false,
-      scannedCount: alreadyProcessed,
-      totalToScan: photos.length,
-      etaSeconds: initialRemaining > 0 ? Math.round(initialRemaining * 2.5) : 0,
-      scanError: null,
-    };
-
-    setScanStates((prev) => ({
-      ...prev,
-      [eventId]: initialState,
-    }));
-
-    let progress = 0;
-    let activeProcessedCount = 0;
-    let activeActiveTime = 0;
-    let totalFacesFound = 0;
-
-    // Buffer to batch Firestore face descriptor updates
-    let facesBuffer: CloudFaceEntry[] = [];
-
-    // Buffer to batch Firestore photo updates
-    let photosBuffer: { id: string; updates: Partial<CloudPhoto> }[] = [];
-
-    // Track retries per photo ID to avoid pausing the loop on transient timeouts
-    const photoRetryMap = new Map<string, number>();
-
-    // Cache preloaded blobs for downloads
+    const results = createResultBuffer(eventId, provider);
     const preloadCache = new Map<string, Promise<Blob>>();
+    let progress = 0;
+    let totalFacesFound = 0;
+    let activeSeconds = 0;
+    let activeProcessed = 0;
+    const progressCounts = () => ({ photoCount: progress, faceCount: totalFacesFound });
 
-    const getActiveToken = () => providerTokensRef.current[provider] || accessToken;
-
-    function preloadDriveFile(fileId: string): Promise<Blob> {
-      if (preloadCache.has(fileId)) return preloadCache.get(fileId)!;
-
-      const promise = (async () => {
-        return await getPhotoBlob(provider, getActiveToken(), fileId);
-      })();
-
-      preloadCache.set(fileId, promise);
+    const preload = (fileId: string): Promise<Blob> => {
+      let promise = preloadCache.get(fileId);
+      if (!promise) {
+        promise = withProviderToken(provider, (token) => getPhotoBlob(provider, token, fileId));
+        promise.catch(() => undefined);
+        preloadCache.set(fileId, promise);
+      }
       return promise;
-    }
-
-    const updateEventState = (updates: Partial<EventScanState>) => {
-      setScanStates((prev) => {
-        const current = prev[eventId];
-        if (!current) return prev;
-        return {
-          ...prev,
-          [eventId]: { ...current, ...updates },
-        };
-      });
     };
 
     try {
       for (let idx = 0; idx < photos.length; idx++) {
-        if (cancelledEventsRef.current.get(eventId)) {
-          console.log(`Scan cancelled for event ${eventId}`);
-          break;
-        }
+        if (!(await waitWhilePaused(eventId))) break;
 
-        while (pausedEventsRef.current.get(eventId)) {
-          if (cancelledEventsRef.current.get(eventId)) break;
-          await new Promise((resolve) => setTimeout(resolve, 200));
-        }
-
-        if (cancelledEventsRef.current.get(eventId)) break;
-
-        const photoStart = Date.now();
         const photo = photos[idx];
-
-        // If the photo was already processed in a previous scan
-        if (photo.processed) {
-          const isValidPublicUrl = Boolean(
-            photo.publicUrl &&
-              !photo.publicUrl.includes('/2.0/files/')
-          );
-
-          if (isValidPublicUrl) {
-            progress++;
-            if (progress > alreadyProcessed) {
-              updateEventState({ scannedCount: progress });
-            }
-            continue;
-          }
-
-          // If it is processed but lacks a valid publicUrl, generate publicUrl and update Firestore
-          try {
-            const sharedLink = await getOrCreateSharedLink(provider, getActiveToken(), photo.driveFileId);
-            const publicUrl = convertToRawUrl(provider, sharedLink);
-
-            photosBuffer.push({
-              id: photo.id!,
-              updates: {
-                publicUrl,
-              },
-            });
-
-            // Flush periodically
-            if (photosBuffer.length >= 15) {
-              await updateCloudPhotosBatch(eventId, photosBuffer);
-              for (const p of photosBuffer) {
-                const localPhoto = photos.find((lp) => lp.id === p.id);
-                if (localPhoto) localPhoto.publicUrl = p.updates.publicUrl;
-              }
-              photosBuffer = [];
-            }
-          } catch (sharedLinkErr: unknown) {
-            console.error(`Failed to generate publicUrl for processed photo ${photo.fileName}:`, sharedLinkErr);
-            const errStr = sharedLinkErr instanceof Error ? sharedLinkErr.message : String(sharedLinkErr);
-            
-            if (isTokenInvalidError(sharedLinkErr)) {
-              markProviderExpired(provider);
-              pausedEventsRef.current.set(eventId, true);
-              updateEventState({ scanError: 'auth_expired', isPaused: true });
-              preloadCache.clear();
-              idx--;
-              continue;
-            } else if (errStr.includes('timed out') || errStr.includes('Failed to fetch') || errStr.includes('NetworkError') || errStr.includes('timeout') || errStr.includes('aborted')) {
-              pausedEventsRef.current.set(eventId, true);
-              updateEventState({ scanError: 'network_error', isPaused: true });
-              preloadCache.clear();
-              idx--;
-              continue;
-            }
-          }
-
+        if (photo.processed && hasValidPublicUrl(photo)) {
           progress++;
-          updateEventState({ scannedCount: progress });
           continue;
         }
 
-        // Preload future files (only if they aren't processed already)
         for (let ahead = 1; ahead <= PRELOAD_AHEAD; ahead++) {
-          const futureIdx = idx + ahead;
-          if (futureIdx < photos.length && !photos[futureIdx].processed) {
-            preloadDriveFile(photos[futureIdx].driveFileId).catch(() => {});
-          }
+          const future = photos[idx + ahead];
+          if (future && !future.processed) preload(future.driveFileId);
         }
 
-        try {
-          const fileBlob = await preloadDriveFile(photo.driveFileId);
-          preloadCache.delete(photo.driveFileId);
-
-          // Process locally via client-side face-api.js
-          const { width, height, detections } = await processPhotoLocally(fileBlob);
-
-          // Get or create public shared link for the photo
-          const sharedLink = await getOrCreateSharedLink(provider, getActiveToken(), photo.driveFileId);
-          const publicUrl = convertToRawUrl(provider, sharedLink);
-
-          // Add photo updates to buffer
-          photosBuffer.push({
-            id: photo.id!,
-            updates: {
-              width,
-              height,
-              processed: true,
-              publicUrl,
-            },
-          });
-
-          // Add face descriptors to the buffer
-          if (detections && detections.length > 0) {
-            const facesToAdd: CloudFaceEntry[] = detections.map((det) => ({
-              photoId: photo.id!,
-              driveFileId: photo.driveFileId,
-              embedding: det.embedding,
-              box: det.box,
-            }));
-
-            facesBuffer.push(...facesToAdd);
-            totalFacesFound += detections.length;
-          }
-
-          // Flush face descriptors and photo buffers periodically to Firestore
-          if (facesBuffer.length >= 50 || photosBuffer.length >= 15) {
-            if (facesBuffer.length > 0) {
-              await appendFaceDescriptors(eventId, facesBuffer);
-              facesBuffer = [];
-            }
-            if (photosBuffer.length > 0) {
-              await updateCloudPhotosBatch(eventId, photosBuffer);
-              for (const p of photosBuffer) {
-                const localPhoto = photos.find((lp) => lp.id === p.id);
-                if (localPhoto) {
-                  localPhoto.processed = true;
-                  localPhoto.publicUrl = p.updates.publicUrl;
-                }
-              }
-              photosBuffer = [];
-            }
-          }
-        } catch (err: unknown) {
-          console.error(`Error scanning photo ${photo.fileName}:`, err);
-          const photoId = photo.id || photo.driveFileId;
-          const currentRetries = (photoRetryMap.get(photoId) || 0) + 1;
-          photoRetryMap.set(photoId, currentRetries);
-
-          if (isFirebaseQuotaOrDemandError(err)) {
-            pausedEventsRef.current.set(eventId, true);
-            updateEventState({ scanError: 'demand_limit', isPaused: true });
-            preloadCache.clear();
-            idx--;
-            continue;
-          }
-
-          if (isTokenInvalidError(err)) {
-            markProviderExpired(provider);
-            pausedEventsRef.current.set(eventId, true);
-            updateEventState({ scanError: 'auth_expired', isPaused: true });
-            preloadCache.clear();
-            idx--;
-            continue;
-          }
-
+        const photoStart = Date.now();
+        let cancelled = false;
+        for (let attempt = 1; ; attempt++) {
           try {
-            const isValid = await checkTokenValidity(provider, getActiveToken());
-            if (!isValid) {
-              markProviderExpired(provider);
-              pausedEventsRef.current.set(eventId, true);
-              updateEventState({ scanError: 'auth_expired', isPaused: true });
-              preloadCache.clear();
-              idx--;
-              continue;
-            }
+            const sharedLink = () =>
+              withProviderToken(provider, (token) => getOrCreateSharedLink(provider, token, photo.driveFileId));
 
-            if (currentRetries <= 2) {
-              console.warn(`Retry attempt ${currentRetries}/2 for photo ${photo.fileName}...`);
+            if (photo.processed) {
+              // Processed earlier but missing a usable public URL: backfill it only.
+              const publicUrl = convertToRawUrl(provider, await sharedLink());
+              results.add({ id: photo.id!, data: { publicUrl } }, []);
+            } else {
+              const blob = await preload(photo.driveFileId);
               preloadCache.delete(photo.driveFileId);
-              await new Promise((r) => setTimeout(r, 1500));
-              idx--;
-              continue;
+              const { width, height, detections } = await processPhotoLocally(blob);
+              const publicUrl = convertToRawUrl(provider, await sharedLink());
+              results.add(
+                { id: photo.id!, data: { width, height, processed: true, publicUrl } },
+                detections.map((det) => ({
+                  photoId: photo.id!,
+                  driveFileId: photo.driveFileId,
+                  embedding: det.embedding,
+                  box: det.box,
+                }))
+              );
+              totalFacesFound += detections.length;
             }
-
-            console.warn(`Skipping photo ${photo.fileName} after ${currentRetries} failed attempts.`);
-            await updateCloudPhoto(eventId, photo.id!, {
-              processed: true,
-            });
+            photo.processed = true;
+            break;
+          } catch (err) {
+            console.error(`Error scanning photo ${photo.fileName}:`, err);
             preloadCache.delete(photo.driveFileId);
-          } catch (innerErr) {
-            console.error('Error in scanner loop photo recovery:', innerErr);
-            if (currentRetries <= 2) {
-              preloadCache.delete(photo.driveFileId);
-              await new Promise((r) => setTimeout(r, 1500));
-              idx--;
-              continue;
+            const outcome = await recoverFromFailure(eventId, provider, err, attempt);
+            if (outcome === 'retry') continue;
+            if (outcome === 'cancelled') {
+              cancelled = true;
+              break;
             }
-            await updateCloudPhoto(eventId, photo.id!, {
-              processed: true,
-            });
+            // Unrecoverable for this file (corrupt, missing, no access): skip it
+            console.warn(`Skipping photo ${photo.fileName}.`);
+            results.add({ id: photo.id!, data: { processed: true } }, []);
+            break;
           }
         }
-
-        const duration = (Date.now() - photoStart) / 1000;
-        activeActiveTime += duration;
-        activeProcessedCount++;
+        if (cancelled) break;
 
         progress++;
-
-        const avgTime = activeActiveTime / activeProcessedCount;
-        const remaining = photos.length - progress;
-        const calculatedEta = Math.round(remaining * avgTime);
-
-        updateEventState({
+        activeSeconds += (Date.now() - photoStart) / 1000;
+        activeProcessed++;
+        updateEventState(eventId, {
           scannedCount: progress,
-          etaSeconds: calculatedEta,
+          etaSeconds: Math.round((photos.length - progress) * (activeSeconds / activeProcessed)),
         });
 
-        // Update event progress in Firestore periodically
-        if (progress % 10 === 0 || progress === photos.length) {
-          await updateCloudEvent(eventId, {
-            photoCount: progress,
-            faceCount: totalFacesFound,
-          });
-        }
+        if (results.shouldFlush && !(await results.flush(progressCounts))) break;
       }
 
-      if (!cancelledEventsRef.current.get(eventId)) {
-        // Flush remaining buffered faces
-        if (facesBuffer.length > 0) {
-          try {
-            await appendFaceDescriptors(eventId, facesBuffer);
-          } catch (err) {
-            console.error('Error flushing face descriptors buffer at end of scan:', err);
-          }
-        }
-
-        // Flush remaining buffered photos
-        if (photosBuffer.length > 0) {
-          try {
-            await updateCloudPhotosBatch(eventId, photosBuffer);
-            for (const p of photosBuffer) {
-              const localPhoto = photos.find((lp) => lp.id === p.id);
-              if (localPhoto) {
-                localPhoto.processed = true;
-                localPhoto.publicUrl = p.updates.publicUrl;
-              }
-            }
-          } catch (err) {
-            console.error('Error flushing photos buffer at end of scan:', err);
-          }
-        }
-
-        // Set final event state to ready
-        await updateCloudEvent(eventId, {
-          status: 'ready',
-          photoCount: progress,
-          faceCount: totalFacesFound,
-        });
+      if (isCancelled(eventId)) {
+        // Keep work that is already done; ignore failures (e.g. event deleted).
+        await results.flush(progressCounts).catch(() => undefined);
+      } else if (await results.flush(progressCounts)) {
+        await finalizeEvent(eventId, provider, progress, totalFacesFound);
       }
     } finally {
-      setScanStates((prev) => {
-        const next = { ...prev };
-        delete next[eventId];
-        return next;
-      });
-      pausedEventsRef.current.delete(eventId);
-      cancelledEventsRef.current.delete(eventId);
+      preloadCache.clear();
+      endScan(eventId);
     }
   };
 
   /**
-   * Local upload & scanning flow for Google Drive events using drive.file scope
-   * Processes files in parallel workers (CONCURRENCY = 2)
+   * Upload local files to the event's cloud folder and scan them in parallel.
+   * Files stay in memory until each one is stored, so pauses for
+   * re-authorization, quota or network problems never lose photos.
    */
-  const startLocalGoogleUploadAndScan = async (
+  const startLocalUploadAndScan = async (
     eventId: string,
-    googleFolderId: string,
-    files: File[],
-    accessToken: string
+    provider: 'google' | 'dropbox',
+    folderId: string,
+    files: File[]
   ) => {
     if (isEventScanning(eventId)) {
-      await alert({
-        title: 'סריקה פעילה',
-        message: 'סריקה עבור אירוע זה כבר מתבצעת ברקע.',
-        variant: 'info',
-      });
+      await alertAlreadyScanning();
       return;
     }
 
-    cancelledEventsRef.current.set(eventId, false);
-    pausedEventsRef.current.set(eventId, false);
+    beginScan(eventId, provider, 0, files.length, files.length * 3);
 
-    const totalToScan = files.length;
-    const initialState: EventScanState = {
-      eventId,
-      provider: 'google',
-      isScanning: true,
-      isPaused: false,
-      scannedCount: 0,
-      totalToScan,
-      etaSeconds: totalToScan * 3,
-      scanError: null,
-    };
-
-    setScanStates((prev) => ({
-      ...prev,
-      [eventId]: initialState,
-    }));
-
-    await updateCloudEvent(eventId, { status: 'scanning' });
-
-    let scannedCount = 0;
-    let totalFacesFound = 0;
+    const results = createResultBuffer(eventId, provider);
     let nextFileIndex = 0;
-    let activeTime = 0;
-    const currentToken = accessToken;
+    let completedCount = 0;
+    let uploadedCount = 0;
+    let totalFacesFound = 0;
+    let activeSeconds = 0;
+    const progressCounts = () => ({ photoCount: uploadedCount, faceCount: totalFacesFound });
 
-    const updateEventState = (updates: Partial<EventScanState>) => {
-      setScanStates((prev) => {
-        const current = prev[eventId];
-        if (!current) return prev;
-        return {
-          ...prev,
-          [eventId]: { ...current, ...updates },
-        };
-      });
+    const uploadFile = async (file: File): Promise<{ id: string; publicUrl: string }> => {
+      if (provider === 'google') {
+        const googleFile = await withProviderToken('google', (token) => uploadPhotoToGoogleDrive(token, folderId, file));
+        return { id: googleFile.id, publicUrl: convertToRawUrl('google', googleFile.id, 'thumb') };
+      }
+      const dropboxFile = await withProviderToken('dropbox', (token) => uploadPhotoToDropbox(token, folderId, file));
+      let publicUrl = '';
+      try {
+        const link = await withProviderToken('dropbox', (token) => getOrCreateSharedLink('dropbox', token, dropboxFile.id));
+        publicUrl = convertToRawUrl('dropbox', link);
+      } catch (linkErr) {
+        // Not fatal: the scanner backfills missing links on the next scan
+        console.warn(`Failed to create shared link for uploaded Dropbox file ${file.name}:`, linkErr);
+      }
+      return { id: dropboxFile.id, publicUrl };
     };
 
     const worker = async () => {
-      while (nextFileIndex < files.length) {
-        if (cancelledEventsRef.current.get(eventId)) break;
-
-        if (pausedEventsRef.current.get(eventId)) break;
-
-        if (cancelledEventsRef.current.get(eventId)) break;
-
+      while (await waitWhilePaused(eventId)) {
         const idx = nextFileIndex++;
-        if (idx >= files.length) break;
+        if (idx >= files.length) return;
 
         const file = files[idx];
         const photoStart = Date.now();
+        let detection: LocalScanResult | null = null;
+        let uploaded: { id: string; publicUrl: string } | null = null;
 
-        try {
-          // 1. Client-side ML face detection in memory
-          const { width, height, detections } = await processPhotoLocally(file);
-
-          if (cancelledEventsRef.current.get(eventId)) break;
-
-          // 2. Direct upload to Google Drive target folder
-          const googleFile = await uploadPhotoToGoogleDrive(currentToken, googleFolderId, file);
-
-          if (cancelledEventsRef.current.get(eventId)) break;
-
-          // 3. Construct public CDN/thumbnail URL
-          const publicUrl = convertToRawUrl('google', googleFile.id, 'thumb');
-
-          // 4. Write photo document to Firestore
-          const photoId = await addCloudPhoto(eventId, {
-            driveFileId: googleFile.id,
-            fileName: file.name,
-            width,
-            height,
-            processed: true,
-            publicUrl,
-          });
-
-          // 5. Save face descriptors
-          if (detections.length > 0) {
-            const faces: CloudFaceEntry[] = detections.map((det) => ({
-              photoId,
-              driveFileId: googleFile.id,
-              embedding: det.embedding,
-              box: det.box,
-            }));
-            await appendFaceDescriptors(eventId, faces);
-            totalFacesFound += detections.length;
-          }
-
-          scannedCount++;
-          const duration = (Date.now() - photoStart) / 1000;
-          activeTime += duration;
-          const avgPerPhoto = activeTime / scannedCount;
-          const remaining = totalToScan - scannedCount;
-          const remainingWorkers = Math.min(2, remaining);
-          const etaSeconds = remainingWorkers > 0 ? Math.round((remaining * avgPerPhoto) / remainingWorkers) : 0;
-
-          updateEventState({
-            scannedCount,
-            etaSeconds,
-          });
-        } catch (err: unknown) {
-          console.error(`Failed to process & upload file ${file.name}:`, err);
-          if (isFirebaseQuotaOrDemandError(err)) {
-            updateEventState({ scanError: 'demand_limit', isPaused: true });
-            pausedEventsRef.current.set(eventId, true);
-            break;
-          }
-          if (isTokenInvalidError(err)) {
-            markProviderExpired('google');
-            updateEventState({ scanError: 'auth_expired', isPaused: true });
-            pausedEventsRef.current.set(eventId, true);
-            break;
-          }
-        }
-      }
-    };
-
-    try {
-      // Run 2 parallel workers for upload & face scanning
-      const CONCURRENCY = 2;
-      const workers = Array.from({ length: Math.min(CONCURRENCY, files.length) }, () => worker());
-      await Promise.all(workers);
-
-      if (!cancelledEventsRef.current.get(eventId) && !pausedEventsRef.current.get(eventId)) {
-        await updateCloudEvent(eventId, {
-          status: 'ready',
-          photoCount: scannedCount,
-          faceCount: totalFacesFound,
-        });
-      } else if (pausedEventsRef.current.get(eventId)) {
-        await updateCloudEvent(eventId, { status: 'pending' });
-      }
-    } catch (err) {
-      console.error(`Scanning error for local Google upload event ${eventId}:`, err);
-    } finally {
-      setScanStates((prev) => {
-        const next = { ...prev };
-        delete next[eventId];
-        return next;
-      });
-      pausedEventsRef.current.delete(eventId);
-      cancelledEventsRef.current.delete(eventId);
-    }
-  };
-
-  /**
-   * Local upload & scanning flow for Dropbox events
-   * Processes files in parallel workers (CONCURRENCY = 2)
-   */
-  const startLocalDropboxUploadAndScan = async (
-    eventId: string,
-    dropboxFolderIdOrPath: string,
-    files: File[],
-    accessToken: string
-  ) => {
-    if (isEventScanning(eventId)) {
-      await alert({
-        title: 'סריקה פעילה',
-        message: 'סריקה עבור אירוע זה כבר מתבצעת ברקע.',
-        variant: 'info',
-      });
-      return;
-    }
-
-    cancelledEventsRef.current.set(eventId, false);
-    pausedEventsRef.current.set(eventId, false);
-
-    const totalToScan = files.length;
-    const initialState: EventScanState = {
-      eventId,
-      provider: 'dropbox',
-      isScanning: true,
-      isPaused: false,
-      scannedCount: 0,
-      totalToScan,
-      etaSeconds: totalToScan * 3,
-      scanError: null,
-    };
-
-    setScanStates((prev) => ({
-      ...prev,
-      [eventId]: initialState,
-    }));
-
-    await updateCloudEvent(eventId, { status: 'scanning' });
-
-    let scannedCount = 0;
-    let totalFacesFound = 0;
-    let nextFileIndex = 0;
-    let activeTime = 0;
-    const currentToken = accessToken;
-
-    const updateEventState = (updates: Partial<EventScanState>) => {
-      setScanStates((prev) => {
-        const current = prev[eventId];
-        if (!current) return prev;
-        return {
-          ...prev,
-          [eventId]: { ...current, ...updates },
-        };
-      });
-    };
-
-    const worker = async () => {
-      while (nextFileIndex < files.length) {
-        if (cancelledEventsRef.current.get(eventId)) break;
-
-        if (pausedEventsRef.current.get(eventId)) break;
-
-        if (cancelledEventsRef.current.get(eventId)) break;
-
-        const idx = nextFileIndex++;
-        if (idx >= files.length) break;
-
-        const file = files[idx];
-        const photoStart = Date.now();
-
-        try {
-          // 1. Client-side ML face detection in memory
-          const { width, height, detections } = await processPhotoLocally(file);
-
-          if (cancelledEventsRef.current.get(eventId)) break;
-
-          // 2. Direct upload to Dropbox target folder
-          const dropboxFile = await uploadPhotoToDropbox(currentToken, dropboxFolderIdOrPath, file);
-
-          if (cancelledEventsRef.current.get(eventId)) break;
-
-          // 3. Construct public shared link / raw CDN URL
-          let publicUrl = '';
+        for (let attempt = 1; ; attempt++) {
           try {
-            const sharedLink = await getOrCreateSharedLink('dropbox', currentToken, dropboxFile.id);
-            publicUrl = convertToRawUrl('dropbox', sharedLink);
-          } catch (linkErr) {
-            console.warn(`Failed to create shared link for uploaded Dropbox file ${file.name}:`, linkErr);
-          }
-
-          // 4. Write photo document to Firestore
-          const photoId = await addCloudPhoto(eventId, {
-            driveFileId: dropboxFile.id,
-            fileName: file.name,
-            width,
-            height,
-            processed: true,
-            publicUrl,
-          });
-
-          // 5. Save face descriptors
-          if (detections.length > 0) {
-            const faces: CloudFaceEntry[] = detections.map((det) => ({
-              photoId,
-              driveFileId: dropboxFile.id,
-              embedding: det.embedding,
-              box: det.box,
-            }));
-            await appendFaceDescriptors(eventId, faces);
-            totalFacesFound += detections.length;
-          }
-
-          scannedCount++;
-          const duration = (Date.now() - photoStart) / 1000;
-          activeTime += duration;
-          const avgPerPhoto = activeTime / scannedCount;
-          const remaining = totalToScan - scannedCount;
-          const remainingWorkers = Math.min(2, remaining);
-          const etaSeconds = remainingWorkers > 0 ? Math.round((remaining * avgPerPhoto) / remainingWorkers) : 0;
-
-          updateEventState({
-            scannedCount,
-            etaSeconds,
-          });
-        } catch (err: unknown) {
-          console.error(`Failed to process & upload file ${file.name} to Dropbox:`, err);
-          if (isFirebaseQuotaOrDemandError(err)) {
-            updateEventState({ scanError: 'demand_limit', isPaused: true });
-            pausedEventsRef.current.set(eventId, true);
+            // Each step runs once; a retry resumes from the step that failed.
+            detection ??= await processPhotoLocally(file);
+            uploaded ??= await uploadFile(file);
             break;
-          }
-          if (isTokenInvalidError(err)) {
-            markProviderExpired('dropbox');
-            updateEventState({ scanError: 'auth_expired', isPaused: true });
-            pausedEventsRef.current.set(eventId, true);
+          } catch (err) {
+            console.error(`Failed to process & upload file ${file.name}:`, err);
+            const outcome = await recoverFromFailure(eventId, provider, err, attempt, { pauseOnAuthorization: true });
+            if (outcome === 'retry') continue;
+            if (outcome === 'cancelled') return;
+            console.warn(`Skipping file ${file.name}.`);
             break;
           }
         }
+        if (isCancelled(eventId)) return;
+
+        if (detection && uploaded) {
+          const photoId = newCloudPhotoId(eventId);
+          results.add(
+            {
+              id: photoId,
+              data: {
+                driveFileId: uploaded.id,
+                fileName: file.name,
+                width: detection.width,
+                height: detection.height,
+                processed: true,
+                publicUrl: uploaded.publicUrl,
+              },
+            },
+            detection.detections.map((det) => ({
+              photoId,
+              driveFileId: uploaded.id,
+              embedding: det.embedding,
+              box: det.box,
+            }))
+          );
+          uploadedCount++;
+          totalFacesFound += detection.detections.length;
+        }
+
+        completedCount++;
+        activeSeconds += (Date.now() - photoStart) / 1000;
+        const remaining = files.length - completedCount;
+        updateEventState(eventId, {
+          scannedCount: completedCount,
+          etaSeconds: Math.round((remaining * (activeSeconds / completedCount)) / UPLOAD_CONCURRENCY),
+        });
+
+        if (results.shouldFlush && !(await results.flush(progressCounts))) return;
       }
     };
 
     try {
-      // Run 2 parallel workers for upload & face scanning
-      const CONCURRENCY = 2;
-      const workers = Array.from({ length: Math.min(CONCURRENCY, files.length) }, () => worker());
-      await Promise.all(workers);
+      await updateCloudEvent(eventId, { status: 'scanning' }).catch((err) =>
+        console.warn(`Failed to mark event ${eventId} as scanning:`, err)
+      );
+      await Promise.all(
+        Array.from({ length: Math.min(UPLOAD_CONCURRENCY, files.length) }, () => worker())
+      );
 
-      if (!cancelledEventsRef.current.get(eventId) && !pausedEventsRef.current.get(eventId)) {
-        await updateCloudEvent(eventId, {
-          status: 'ready',
-          photoCount: scannedCount,
-          faceCount: totalFacesFound,
-        });
-      } else if (pausedEventsRef.current.get(eventId)) {
-        await updateCloudEvent(eventId, { status: 'pending' });
+      if (isCancelled(eventId)) {
+        await results.flush(progressCounts).catch(() => undefined);
+      } else if (await results.flush(progressCounts)) {
+        await finalizeEvent(eventId, provider, uploadedCount, totalFacesFound);
       }
     } catch (err) {
-      console.error(`Scanning error for local Dropbox upload event ${eventId}:`, err);
+      console.error(`Upload & scan failed for event ${eventId}:`, err);
     } finally {
-      setScanStates((prev) => {
-        const next = { ...prev };
-        delete next[eventId];
-        return next;
-      });
-      pausedEventsRef.current.delete(eventId);
-      cancelledEventsRef.current.delete(eventId);
+      endScan(eventId);
     }
   };
+
+  const startLocalGoogleUploadAndScan = (eventId: string, googleFolderId: string, files: File[]) =>
+    startLocalUploadAndScan(eventId, 'google', googleFolderId, files);
+
+  const startLocalDropboxUploadAndScan = (eventId: string, dropboxFolderPath: string, files: File[]) =>
+    startLocalUploadAndScan(eventId, 'dropbox', dropboxFolderPath, files);
 
   return (
     <ScannerContext.Provider
