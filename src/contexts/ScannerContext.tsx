@@ -1,5 +1,4 @@
 import { createContext, useContext, useState, useRef, useEffect, type ReactNode } from 'react';
-import * as faceapi from '@vladmandic/face-api';
 import {
   getPhotoBlob,
   getOrCreateSharedLink,
@@ -12,6 +11,7 @@ import {
 import { extractEmbedding } from '../services/onnxModel';
 import { ensureModelsLoaded } from '../services/modelLoader';
 import { alignFace } from '../services/faceAlignment';
+import { detectFacesTiled } from '../services/faceDetection';
 import { uploadPhotoToGoogleDrive } from '../services/google';
 import { uploadPhotoToDropbox } from '../services/dropbox';
 import {
@@ -58,10 +58,13 @@ interface ScannerContextType {
 
 const ScannerContext = createContext<ScannerContextType | undefined>(undefined);
 
-// Number of images to preload ahead of the current processing image
-const PRELOAD_AHEAD = 2;
-// Parallel workers for local upload + scan
-const UPLOAD_CONCURRENCY = 2;
+// Number of images (and share links) to fetch ahead of the one being processed.
+// Downloads, not inference, dominate cloud scans, so keep several in flight.
+const PRELOAD_AHEAD = 4;
+// Parallel workers for local upload + scan. Face detection is serialized by
+// withComputeLock, so extra workers only add uploads in flight. Dropbox
+// throttles concurrent writes to one folder, so it gets fewer.
+const UPLOAD_CONCURRENCY: Record<'google' | 'dropbox', number> = { google: 4, dropbox: 3 };
 // Flush buffered results to Firestore every N photos or M faces
 const FLUSH_PHOTO_THRESHOLD = 15;
 const FLUSH_FACE_THRESHOLD = 50;
@@ -70,6 +73,8 @@ const MAX_QUICK_RETRIES = 4;
 // While in the network-error state, retry automatically after this delay
 const NETWORK_AUTO_RESUME_MS = 60_000;
 const MAX_DETECTION_DIM = 1600;
+// Log a timing summary every N local uploads (diagnoses slow scans).
+const STATS_LOG_INTERVAL = 25;
 
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
@@ -87,10 +92,77 @@ interface LocalScanResult {
   }>;
 }
 
+let computeQueue: Promise<unknown> = Promise.resolve();
+
+/**
+ * Run face processing one photo at a time across all workers and events:
+ * the GPU/WASM runtimes serialize the work anyway, and it keeps only one
+ * decoded full-resolution image in memory.
+ */
+function withComputeLock<T>(task: () => Promise<T>): Promise<T> {
+  const result = computeQueue.then(task);
+  computeQueue = result.catch(() => undefined);
+  return result;
+}
+
 /**
  * Detect faces and extract embeddings entirely in the browser.
  */
-async function processPhotoLocally(fileBlob: Blob): Promise<LocalScanResult> {
+function processPhotoLocally(fileBlob: Blob, onComputed?: (ms: number) => void): Promise<LocalScanResult> {
+  return withComputeLock(async () => {
+    const start = performance.now();
+    try {
+      return await processPhotoUnlocked(fileBlob);
+    } finally {
+      onComputed?.(performance.now() - start);
+    }
+  });
+}
+
+/**
+ * Tracks where local upload + scan time goes and periodically logs it, so a
+ * slow event can be attributed to detection, upload bandwidth or a hidden tab.
+ */
+function createUploadStats(total: number, concurrency: number) {
+  const startedAt = performance.now();
+  let detectMs = 0;
+  let detectCount = 0;
+  let uploadMs = 0;
+  let uploadBytes = 0;
+  let uploadCount = 0;
+  let completed = 0;
+  let completedWhileHidden = 0;
+
+  return {
+    detected(ms: number) {
+      detectMs += ms;
+      detectCount++;
+    },
+    uploaded(ms: number, bytes: number) {
+      uploadMs += ms;
+      uploadBytes += bytes;
+      uploadCount++;
+    },
+    completed() {
+      completed++;
+      if (document.visibilityState === 'hidden') completedWhileHidden++;
+      if (completed % STATS_LOG_INTERVAL !== 0 && completed !== total) return;
+      const elapsedSec = (performance.now() - startedAt) / 1000;
+      const avgDetectMs = detectCount ? detectMs / detectCount : 0;
+      const avgUploadMs = uploadCount ? uploadMs / uploadCount : 0;
+      const bottleneck = avgUploadMs / concurrency > avgDetectMs ? 'upload' : 'detection';
+      console.info(
+        `[EventTag scan] ${completed}/${total} photos in ${Math.round(elapsedSec)}s ` +
+          `(${(elapsedSec / completed).toFixed(2)}s/photo) | detection ${Math.round(avgDetectMs)}ms/photo | ` +
+          `upload ${(avgUploadMs / 1000).toFixed(1)}s/photo, ${(uploadBytes / 1e6 / Math.max(uploadCount, 1)).toFixed(1)}MB avg, ` +
+          `${((uploadBytes * 8) / 1e6 / elapsedSec).toFixed(1)}Mbps total over ${concurrency} parallel uploads | ` +
+          `tab hidden for ${Math.round((completedWhileHidden / completed) * 100)}% | likely bottleneck: ${bottleneck}`
+      );
+    },
+  };
+}
+
+async function processPhotoUnlocked(fileBlob: Blob): Promise<LocalScanResult> {
   await ensureModelsLoaded();
 
   const blobUrl = URL.createObjectURL(fileBlob);
@@ -122,8 +194,7 @@ async function processPhotoLocally(fileBlob: Blob): Promise<LocalScanResult> {
     const srcWidth = detectionSource instanceof HTMLCanvasElement ? detectionSource.width : width;
     const srcHeight = detectionSource instanceof HTMLCanvasElement ? detectionSource.height : height;
 
-    const options = new faceapi.SsdMobilenetv1Options({ minConfidence: 0.45 });
-    const detections = await faceapi.detectAllFaces(detectionSource, options).withFaceLandmarks();
+    const detections = await detectFacesTiled(detectionSource, 0.45);
 
     const results: LocalScanResult['detections'] = [];
     for (const det of detections) {
@@ -178,6 +249,8 @@ export function ScannerProvider({ children }: { children: ReactNode }) {
 
   const pausedEventsRef = useRef<Map<string, boolean>>(new Map());
   const cancelledEventsRef = useRef<Map<string, boolean>>(new Map());
+  // Events whose scan loop is still winding down (a stopped scan exits after its current step)
+  const activeLoopsRef = useRef<Set<string>>(new Set());
 
   const { googleAccessToken, onedriveAccessToken, dropboxAccessToken, markProviderExpired, getFreshAccessToken } = useAuth();
   const { alert } = useModal();
@@ -418,7 +491,13 @@ export function ScannerProvider({ children }: { children: ReactNode }) {
       variant: 'info',
     });
 
+  /** Wait for a stopped scan of this event to finish exiting so it cannot be revived by a new one. */
+  const waitForLoopExit = async (eventId: string) => {
+    while (activeLoopsRef.current.has(eventId)) await sleep(50);
+  };
+
   const beginScan = (eventId: string, provider: CloudProvider, scannedCount: number, total: number, etaSeconds: number) => {
+    activeLoopsRef.current.add(eventId);
     cancelledEventsRef.current.set(eventId, false);
     pausedEventsRef.current.set(eventId, false);
     setScanStates((prev) => ({
@@ -444,6 +523,7 @@ export function ScannerProvider({ children }: { children: ReactNode }) {
     });
     pausedEventsRef.current.delete(eventId);
     cancelledEventsRef.current.delete(eventId);
+    activeLoopsRef.current.delete(eventId);
   };
 
   /** Mark the event ready, retrying through transient/quota failures. */
@@ -468,11 +548,13 @@ export function ScannerProvider({ children }: { children: ReactNode }) {
       return;
     }
 
+    await waitForLoopExit(eventId);
     const alreadyDone = photos.filter((p) => p.processed && hasValidPublicUrl(p)).length;
     beginScan(eventId, provider, alreadyDone, photos.length, Math.round((photos.length - alreadyDone) * 2.5));
 
     const results = createResultBuffer(eventId, provider);
     const preloadCache = new Map<string, Promise<Blob>>();
+    const linkCache = new Map<string, Promise<string>>();
     let progress = 0;
     let totalFacesFound = 0;
     let activeSeconds = 0;
@@ -489,6 +571,18 @@ export function ScannerProvider({ children }: { children: ReactNode }) {
       return promise;
     };
 
+    // Share links are separate provider calls (two round trips on Dropbox), so
+    // they are fetched ahead too instead of after each photo's inference.
+    const shareLink = (fileId: string): Promise<string> => {
+      let promise = linkCache.get(fileId);
+      if (!promise) {
+        promise = withProviderToken(provider, (token) => getOrCreateSharedLink(provider, token, fileId));
+        promise.catch(() => undefined);
+        linkCache.set(fileId, promise);
+      }
+      return promise;
+    };
+
     try {
       for (let idx = 0; idx < photos.length; idx++) {
         if (!(await waitWhilePaused(eventId))) break;
@@ -501,25 +595,34 @@ export function ScannerProvider({ children }: { children: ReactNode }) {
 
         for (let ahead = 1; ahead <= PRELOAD_AHEAD; ahead++) {
           const future = photos[idx + ahead];
-          if (future && !future.processed) preload(future.driveFileId);
+          if (!future || (future.processed && hasValidPublicUrl(future))) continue;
+          if (!future.processed) preload(future.driveFileId);
+          shareLink(future.driveFileId);
         }
 
         const photoStart = Date.now();
         let cancelled = false;
+        // Kept across retries so a failed link request does not redo inference.
+        let scan: LocalScanResult | null = null;
         for (let attempt = 1; ; attempt++) {
           try {
-            const sharedLink = () =>
-              withProviderToken(provider, (token) => getOrCreateSharedLink(provider, token, photo.driveFileId));
-
             if (photo.processed) {
               // Processed earlier but missing a usable public URL: backfill it only.
-              const publicUrl = convertToRawUrl(provider, await sharedLink());
+              const publicUrl = convertToRawUrl(provider, await shareLink(photo.driveFileId));
               results.add({ id: photo.id!, data: { publicUrl } }, []);
             } else {
-              const blob = await preload(photo.driveFileId);
-              preloadCache.delete(photo.driveFileId);
-              const { width, height, detections } = await processPhotoLocally(blob);
-              const publicUrl = convertToRawUrl(provider, await sharedLink());
+              const link = shareLink(photo.driveFileId);
+              if (!scan) {
+                const blob = await preload(photo.driveFileId);
+                preloadCache.delete(photo.driveFileId);
+                scan = await processPhotoLocally(blob);
+              }
+              if (isCancelled(eventId)) {
+                cancelled = true;
+                break;
+              }
+              const { width, height, detections } = scan;
+              const publicUrl = convertToRawUrl(provider, await link);
               results.add(
                 { id: photo.id!, data: { width, height, processed: true, publicUrl } },
                 detections.map((det) => ({
@@ -536,6 +639,7 @@ export function ScannerProvider({ children }: { children: ReactNode }) {
           } catch (err) {
             console.error(`Error scanning photo ${photo.fileName}:`, err);
             preloadCache.delete(photo.driveFileId);
+            linkCache.delete(photo.driveFileId);
             const outcome = await recoverFromFailure(eventId, provider, err, attempt);
             if (outcome === 'retry') continue;
             if (outcome === 'cancelled') {
@@ -569,6 +673,7 @@ export function ScannerProvider({ children }: { children: ReactNode }) {
       }
     } finally {
       preloadCache.clear();
+      linkCache.clear();
       endScan(eventId);
     }
   };
@@ -589,6 +694,7 @@ export function ScannerProvider({ children }: { children: ReactNode }) {
       return;
     }
 
+    await waitForLoopExit(eventId);
     beginScan(eventId, provider, 0, files.length, files.length * 3);
 
     const results = createResultBuffer(eventId, provider);
@@ -598,6 +704,7 @@ export function ScannerProvider({ children }: { children: ReactNode }) {
     let totalFacesFound = 0;
     let activeSeconds = 0;
     const progressCounts = () => ({ photoCount: uploadedCount, faceCount: totalFacesFound });
+    const stats = createUploadStats(files.length, UPLOAD_CONCURRENCY[provider]);
 
     const uploadFile = async (file: File): Promise<{ id: string; publicUrl: string }> => {
       if (provider === 'google') {
@@ -629,8 +736,13 @@ export function ScannerProvider({ children }: { children: ReactNode }) {
         for (let attempt = 1; ; attempt++) {
           try {
             // Each step runs once; a retry resumes from the step that failed.
-            detection ??= await processPhotoLocally(file);
-            uploaded ??= await uploadFile(file);
+            detection ??= await processPhotoLocally(file, stats.detected);
+            if (isCancelled(eventId)) return;
+            if (!uploaded) {
+              const uploadStart = performance.now();
+              uploaded = await uploadFile(file);
+              stats.uploaded(performance.now() - uploadStart, file.size);
+            }
             break;
           } catch (err) {
             console.error(`Failed to process & upload file ${file.name}:`, err);
@@ -669,11 +781,12 @@ export function ScannerProvider({ children }: { children: ReactNode }) {
         }
 
         completedCount++;
+        stats.completed();
         activeSeconds += (Date.now() - photoStart) / 1000;
         const remaining = files.length - completedCount;
         updateEventState(eventId, {
           scannedCount: completedCount,
-          etaSeconds: Math.round((remaining * (activeSeconds / completedCount)) / UPLOAD_CONCURRENCY),
+          etaSeconds: Math.round((remaining * (activeSeconds / completedCount)) / UPLOAD_CONCURRENCY[provider]),
         });
 
         if (results.shouldFlush && !(await results.flush(progressCounts))) return;
@@ -685,7 +798,7 @@ export function ScannerProvider({ children }: { children: ReactNode }) {
         console.warn(`Failed to mark event ${eventId} as scanning:`, err)
       );
       await Promise.all(
-        Array.from({ length: Math.min(UPLOAD_CONCURRENCY, files.length) }, () => worker())
+        Array.from({ length: Math.min(UPLOAD_CONCURRENCY[provider], files.length) }, () => worker())
       );
 
       if (isCancelled(eventId)) {

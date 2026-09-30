@@ -1,5 +1,6 @@
 import * as faceapi from '@vladmandic/face-api';
 import { getONNXSession } from './onnxModel';
+import { installBackgroundSafeReadback } from './faceDetection';
 
 let modelLoadPromise: Promise<void> | null = null;
 
@@ -15,6 +16,7 @@ export function ensureModelsLoaded(): Promise<void> {
         faceapi.nets.ssdMobilenetv1.loadFromUri(MODEL_URL),
         faceapi.nets.faceLandmark68Net.loadFromUri(MODEL_URL),
       ]);
+      installBackgroundSafeReadback();
       await getONNXSession();
     })().catch((err) => {
       modelLoadPromise = null;

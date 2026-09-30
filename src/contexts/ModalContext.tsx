@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useState, useCallback, useRef, useEffect } from 'react';
-import { AlertTriangle, AlertCircle, CheckCircle2, Info, X, Trash2 } from 'lucide-react';
+import { AlertTriangle, AlertCircle, CheckCircle2, Info, X, Trash2, Loader2 } from 'lucide-react';
 import { useTranslation } from '../services/translations';
 
 export type ModalVariant = 'danger' | 'warning' | 'info' | 'success';
@@ -10,6 +10,16 @@ export interface ConfirmOptions {
   confirmText?: string;
   cancelText?: string;
   variant?: ModalVariant;
+  /**
+   * Async action run when the user confirms. The dialog stays open in a loading
+   * state until it resolves; if it throws, the error is shown inside the dialog
+   * with a retry button. The confirm promise resolves true only after success.
+   */
+  onConfirm?: () => Promise<void>;
+  /** Text shown next to the spinner while onConfirm runs. */
+  progressText?: string;
+  /** Message shown inside the dialog when onConfirm fails. */
+  errorMessage?: string | ((err: unknown) => string);
 }
 
 export interface AlertOptions {
@@ -27,6 +37,9 @@ interface ModalState {
   confirmText?: string;
   cancelText?: string;
   variant: ModalVariant;
+  onConfirm?: () => Promise<void>;
+  progressText?: string;
+  errorMessage?: string | ((err: unknown) => string);
   resolvePromise: ((value: boolean) => void) | null;
 }
 
@@ -48,6 +61,10 @@ export function ModalProvider({ children }: { children: React.ReactNode }) {
     resolvePromise: null,
   });
 
+  const [isProcessing, setIsProcessing] = useState(false);
+  const [actionError, setActionError] = useState<string | null>(null);
+  const processingRef = useRef(false);
+
   const confirmBtnRef = useRef<HTMLButtonElement>(null);
   const cancelBtnRef = useRef<HTMLButtonElement>(null);
 
@@ -59,6 +76,9 @@ export function ModalProvider({ children }: { children: React.ReactNode }) {
         let confirmText = '';
         let cancelText = '';
         let variant: ModalVariant = 'info';
+        let onConfirm: (() => Promise<void>) | undefined;
+        let progressText: string | undefined;
+        let errorMessage: string | ((err: unknown) => string) | undefined;
 
         if (typeof options === 'string') {
           message = options;
@@ -90,8 +110,13 @@ export function ModalProvider({ children }: { children: React.ReactNode }) {
           confirmText = options.confirmText || '';
           cancelText = options.cancelText || '';
           variant = options.variant || 'info';
+          onConfirm = options.onConfirm;
+          progressText = options.progressText;
+          errorMessage = options.errorMessage;
         }
 
+        setActionError(null);
+        setIsProcessing(false);
         setModalState({
           isOpen: true,
           type: 'confirm',
@@ -100,6 +125,9 @@ export function ModalProvider({ children }: { children: React.ReactNode }) {
           confirmText,
           cancelText,
           variant,
+          onConfirm,
+          progressText,
+          errorMessage,
           resolvePromise: resolve,
         });
       });
@@ -163,6 +191,7 @@ export function ModalProvider({ children }: { children: React.ReactNode }) {
   );
 
   const handleClose = useCallback((result: boolean) => {
+    if (processingRef.current) return; // Cannot dismiss while an action is running
     setModalState((prev) => {
       if (prev.resolvePromise) {
         prev.resolvePromise(result);
@@ -171,11 +200,41 @@ export function ModalProvider({ children }: { children: React.ReactNode }) {
     });
   }, []);
 
+  const handleConfirm = useCallback(async () => {
+    if (processingRef.current) return;
+    const { onConfirm, errorMessage } = modalState;
+    if (!onConfirm) {
+      handleClose(true);
+      return;
+    }
+    processingRef.current = true;
+    setIsProcessing(true);
+    setActionError(null);
+    try {
+      await onConfirm();
+      processingRef.current = false;
+      setIsProcessing(false);
+      handleClose(true);
+    } catch (err) {
+      console.error('Modal action failed:', err);
+      processingRef.current = false;
+      setIsProcessing(false);
+      setActionError(
+        (typeof errorMessage === 'function' ? errorMessage(err) : errorMessage) ||
+          (language === 'he' ? 'הפעולה נכשלה. אנא נסה שוב.' : 'The action failed. Please try again.')
+      );
+    }
+  }, [modalState, handleClose, language]);
+
   // Keyboard accessibility (Esc to cancel, Enter to confirm)
   useEffect(() => {
     if (!modalState.isOpen) return;
 
     const handleKeyDown = (e: KeyboardEvent) => {
+      if (processingRef.current) {
+        if (e.key === 'Escape' || e.key === 'Enter') e.preventDefault();
+        return;
+      }
       if (e.key === 'Escape') {
         e.preventDefault();
         handleClose(false);
@@ -186,14 +245,14 @@ export function ModalProvider({ children }: { children: React.ReactNode }) {
           handleClose(false);
         } else {
           e.preventDefault();
-          handleClose(true);
+          handleConfirm();
         }
       }
     };
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [modalState.isOpen, handleClose]);
+  }, [modalState.isOpen, handleClose, handleConfirm]);
 
   // Focus management on open
   useEffect(() => {
@@ -274,6 +333,7 @@ export function ModalProvider({ children }: { children: React.ReactNode }) {
             aria-modal="true"
             aria-labelledby="modal-dialog-title"
             aria-describedby="modal-dialog-desc"
+            aria-busy={isProcessing}
           >
             {/* Header */}
             <div className="flex items-center justify-between p-6 pb-4 border-b border-surface-border">
@@ -291,7 +351,8 @@ export function ModalProvider({ children }: { children: React.ReactNode }) {
               </div>
               <button
                 onClick={() => handleClose(false)}
-                className="p-2 rounded-lg hover:bg-surface-container-high text-sage-muted hover:text-on-background transition-all cursor-pointer border-none bg-transparent"
+                disabled={isProcessing}
+                className="p-2 rounded-lg hover:bg-surface-container-high text-sage-muted hover:text-on-background transition-all cursor-pointer border-none bg-transparent disabled:opacity-40 disabled:cursor-not-allowed"
                 title={language === 'he' ? 'סגור' : 'Close'}
               >
                 <X className="w-5 h-5" />
@@ -306,6 +367,21 @@ export function ModalProvider({ children }: { children: React.ReactNode }) {
               >
                 {modalState.message}
               </p>
+              {isProcessing && (
+                // Visually hidden: the button spinner is the only visible indicator
+                <span role="status" aria-live="polite" className="sr-only">
+                  {modalState.progressText || (language === 'he' ? 'מבצע פעולה, אנא המתן...' : 'Working, please wait...')}
+                </span>
+              )}
+              {actionError && !isProcessing && (
+                <div
+                  role="alert"
+                  className="mt-4 flex items-start gap-2.5 rounded-xl border border-red-500/30 bg-red-500/10 p-3 text-sm font-medium text-red-400"
+                >
+                  <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5" />
+                  <span>{actionError}</span>
+                </div>
+              )}
             </div>
 
             {/* Footer */}
@@ -314,24 +390,31 @@ export function ModalProvider({ children }: { children: React.ReactNode }) {
                 <button
                   ref={cancelBtnRef}
                   onClick={() => handleClose(false)}
-                  className="px-4 py-2.5 rounded-xl text-sm font-medium text-sage-muted hover:bg-surface-container-high hover:text-on-background transition-colors cursor-pointer border-none bg-transparent"
+                  disabled={isProcessing}
+                  className="px-4 py-2.5 rounded-xl text-sm font-medium text-sage-muted hover:bg-surface-container-high hover:text-on-background transition-colors cursor-pointer border-none bg-transparent disabled:opacity-40 disabled:cursor-not-allowed"
                 >
                   {modalState.cancelText || (language === 'he' ? 'ביטול' : 'Cancel')}
                 </button>
               )}
               <button
                 ref={confirmBtnRef}
-                onClick={() => handleClose(true)}
-                className={`px-5 py-2.5 rounded-xl text-sm font-bold shadow-lg transition-all cursor-pointer border-none ${getConfirmButtonStyles()}`}
+                onClick={handleConfirm}
+                disabled={isProcessing}
+                className={`px-5 py-2.5 rounded-xl text-sm font-bold shadow-lg transition-all cursor-pointer border-none inline-flex items-center gap-2 disabled:opacity-70 disabled:cursor-not-allowed ${getConfirmButtonStyles()}`}
               >
-                {modalState.confirmText ||
-                  (modalState.type === 'confirm'
-                    ? language === 'he'
-                      ? 'אישור'
-                      : 'Confirm'
-                    : language === 'he'
-                    ? 'הבנתי'
-                    : 'OK')}
+                {isProcessing && <Loader2 className="w-4 h-4 animate-spin" />}
+                {actionError && !isProcessing
+                  ? language === 'he'
+                    ? 'נסה שוב'
+                    : 'Retry'
+                  : modalState.confirmText ||
+                    (modalState.type === 'confirm'
+                      ? language === 'he'
+                        ? 'אישור'
+                        : 'Confirm'
+                      : language === 'he'
+                      ? 'הבנתי'
+                      : 'OK')}
               </button>
             </div>
           </div>

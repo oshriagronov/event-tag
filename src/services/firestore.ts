@@ -130,18 +130,37 @@ export async function updateCloudEvent(
 // Firestore allows at most 500 writes per batch.
 const WRITE_BATCH_LIMIT = 400;
 
-async function deleteSubcollection(eventId: string, name: 'photos' | 'faceBatches'): Promise<void> {
+/** Delete every document in a subcollection. Returns how many were removed. */
+async function deleteSubcollection(eventId: string, name: 'photos' | 'faceBatches'): Promise<number> {
   const snap = await getDocs(collection(firestore, 'events', eventId, name));
   for (let i = 0; i < snap.docs.length; i += WRITE_BATCH_LIMIT) {
     const batch = writeBatch(firestore);
     snap.docs.slice(i, i + WRITE_BATCH_LIMIT).forEach((d) => batch.delete(d.ref));
     await batch.commit();
   }
+  return snap.docs.length;
 }
 
-export async function deleteCloudEvent(eventId: string): Promise<void> {
-  await deleteSubcollection(eventId, 'photos');
-  await deleteSubcollection(eventId, 'faceBatches');
+const delay = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+
+/**
+ * Permanently delete an event and its `photos` / `faceBatches` subcollections.
+ * Cloud provider files are never touched.
+ *
+ * A scan that was just stopped may still commit an in-flight batch, which would
+ * leave orphaned subcollection documents behind once the event document is gone
+ * (the security rules only allow writes while the event exists). So the
+ * subcollections are swept repeatedly until a pass finds nothing, and the event
+ * document is removed last. `settleMs` gives a just-stopped scan time to finish.
+ */
+export async function deleteCloudEvent(eventId: string, options: { settleMs?: number } = {}): Promise<void> {
+  if (options.settleMs) await delay(options.settleMs);
+  for (let pass = 0; pass < 5; pass++) {
+    const removed =
+      (await deleteSubcollection(eventId, 'photos')) + (await deleteSubcollection(eventId, 'faceBatches'));
+    if (removed === 0) break;
+    await delay(500);
+  }
   await deleteDoc(doc(firestore, 'events', eventId));
 }
 

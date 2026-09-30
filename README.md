@@ -44,7 +44,7 @@ EventTag is a privacy-first event photo sharing and retrieval platform designed 
 - **Resilient Cloud Sessions:** Dropbox uses PKCE with renewable offline access; Google uses the authorization-code flow through a small serverless token broker (`api/google-token.ts`) so access tokens renew automatically past the 1-hour limit. Transient network, quota, file, and permission errors never disconnect an account.
 - **Long-Running Uploads:** Every provider request uses a freshly renewed token. Uploads and scans pause (keeping all pending files in memory) on expired sessions, permission problems, or quota limits and resume automatically after reconnecting; network failures retry with backoff. A screen wake lock and a leave-page warning keep large uploads alive.
 - **Cloud Auto-Ingest & Upload:** Ingest local photos to automatically create event folders in Dropbox or Google Drive with public view permissions.
-- **2-Worker Parallel Face Scanning:** Multi-worker pipeline performing offscreen canvas downscaling (max 1600px), face detection, 112x112 landmark alignment, and SFace WASM embedding extraction.
+- **Parallel Upload & Scan Pipeline:** Upload workers (4 for Google Drive, 3 for Dropbox) share one serialized face-processing queue: offscreen canvas downscaling (max 1600px), tiled face detection, 112x112 landmark alignment, and SFace WASM embedding extraction. Cloud scans prefetch photos and share links ahead of inference.
 - **Multi-Event Parallel Ingestion:** Scan multiple events concurrently with independent pause, resume, and cancel controls per event alongside live ETA metrics.
 - **Dynamic Tier & Quota Limits:** Dynamic tier limits (`standard`, `premium`, `admin`) enforced client-side (`quotaService`) and on Firestore security rules, with graceful capacity error handling.
 
@@ -104,6 +104,7 @@ src/
 │   ├── cloudProviders.ts       # Unified cloud provider abstraction layer
 │   ├── dropbox.ts              # Dropbox Chooser & file streaming integration
 │   ├── faceAlignment.ts        # Facial landmark alignment (112x112 similarity transform)
+│   ├── faceDetection.ts        # Tiled SSD face detection & background-tab-safe WebGL readback
 │   ├── faceMatching.ts         # Face vector distance & similarity matching
 │   ├── firestore.ts            # Firestore CRUD & atomic batched scan-result writer
 │   ├── google.ts               # Google Drive API REST v3 integration
@@ -123,7 +124,7 @@ api/
 ```
 Cloud Storage (Google Drive / Dropbox)
   → In-Memory Image Fetch & Downscale (Max 1600px offscreen canvas)
-    → @vladmandic/face-api (SSD MobileNet V1 Detection + 68 Landmarks)
+    → @vladmandic/face-api (SSD MobileNet V1, full frame + 2x2 tiles, 68 Landmarks)
       → Landmark Alignment (112x112 similarity transform)
         → ONNX Runtime Web (SFace WASM 128-dim vector extraction)
           → Firebase Firestore Atomic Batched Write (Descriptors & metadata only)
@@ -146,9 +147,10 @@ Cloud Storage (Google Drive / Dropbox)
 ## Performance & Scanning Optimizations
 
 1. **Offscreen Canvas Downscaling:** High-resolution photos are scaled to a maximum dimension of `1600px` before inference, preventing WebGL out-of-memory errors and accelerating throughput.
-2. **Tuned Detection Recall:** SSD MobileNet V1 operates at `minConfidence = 0.45` for event photos and `0.38` for guest selfies to reliably capture varying lighting and angles.
-3. **Batched Database Writes:** Face vectors are buffered in memory and flushed to Firestore in chunks (15 photos or 50 faces), avoiding individual write bottlenecks.
-4. **On-Device ONNX WASM Execution:** 128-dimensional face embeddings are extracted using SFace running on ONNX Runtime Web via WebAssembly.
+2. **Tuned Detection Recall:** SSD MobileNet V1 operates at `minConfidence = 0.45` for event photos and `0.38` for guest selfies to reliably capture varying lighting and angles. Event photos are also scanned as a 2x2 grid of overlapping tiles so small faces in group shots are found.
+3. **Background-Tab Scanning:** While the tab is hidden, WebGL results are read back synchronously instead of through timer-based polling, which browsers throttle in background tabs.
+4. **Batched Database Writes:** Face vectors are buffered in memory and flushed to Firestore in chunks (15 photos or 50 faces), avoiding individual write bottlenecks.
+5. **On-Device ONNX WASM Execution:** 128-dimensional face embeddings are extracted using SFace running on ONNX Runtime Web via WebAssembly.
 
 
 ## Getting Started

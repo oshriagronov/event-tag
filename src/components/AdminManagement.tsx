@@ -234,21 +234,15 @@ export function AdminManagement({ embedded = false }: AdminManagementProps) {
   // Toggle Maintenance Mode
   const handleToggleMaintenance = async () => {
     const nextState = !systemSettings.maintenanceMode;
-    const confirmed = await confirm({
+    if (!user) return;
+    await confirm({
       title: t('admin.maintenanceMode'),
       message: nextState ? t('admin.confirmMaintenanceOn') : t('admin.confirmMaintenanceOff'),
       confirmText: nextState ? t('admin.maintenanceOn') : t('admin.maintenanceOff'),
       variant: nextState ? 'danger' : 'info',
+      errorMessage: language === 'he' ? 'עדכון מצב התחזוקה נכשל. אנא נסה שוב.' : 'Failed to update maintenance mode. Please try again.',
+      onConfirm: () => updateSystemSettings({ maintenanceMode: nextState }, user.uid, user.email || undefined),
     });
-
-    if (confirmed && user) {
-      try {
-        await updateSystemSettings({ maintenanceMode: nextState }, user.uid, user.email || undefined);
-      } catch (err) {
-        console.error('Failed to update maintenance mode:', err);
-        alert({ title: t('common.error'), message: 'Failed to update maintenance mode.' });
-      }
-    }
   };
 
   // Toggle Allowlist Mode (Open Login vs Restricted)
@@ -281,17 +275,11 @@ export function AdminManagement({ embedded = false }: AdminManagementProps) {
       message: isBlocking ? t('admin.confirmBlock') : t('admin.confirmUnblock'),
       confirmText: isBlocking ? t('admin.blockUser') : t('admin.unblockUser'),
       variant: isBlocking ? 'danger' : 'info',
+      errorMessage: language === 'he' ? 'עדכון סטטוס המשתמשים נכשל. אנא נסה שוב.' : 'Failed bulk status update. Please try again.',
+      onConfirm: () => bulkUpdateUserStatus(selectedUids, status, user.uid, user.email || undefined),
     });
 
-    if (confirmed) {
-      try {
-        await bulkUpdateUserStatus(selectedUids, status, user.uid, user.email || undefined);
-        setSelectedUids([]);
-      } catch (err) {
-        console.error('Failed bulk status update:', err);
-        alert({ title: t('common.error'), message: 'Failed bulk status update.' });
-      }
-    }
+    if (confirmed) setSelectedUids([]);
   };
 
   const handleBulkAddToAllowlist = async () => {
@@ -304,17 +292,11 @@ export function AdminManagement({ embedded = false }: AdminManagementProps) {
       message: `${t('admin.bulkAllowlist')} (${emails.length})?`,
       confirmText: t('admin.addToAllowlist'),
       variant: 'info',
+      errorMessage: language === 'he' ? 'הוספה לרשימה המאושרת נכשלה. אנא נסה שוב.' : 'Failed bulk allowlist add. Please try again.',
+      onConfirm: () => bulkAddToAllowlist(emails, user.uid, user.email || undefined),
     });
 
-    if (confirmed) {
-      try {
-        await bulkAddToAllowlist(emails, user.uid, user.email || undefined);
-        setSelectedUids([]);
-      } catch (err) {
-        console.error('Failed bulk allowlist add:', err);
-        alert({ title: t('common.error'), message: 'Failed bulk allowlist add.' });
-      }
-    }
+    if (confirmed) setSelectedUids([]);
   };
 
   const handleOpenBulkPremiumModal = () => {
@@ -375,19 +357,14 @@ export function AdminManagement({ embedded = false }: AdminManagementProps) {
 
   const handleSingleRemoveAllowlist = async (email: string) => {
     if (!user) return;
-    const confirmed = await confirm({
+    await confirm({
       title: t('admin.removeFromAllowlist'),
       message: `${t('admin.removeFromAllowlist')} (${email})?`,
       confirmText: t('admin.removeFromAllowlist'),
       variant: 'danger',
+      errorMessage: language === 'he' ? 'ההסרה מהרשימה המאושרת נכשלה. אנא נסה שוב.' : 'Failed to remove the allowlist entry. Please try again.',
+      onConfirm: () => removeFromAllowlist(email, user.uid, user.email || undefined),
     });
-    if (confirmed) {
-      try {
-        await removeFromAllowlist(email, user.uid, user.email || undefined);
-      } catch (err) {
-        console.error('Failed to remove allowlist entry:', err);
-      }
-    }
   };
 
   // ---- QUOTA FORM ACTION ----

@@ -74,17 +74,12 @@ export function AllowlistManagement({ embedded = false }: AllowlistManagementPro
       message: `האם להסיר את ${email} מהרשימה המאושרת?`,
       confirmText: 'הסר',
       variant: 'danger',
+      progressText: 'מסיר מהרשימה...',
+      errorMessage: 'הסרת האימייל מהרשימה נכשלה. אנא נסה שוב.',
+      onConfirm: () => removeFromAllowlist(email),
     });
 
-    if (confirmed) {
-      try {
-        await removeFromAllowlist(email);
-        setSelectedEmails((prev) => prev.filter((e) => e !== email));
-      } catch (err) {
-        console.error('Failed to remove from allowlist:', err);
-        alert({ title: t('common.error'), message: 'הסרת האימייל מהרשימה נכשלה.' });
-      }
-    }
+    if (confirmed) setSelectedEmails((prev) => prev.filter((e) => e !== email));
   };
 
   // Handle Bulk Remove
@@ -95,17 +90,14 @@ export function AllowlistManagement({ embedded = false }: AllowlistManagementPro
       message: `האם להסיר ${selectedEmails.length} כתובות אימייל מהרשימה המאושרת?`,
       confirmText: 'הסר הכל',
       variant: 'danger',
+      progressText: 'מסיר כתובות מהרשימה...',
+      errorMessage: 'הסרה גורפת נכשלה. אנא נסה שוב.',
+      onConfirm: async () => {
+        await Promise.all(selectedEmails.map((e) => removeFromAllowlist(e)));
+      },
     });
 
-    if (confirmed) {
-      try {
-        await Promise.all(selectedEmails.map((e) => removeFromAllowlist(e)));
-        setSelectedEmails([]);
-      } catch (err) {
-        console.error('Failed to bulk remove from allowlist:', err);
-        alert({ title: t('common.error'), message: 'הסרה גורפת נכשלה.' });
-      }
-    }
+    if (confirmed) setSelectedEmails([]);
   };
 
   // Toggle All Selection

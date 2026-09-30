@@ -90,7 +90,6 @@ export function Dashboard() {
 
   const [cloudEvents, setCloudEvents] = useState<CloudEvent[]>([]);
   const [loadingEvents, setLoadingEvents] = useState(true);
-  const [deletingEventIds, setDeletingEventIds] = useState<Set<string>>(new Set());
   const [searchQuery, setSearchQuery] = useState('');
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
   const [statusFilter, setStatusFilter] = useState<'all' | 'ready' | 'scanning' | 'pending'>('all');
@@ -461,44 +460,41 @@ export function Dashboard() {
     const confirmed = await confirm({
       title: language === 'he' ? `ניתוק ספק ${providerName}` : `Disconnect ${providerName}`,
       message: language === 'he'
-        ? `אזהרה: ניתוק ספק הענן ${providerName} ימחק לצמיתות את כל האירועים המשתמשים בספק זה ואת כל נתוני הפנים שנסרקו בהם.\nהאם ברצונך להמשיך?`
-        : `Warning: Disconnecting ${providerName} will permanently delete all events that use this provider and their face descriptors.\nDo you want to proceed?`,
+        ? `אזהרה: ניתוק ספק הענן ${providerName} ימחק לצמיתות את כל האירועים המשתמשים בספק זה ואת כל נתוני הפנים שנסרקו בהם.\nשים לב: הקבצים והתיקיות ב-${providerName} עצמו לא יימחקו.\nהאם ברצונך להמשיך?`
+        : `Warning: Disconnecting ${providerName} will permanently delete all events that use this provider and their face descriptors.\nNote: the files and folders in ${providerName} itself will NOT be deleted.\nDo you want to proceed?`,
       confirmText: language === 'he' ? 'נתק ספק' : 'Disconnect Provider',
       cancelText: language === 'he' ? 'ביטול' : 'Cancel',
       variant: 'danger',
+      progressText: language === 'he' ? `מנתק את ${providerName} ומוחק אירועים...` : `Disconnecting ${providerName} and deleting events...`,
+      errorMessage: language === 'he' ? 'שגיאה בניתוק ספק הענן. אנא נסה שוב.' : 'Error disconnecting cloud provider. Please try again.',
+      onConfirm: async () => {
+        const eventsToDelete = cloudEvents.filter(e => (e.provider || 'dropbox') === provider);
+        for (const ev of eventsToDelete) {
+          const wasScanning = isEventScanning(ev.id!);
+          if (wasScanning) stopScanning(ev.id!);
+          await deleteCloudEvent(ev.id!, { settleMs: wasScanning ? 1500 : 0 });
+        }
+        setCloudEvents((prev) => prev.filter((ev) => (ev.provider || 'dropbox') !== provider));
+
+        if (provider === 'dropbox') {
+          disconnectDropbox();
+        } else if (provider === 'google') {
+          disconnectGoogle();
+        } else if (provider === 'onedrive') {
+          disconnectOneDrive();
+        }
+      },
     });
 
     if (!confirmed) return;
 
-    try {
-      setLoadingEvents(true);
-      const eventsToDelete = cloudEvents.filter(e => (e.provider || 'dropbox') === provider);
-      for (const ev of eventsToDelete) {
-        await deleteCloudEvent(ev.id!);
-      }
-
-      if (provider === 'dropbox') {
-        disconnectDropbox();
-      } else if (provider === 'google') {
-        disconnectGoogle();
-      } else if (provider === 'onedrive') {
-        disconnectOneDrive();
-      }
-      await alert({
-        title: language === 'he' ? 'הספק נותק' : 'Provider Disconnected',
-        message: language === 'he' ? 'הספק נותק בהצלחה והאירועים המשויכים נמחקו.' : 'Provider disconnected and associated events deleted successfully.',
-        variant: 'success',
-      });
-    } catch (err) {
-      console.error('Failed to disconnect provider:', err);
-      await alert({
-        title: language === 'he' ? 'שגיאה' : 'Error',
-        message: language === 'he' ? 'שגיאה בניתוק ספק הענן.' : 'Error disconnecting cloud provider.',
-        variant: 'danger',
-      });
-    } finally {
-      setLoadingEvents(false);
-    }
+    await alert({
+      title: language === 'he' ? 'הספק נותק' : 'Provider Disconnected',
+      message: language === 'he'
+        ? 'הספק נותק בהצלחה והאירועים המשויכים נמחקו מהמערכת. הקבצים בענן לא נמחקו.'
+        : 'Provider disconnected and associated events deleted from EventTag. Your files in the cloud were not deleted.',
+      variant: 'success',
+    });
   };
 
   const handleDeleteAccount = async () => {
@@ -506,135 +502,106 @@ export function Dashboard() {
     const confirmed = await confirm({
       title: language === 'he' ? 'מחיקת חשבון לצמיתות' : 'Permanently Delete Account',
       message: language === 'he'
-        ? 'אזהרה חמורה!\nפעולה זו תמחוק לצמיתות את החשבון שלך ואת כל האירועים, התמונות והפנים שנסרקו. לא ניתן לשחזר פעולה זו!\n\nהאם אתה בטוח לחלוטין שברצונך להמשיך?'
-        : 'CRITICAL WARNING!\nThis will permanently delete your account and all associated events, photos, and scanned faces. This action CANNOT be undone!\n\nAre you absolutely sure you want to proceed?',
+        ? 'אזהרה חמורה!\nפעולה זו תמחוק לצמיתות את החשבון שלך ואת כל האירועים, התמונות והפנים שנסרקו מהמערכת. הקבצים בספקי הענן (Dropbox / Google Drive) לא יימחקו. לא ניתן לשחזר פעולה זו!\n\nהאם אתה בטוח לחלוטין שברצונך להמשיך?'
+        : 'CRITICAL WARNING!\nThis will permanently delete your account and all associated events, photo references, and scanned faces from EventTag. Files in your cloud providers (Dropbox / Google Drive) will NOT be deleted. This action CANNOT be undone!\n\nAre you absolutely sure you want to proceed?',
       confirmText: language === 'he' ? 'מחק חשבון' : 'Delete Account',
       cancelText: language === 'he' ? 'ביטול' : 'Cancel',
       variant: 'danger',
+      progressText: language === 'he' ? 'מוחק את החשבון והנתונים, אנא המתן...' : 'Deleting account and data, please wait...',
+      errorMessage: (err) =>
+        (err as { code?: string })?.code === 'auth/requires-recent-login'
+          ? (language === 'he'
+              ? 'לשם אבטחה, עליך להתחבר מחדש לחשבון לפני מחיקתו. אנא התנתק, התחבר שוב ונסה שנית.'
+              : 'For security reasons, you must re-authenticate before deleting your account. Please sign out, sign in again, and retry.')
+          : (language === 'he'
+              ? 'שגיאה במחיקת החשבון. אנא נסה שוב או פנה לתמיכה.'
+              : 'Error deleting account. Please try again or contact support.'),
+      onConfirm: async () => {
+    const userEvents = [...cloudEvents];
+
+    // 1. Stop all active scanning tasks for user events
+    const scanningIds = new Set(userEvents.filter((ev) => ev.id && isEventScanning(ev.id)).map((ev) => ev.id));
+    for (const ev of userEvents) {
+      if (ev.id) {
+        try {
+          stopScanning(ev.id);
+        } catch {
+          // ignore scanner errors
+        }
+      }
+    }
+
+    // 2. Delete all user events and subcollections from Firestore
+    for (const ev of userEvents) {
+      if (ev.id) {
+        await deleteCloudEvent(ev.id, { settleMs: scanningIds.has(ev.id) ? 1500 : 0 });
+      }
+    }
+
+    // 3. Disconnect Cloud Providers
+    disconnectDropbox();
+    disconnectGoogle();
+    disconnectOneDrive();
+
+    // 4. Delete Firebase user account
+    await user.delete();
+
+    // 5. Reset Privacy Consent state & cookies
+    resetConsent();
+
+    // 6. Clear local storage, session storage, and IndexedDB databases
+    try {
+      localStorage.clear();
+      sessionStorage.clear();
+      if (typeof window !== 'undefined' && window.indexedDB && window.indexedDB.databases) {
+        const dbs = await window.indexedDB.databases();
+        for (const dbInfo of dbs) {
+          if (dbInfo.name) {
+            window.indexedDB.deleteDatabase(dbInfo.name);
+          }
+        }
+      }
+    } catch (e) {
+      console.warn('Error clearing local storage/databases:', e);
+    }
+      },
     });
 
     if (!confirmed) return;
 
-    try {
-      setLoadingEvents(true);
-      const userEvents = [...cloudEvents];
-
-      // 1. Stop all active scanning tasks for user events
-      for (const ev of userEvents) {
-        if (ev.id) {
-          try {
-            stopScanning(ev.id);
-          } catch {
-            // ignore scanner errors
-          }
-        }
-      }
-
-      // 2. Delete all user events and subcollections from Firestore
-      for (const ev of userEvents) {
-        if (ev.id) {
-          await deleteCloudEvent(ev.id);
-        }
-      }
-
-      // 3. Disconnect Cloud Providers
-      disconnectDropbox();
-      disconnectGoogle();
-      disconnectOneDrive();
-
-      // 4. Delete Firebase user account
-      await user.delete();
-
-      // 5. Reset Privacy Consent state & cookies
-      resetConsent();
-
-      // 6. Clear local storage, session storage, and IndexedDB databases
-      try {
-        localStorage.clear();
-        sessionStorage.clear();
-        if (typeof window !== 'undefined' && window.indexedDB && window.indexedDB.databases) {
-          const dbs = await window.indexedDB.databases();
-          for (const dbInfo of dbs) {
-            if (dbInfo.name) {
-              window.indexedDB.deleteDatabase(dbInfo.name);
-            }
-          }
-        }
-      } catch (e) {
-        console.warn('Error clearing local storage/databases:', e);
-      }
-
-      await alert({
-        title: language === 'he' ? 'החשבון נמחק' : 'Account Deleted',
-        message: language === 'he' ? 'החשבון והנתונים נמחקו בהצלחה.' : 'Account and data successfully deleted.',
-        variant: 'success',
-      });
-      signOut();
-      navigate('/');
-    } catch (err: unknown) {
-      console.error('Failed to delete account:', err);
-      const errCode = (err as { code?: string })?.code;
-      if (errCode === 'auth/requires-recent-login') {
-        await alert({
-          title: language === 'he' ? 'אימות מחדש נדרש' : 'Re-authentication Required',
-          message: language === 'he'
-            ? 'לשם אבטחה, עליך להתחבר מחדש לחשבון לפני מחיקתו. אנא התנתק, התחבר שוב ונסה שנית.'
-            : 'For security reasons, you must re-authenticate before deleting your account. Please sign out, sign in again, and retry.',
-          variant: 'warning',
-        });
-      } else {
-        await alert({
-          title: language === 'he' ? 'שגיאה במחיקת החשבון' : 'Error Deleting Account',
-          message: language === 'he'
-            ? 'שגיאה במחיקת החשבון. אנא נסה שוב או פנה לתמיכה.'
-            : 'Error deleting account. Please try again or contact support.',
-          variant: 'danger',
-        });
-      }
-    } finally {
-      setLoadingEvents(false);
-    }
+    await alert({
+      title: language === 'he' ? 'החשבון נמחק' : 'Account Deleted',
+      message: language === 'he' ? 'החשבון והנתונים נמחקו בהצלחה.' : 'Account and data successfully deleted.',
+      variant: 'success',
+    });
+    signOut();
+    navigate('/');
   };
 
   const handleDeleteCloudEvent = async (event: CloudEvent, e: React.MouseEvent) => {
     e.stopPropagation();
-    if (!event.id || deletingEventIds.has(event.id)) return;
+    if (!event.id) return;
 
-    const confirmed = await confirm({
+    const eventId = event.id;
+    await confirm({
       title: language === 'he' ? 'מחיקת אירוע' : 'Delete Event',
       message: language === 'he'
-        ? `האם אתה בטוח שברצונך למחוק את האירוע "${event.name}"?\nפעולה זו תמחק את כל הנתונים לצמיתות.`
-        : `Are you sure you want to delete the event "${event.name}"?\nThis action will delete all data permanently.`,
+        ? `האם אתה בטוח שברצונך למחוק את האירוע "${event.name}"?\nפעולה זו תמחק את כל נתוני האירוע מהמערכת לצמיתות וקישור השיתוף יפסיק לעבוד.\nשים לב: התמונות והתיקיות בענן (Dropbox / Google Drive) לא יימחקו.`
+        : `Are you sure you want to delete the event "${event.name}"?\nThis permanently deletes all event data from EventTag and the share link will stop working.\nNote: your photos and folders in the cloud (Dropbox / Google Drive) will NOT be deleted.`,
       confirmText: language === 'he' ? 'מחק אירוע' : 'Delete Event',
       cancelText: language === 'he' ? 'ביטול' : 'Cancel',
       variant: 'danger',
+      progressText: language === 'he' ? 'מוחק את האירוע והנתונים שלו...' : 'Deleting the event and its data...',
+      errorMessage: language === 'he' ? 'שגיאה במחיקת האירוע. אנא נסה שוב.' : 'Error deleting event. Please try again.',
+      onConfirm: async () => {
+        const wasScanning = isEventScanning(eventId);
+        if (wasScanning) {
+          stopScanning(eventId);
+        }
+        await deleteCloudEvent(eventId, { settleMs: wasScanning ? 1500 : 0 });
+        setCloudEvents((prev) => prev.filter((ev) => ev.id !== eventId));
+      },
     });
-
-    if (!confirmed) return;
-
-    if (isEventScanning(event.id)) {
-      stopScanning(event.id);
-    }
-
-    setDeletingEventIds((prev) => new Set(prev).add(event.id!));
-
-    try {
-      await deleteCloudEvent(event.id);
-      setCloudEvents((prev) => prev.filter((ev) => ev.id !== event.id));
-    } catch (err) {
-      console.error('Failed to delete event:', err);
-      await alert({
-        title: language === 'he' ? 'שגיאה במחיקה' : 'Error Deleting',
-        message: language === 'he' ? 'שגיאה במחיקת האירוע. אנא נסה שוב.' : 'Error deleting event. Please try again.',
-        variant: 'danger',
-      });
-    } finally {
-      setDeletingEventIds((prev) => {
-        const next = new Set(prev);
-        next.delete(event.id!);
-        return next;
-      });
-    }
   };
 
   const handleCopyShareLink = async (event: CloudEvent, e: React.MouseEvent) => {
@@ -1234,14 +1201,13 @@ export function Dashboard() {
                         const eventScannedCount = eventScanState?.scannedCount ?? 0;
                         const eventTotalToScan = eventScanState?.totalToScan || event.photoCount || 0;
                         const eventEta = eventScanState?.etaSeconds ?? null;
-                        const isDeleting = event.id ? deletingEventIds.has(event.id) : false;
 
                         return (
                           <div
                             key={event.id}
-                            onClick={isDeleting ? undefined : () => navigate(`/dashboard/event/${event.id}`)}
+                            onClick={() => navigate(`/dashboard/event/${event.id}`)}
                             className={`group relative bg-surface-container rounded-2xl p-6 border border-surface-border hover:border-copper-accent/40 ${
-                              isDeleting ? 'opacity-75 overflow-hidden' : 'cursor-pointer hover:shadow-2xl hover:-translate-y-0.5'
+                              'cursor-pointer hover:shadow-2xl hover:-translate-y-0.5'
                             } transition-all duration-300 flex flex-col justify-between h-full text-start shadow-sm`}
                           >
                             {/* Top Row: Pill Badge + Three Dots Menu */}
@@ -1272,7 +1238,7 @@ export function Dashboard() {
                               </div>
 
                               {/* Three Dots Button */}
-                              {!isDeleting && (
+                              {(
                                 <div className="relative">
                                   <button
                                     onClick={(e) => {
@@ -1439,23 +1405,6 @@ export function Dashboard() {
                                 <Share2 className="w-4 h-4" />
                               </button>
                             </div>
-
-                            {/* Deleting overlay */}
-                            {isDeleting && (
-                              <div className="absolute inset-0 bg-surface-container/90 backdrop-blur-sm rounded-2xl z-20 flex flex-col items-center justify-center gap-3 p-4 text-center">
-                                <div className="p-3 rounded-full bg-red-500/10 border border-red-500/20 text-red-400">
-                                  <Loader2 className="w-6 h-6 animate-spin" />
-                                </div>
-                                <div className="flex flex-col gap-1">
-                                  <span className="text-sm font-bold text-on-background">
-                                    {language === 'he' ? 'מוחק אירוע...' : 'Deleting event...'}
-                                  </span>
-                                  <span className="text-xs text-sage-muted">
-                                    {language === 'he' ? 'מוחק נתונים ממסד הנתונים' : 'Removing data from database'}
-                                  </span>
-                                </div>
-                              </div>
-                            )}
                           </div>
                         );
                       })}
@@ -1467,13 +1416,12 @@ export function Dashboard() {
                         const isThisEventScanning = isEventScanning(event.id!);
                         const eventScanState = getEventScanState(event.id!);
                         const eventScannedCount = eventScanState?.scannedCount ?? 0;
-                        const isDeleting = event.id ? deletingEventIds.has(event.id) : false;
 
                         return (
                           <div
                             key={event.id}
-                            onClick={isDeleting ? undefined : () => navigate(`/dashboard/event/${event.id}`)}
-                            className={`group relative border border-surface-border/60 ${isDeleting ? 'opacity-75 overflow-hidden' : 'hover:border-copper-accent/35 cursor-pointer hover:shadow-xl'} bg-surface-container rounded-xl p-5 transition-all duration-200 flex flex-col md:flex-row items-start md:items-center justify-between gap-4 shadow text-start`}
+                            onClick={() => navigate(`/dashboard/event/${event.id}`)}
+                            className={`group relative border border-surface-border/60 hover:border-copper-accent/35 cursor-pointer hover:shadow-xl bg-surface-container rounded-xl p-5 transition-all duration-200 flex flex-col md:flex-row items-start md:items-center justify-between gap-4 shadow text-start`}
                           >
                             <div className="flex items-center gap-4 flex-1 min-w-0">
                               <div className="p-3 rounded-xl bg-surface-container-low border border-surface-border/50 shrink-0">

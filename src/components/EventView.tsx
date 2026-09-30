@@ -281,6 +281,8 @@ export function EventView({ eventId, onBack }: EventViewProps) {
   }, [event, currentProviderToken, getFreshAccessToken, checkParallelScanWarning, eventId, language, alert, startCloudScanning]);
 
   const hasAutoStartedRef = useRef(false);
+  // Set when the user stops a scan, so the pending view offers a manual resume instead of a fake loader
+  const [scanStopped, setScanStopped] = useState(false);
 
   // Auto-start scanning immediately when creating or navigating to a pending event
   useEffect(() => {
@@ -446,6 +448,27 @@ export function EventView({ eventId, onBack }: EventViewProps) {
                 {language === 'he' ? `התחבר לחשבון ${currentProvider === 'dropbox' ? 'Dropbox' : currentProvider === 'google' ? 'Google Drive' : 'OneDrive'}` : `Connect ${currentProvider === 'dropbox' ? 'Dropbox' : currentProvider === 'google' ? 'Google Drive' : 'OneDrive'}`}
               </button>
             </div>
+          ) : scanStopped ? (
+            <div className="flex flex-col items-center gap-4 py-2">
+              <span className="font-bold text-on-background text-lg">
+                {language === 'he' ? 'הסריקה הופסקה' : 'Scan stopped'}
+              </span>
+              <p className="text-sage-muted text-sm m-0">
+                {language === 'he'
+                  ? 'תמונות שכבר נסרקו נשמרו. ניתן להמשיך את הסריקה מהנקודה שבה עצרה.'
+                  : 'Photos that were already scanned are kept. You can resume the scan from where it stopped.'}
+              </p>
+              <button
+                onClick={() => {
+                  setScanStopped(false);
+                  handleStartScan();
+                }}
+                className="px-5 py-2.5 rounded-lg bg-copper-accent hover:bg-copper-accent/90 text-background font-bold text-sm shadow transition-all cursor-pointer border-none inline-flex items-center gap-2"
+              >
+                <Play className="w-4 h-4" />
+                {language === 'he' ? 'המשך סריקה' : 'Resume Scan'}
+              </button>
+            </div>
           ) : (
             <div className="flex items-center gap-3 py-4">
               <Loader2 className="w-6 h-6 text-copper-accent animate-spin" />
@@ -539,6 +562,10 @@ export function EventView({ eventId, onBack }: EventViewProps) {
                       variant: 'warning',
                     });
                     if (confirmed) {
+                      // A user-stopped scan must not be auto-restarted by the pending-status effect
+                      hasAutoStartedRef.current = true;
+                      setScanStopped(true);
+                      setEvent(prev => prev ? { ...prev, status: 'pending' } : null);
                       stopScanning(eventId);
                     }
                   }}
