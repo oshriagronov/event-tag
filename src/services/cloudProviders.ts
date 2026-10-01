@@ -18,8 +18,11 @@ import {
   getOrCreateSharedLink as googleGetOrCreateSharedLink,
   checkTokenValidity as googleCheckToken,
 } from './google';
+import { toTrustedPhotoUrl, isValidDriveFileId } from '../utils/photoUrls';
 
 export type CloudProvider = 'dropbox' | 'google' | 'onedrive';
+
+export { toTrustedPhotoUrl, isValidDriveFileId };
 
 /**
  * Only an explicit invalid/revoked credential may disconnect a provider. Network,
@@ -159,21 +162,24 @@ export function convertToRawUrl(
   targetSize: 'thumb' | 'full' = 'thumb'
 ): string {
   if (!url) return '';
-  if (provider === 'dropbox') {
-    return convertToRawDropboxUrl(url);
-  }
-  if (provider === 'onedrive') {
-    return url.replace('embed?', 'download?');
-  }
   if (provider === 'google') {
     const sizeParam = targetSize === 'thumb' ? '&sz=w400' : '&sz=w1600';
     const match = url.match(/(?:id=|file\/d\/|usercontent\.com\/d\/)([^/&?]+)/);
     const fileId = match?.[1] || url;
     // Strip trailing =s400/=s1600 if passed raw
     const cleanId = fileId.replace(/=s\d+$/, '');
+    if (!isValidDriveFileId(cleanId)) return '';
     return `https://drive.google.com/thumbnail?id=${cleanId}${sizeParam}`;
   }
-  return url;
+  const safeUrl = toTrustedPhotoUrl(url);
+  if (!safeUrl) return '';
+  if (provider === 'dropbox') {
+    return convertToRawDropboxUrl(safeUrl);
+  }
+  if (provider === 'onedrive') {
+    return safeUrl.replace('embed?', 'download?');
+  }
+  return safeUrl;
 }
 
 /**

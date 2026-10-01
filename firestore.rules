@@ -20,12 +20,12 @@ service cloud.firestore {
       return request.auth.token.email != null && request.auth.token.email_verified == true;
     }
 
+    // Admin rights come only from the role on the user's profile, which users
+    // cannot set themselves. Grant the first admin in the Firebase console.
     function isAdmin() {
-      return isAuthenticated() && (
-        (exists(/databases/$(database)/documents/users/$(request.auth.uid))
-          && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin')
-        || (hasVerifiedEmail() && request.auth.token.email == 'admin@eventtag.com')
-      );
+      return isAuthenticated()
+        && exists(/databases/$(database)/documents/users/$(request.auth.uid))
+        && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
     }
 
     function isUserActive() {
@@ -47,10 +47,22 @@ service cloud.firestore {
             && exists(/databases/$(database)/documents/allowlist/$(request.auth.token.email.lower())));
     }
 
+    // premiumUntil is an ISO date ("YYYY-MM-DD"); premium ends at its UTC
+    // midnight, matching the client's `new Date(premiumUntil)` check.
+    function isPremiumActive(premiumUntil) {
+      return premiumUntil is string
+        && premiumUntil.matches('^[0-9]{4}-[0-9]{2}-[0-9]{2}$')
+        && timestamp.date(
+          int(premiumUntil.split('-')[0]),
+          int(premiumUntil.split('-')[1]),
+          int(premiumUntil.split('-')[2])
+        ) > request.time;
+    }
+
     function getPhotoQuotaLimit() {
       let isPremium = request.auth != null
         && exists(/databases/$(database)/documents/users/$(request.auth.uid))
-        && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.premiumUntil != null;
+        && isPremiumActive(get(/databases/$(database)/documents/users/$(request.auth.uid)).data.get('premiumUntil', null));
       let configExists = exists(/databases/$(database)/documents/system/config)
         && get(/databases/$(database)/documents/system/config).data.keys().hasAny(['quotas']);
       let config = configExists ? get(/databases/$(database)/documents/system/config).data.quotas : null;
@@ -65,16 +77,22 @@ service cloud.firestore {
       allow write: if isAdmin();
     }
 
-    // Audit logs collection (immutable security logs)
+    // Audit logs collection (immutable security logs). Only admins write them,
+    // under their own identity and with the server's timestamp.
     match /audit_logs/{logId} {
       allow read: if isAdmin();
-      allow create: if isAuthenticated();
+      allow create: if isAdmin()
+        && request.resource.data.performedBy == request.auth.uid
+        && request.resource.data.timestamp == request.time;
       allow update, delete: if false;
     }
 
-    // Allowlist collection (approved emails when allowlistMode is true)
+    // Allowlist collection (approved emails when allowlistMode is true).
+    // Users may only check their own verified address; the full list is admin-only.
     match /allowlist/{emailDoc} {
-      allow read: if isAuthenticated();
+      allow get: if isAdmin()
+        || (isAuthenticated() && hasVerifiedEmail() && emailDoc == request.auth.token.email.lower());
+      allow list: if isAdmin();
       allow write: if isAdmin();
     }
 
@@ -83,6 +101,7 @@ service cloud.firestore {
       allow get: if isAuthenticated() && (isOwner(userId) || isAdmin());
       allow list: if isAdmin();
       allow create: if isOwner(userId)
+        && request.resource.data.get('email', '') == request.auth.token.get('email', '').lower()
         && (!request.resource.data.keys().hasAny(['role']) || request.resource.data.role == 'user' || isAdmin())
         && (!request.resource.data.keys().hasAny(['status']) || request.resource.data.status == 'active')
         && (!request.resource.data.keys().hasAny(['premiumUntil']) || request.resource.data.premiumUntil == null);
@@ -90,17 +109,18 @@ service cloud.firestore {
         isOwner(userId)
         && !request.resource.data.diff(resource.data).affectedKeys().hasAny(['role', 'status', 'premiumUntil', 'email'])
       );
-      allow delete: if isAdmin();
+      // Owners delete their profile on account deletion. Blocked users cannot,
+      // since a missing profile would count as active.
+      allow delete: if isAdmin()
+        || (isOwner(userId) && (resource == null || resource.data.get('status', 'active') != 'blocked'));
 
-      // Rolling 30-day photo usage subcollection
+      // Rolling 30-day photo usage. Maintained by /api/commit-scan (admin SDK),
+      // so clients can only read it, or delete it together with the profile.
       match /usage/{usageDoc} {
         allow read: if isOwner(userId) || isAdmin();
-        allow write: if (isOwner(userId) || isAdmin())
-          && (isAdmin() || (
-            request.resource.data.photosThisCycle is number
-            && request.resource.data.photosThisCycle >= 0
-            && request.resource.data.photosThisCycle <= getPhotoQuotaLimit()
-          ));
+        allow create, update: if isAdmin();
+        allow delete: if isAdmin()
+          || (isOwner(userId) && !existsAfter(/databases/$(database)/documents/users/$(userId)));
       }
     }
 
@@ -131,24 +151,29 @@ service cloud.firestore {
 
       allow delete: if isOwner(resource.data.ownerId) || isAdmin();
 
-      // Photos subcollection
-      match /photos/{photoId} {
-        // Guests can get/list photos for a specific event
-        allow read: if true;
-
-        // Event owner or admin can write
-        allow write: if (isOwner(get(/databases/$(database)/documents/events/$(eventId)).data.ownerId) || isAdmin())
-          && (isAdmin() || (isUserActive() && isNotMaintenanceMode()));
+      function isEventOwnerOrAdmin() {
+        return isAdmin() || isOwner(get(/databases/$(database)/documents/events/$(eventId)).data.ownerId);
       }
 
-      // Face batches subcollection
-      match /faceBatches/{batchId} {
-        // Guests can get/list face descriptors for a specific event
-        allow read: if true;
+      // Photos subcollection. Guests never read it directly: /api/match returns
+      // only their own matches. New photos are created by /api/commit-scan,
+      // which enforces the photo quota; owners may only reset scan fields.
+      match /photos/{photoId} {
+        allow read: if isEventOwnerOrAdmin();
+        allow create: if false;
+        allow update: if isAdmin() || (
+          isEventOwnerOrAdmin() && isUserActive() && isNotMaintenanceMode()
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['processed', 'width', 'height'])
+        );
+        allow delete: if isEventOwnerOrAdmin();
+      }
 
-        // Event owner or admin can write
-        allow write: if (isOwner(get(/databases/$(database)/documents/events/$(eventId)).data.ownerId) || isAdmin())
-          && (isAdmin() || (isUserActive() && isNotMaintenanceMode()));
+      // Face descriptors (biometric templates). Owner/admin read only; written
+      // by /api/commit-scan; owners may delete them (rescan / event deletion).
+      match /faceBatches/{batchId} {
+        allow read: if isEventOwnerOrAdmin();
+        allow create, update: if false;
+        allow delete: if isEventOwnerOrAdmin();
       }
     }
   }

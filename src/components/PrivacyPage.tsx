@@ -92,8 +92,8 @@ export function PrivacyPage() {
             </h3>
             <p className="font-body-md text-sm text-sage-muted leading-relaxed m-0">
               {language === 'he'
-                ? 'ליהנות מטכנולוגיה מתקדמת בראש שקט. אלגוריתמי זיהוי פנים מתקדמים מופעלים ישירות בדפדפן שלך, מה שמונע כל מעבר של מידע ביומטרי לשרתים חיצוניים.'
-                : 'Experience artisan-level care. Complex AI facial recognition algorithms run directly within your web browser, ensuring zero transit of biometric data to external servers.'}
+                ? 'ליהנות מטכנולוגיה מתקדמת בראש שקט. זיהוי הפנים מתבצע ישירות בדפדפן שלך, והתמונות עצמן לעולם אינן נשלחות לשרתים שלנו. להשוואה משמשים רק מפתחות זיהוי מתמטיים, ואורחים מקבלים רק את התמונות שבהן הם מופיעים.'
+                : 'Experience artisan-level care. Facial recognition runs directly within your web browser and the photos themselves never reach our servers. Only mathematical face descriptors are used for matching, and guests only ever receive the photos they appear in.'}
             </p>
           </div>
 

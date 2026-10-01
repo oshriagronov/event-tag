@@ -26,7 +26,7 @@ import {
   Sparkles,
 } from 'lucide-react';
 import { getCloudEvent, type CloudEvent } from '../services/firestore';
-import { convertToRawUrl, type CloudProvider } from '../services/cloudProviders';
+import { convertToRawUrl, isValidDriveFileId, type CloudProvider } from '../services/cloudProviders';
 import { matchSelfieToEvent, type MatchResult } from '../services/faceMatching';
 import { SelfieCapture } from './SelfieCapture';
 import { ensureModelsLoaded } from '../services/modelLoader';
@@ -81,7 +81,7 @@ function GuestPhotoImage({
 
 
   const handleError = () => {
-    if (provider === 'google' && cleanId) {
+    if (provider === 'google' && isValidDriveFileId(cleanId)) {
       if (stage === 0) {
         setStage(1);
         setSrc(`https://lh3.googleusercontent.com/d/${cleanId}`);
@@ -108,7 +108,15 @@ function GuestPhotoImage({
  */
 function downloadFileName(originalName: string | undefined, blob: Blob, fallbackBase: string): string {
   const ext = blob.type.includes('png') ? 'png' : blob.type.includes('webp') ? 'webp' : 'jpg';
-  const base = (originalName || fallbackBase).replace(/\.(jpe?g|png|webp|heic|heif|gif|bmp|tiff?|avif)$/i, '');
+  // File names come from the event owner: strip path separators and control
+  // characters so a ZIP entry cannot escape the extraction folder.
+  const safeName = Array.from(originalName || '', (ch) => (ch.charCodeAt(0) < 32 || ch.charCodeAt(0) === 127 ? '_' : ch))
+    .join('')
+    .replace(/[\\/:*?"<>|]/g, '_')
+    .replace(/^\.+/, '')
+    .trim()
+    .slice(0, 150);
+  const base = (safeName || fallbackBase).replace(/\.(jpe?g|png|webp|heic|heif|gif|bmp|tiff?|avif)$/i, '');
   return `${base}.${ext}`;
 }
 
@@ -201,8 +209,8 @@ export function GuestView({ eventId }: GuestViewProps) {
       setSelectedPhotoIds([]);
 
       try {
-        // Fetch using a calibrated SFace L2 distance threshold of 0.85 to prevent false matches
-        const results = await matchSelfieToEvent(descriptor, event.id, 0.85);
+        // Matched server-side with a calibrated SFace L2 distance threshold of 0.85
+        const results = await matchSelfieToEvent(descriptor, event.id);
         setMatches(results);
 
         if (results.length > 0) {
@@ -275,6 +283,8 @@ export function GuestView({ eventId }: GuestViewProps) {
 
   // Helper to load generic image URLs into Blobs (direct fetch or canvas fallback)
   const fetchImageBlobFromUrl = (url: string, timeoutMs = 12000): Promise<Blob | null> => {
+    // Callers pass URLs built by convertToRawUrl, which returns '' for untrusted input.
+    if (!url) return Promise.resolve(null);
     return new Promise((resolve) => {
       let isResolved = false;
       const safeResolve = (val: Blob | null) => {
@@ -351,6 +361,7 @@ export function GuestView({ eventId }: GuestViewProps) {
   // Helper to load Google Drive images into Blobs with multi-endpoint fallback
   const fetchGoogleDriveBlob = async (fileId: string): Promise<Blob | null> => {
     const cleanId = fileId.replace(/=s\d+$/, '');
+    if (!isValidDriveFileId(cleanId)) return null;
     let blob = await fetchImageBlobFromUrl(`https://drive.google.com/thumbnail?id=${cleanId}&sz=w1600`);
     if (!blob) {
       blob = await fetchImageBlobFromUrl(`https://lh3.googleusercontent.com/d/${cleanId}`);
@@ -481,12 +492,13 @@ export function GuestView({ eventId }: GuestViewProps) {
       return;
     }
 
-    if (match?.publicUrl) {
-      const rawUrl = convertToRawUrl(provider, match.publicUrl, 'full');
+    const rawUrl = match?.publicUrl ? convertToRawUrl(provider, match.publicUrl, 'full') : '';
+    if (rawUrl) {
       const downloadUrl = rawUrl.includes('dropbox') ? rawUrl.replace('raw=1', 'dl=1') : rawUrl;
       const a = document.createElement('a');
       a.href = downloadUrl;
-      a.download = match?.fileName || `photo_${driveFileId}.jpg`;
+      a.rel = 'noopener noreferrer';
+      a.download = match?.fileName ? downloadFileName(match.fileName, new Blob(), 'photo') : `photo_${driveFileId}.jpg`;
       document.body.appendChild(a);
       a.click();
       document.body.removeChild(a);

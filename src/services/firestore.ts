@@ -8,7 +8,6 @@ import {
   doc,
   getDoc,
   getDocs,
-  setDoc,
   addDoc,
   updateDoc,
   deleteDoc,
@@ -21,6 +20,7 @@ import {
 } from 'firebase/firestore';
 import { firestore } from '../firebase';
 import type { CloudProvider } from './cloudProviders';
+import { postApi } from './serverApi';
 
 // ---- Types ----
 
@@ -166,22 +166,19 @@ export async function deleteCloudEvent(eventId: string, options: { settleMs?: nu
 
 // ---- Photo CRUD ----
 
+/**
+ * Register photo references for an event. New photos count toward the owner's
+ * rolling photo quota, which `/api/commit-scan` enforces server-side.
+ */
 export async function addCloudPhotosBatch(
   eventId: string,
   photos: Omit<CloudPhoto, 'id'>[]
 ): Promise<string[]> {
   const ids: string[] = [];
   for (let i = 0; i < photos.length; i += WRITE_BATCH_LIMIT) {
-    const chunk = photos.slice(i, i + WRITE_BATCH_LIMIT);
-    const batch = writeBatch(firestore);
-    const chunkIds: string[] = [];
-    for (const photo of chunk) {
-      const docRef = doc(collection(firestore, 'events', eventId, 'photos'));
-      batch.set(docRef, photo);
-      chunkIds.push(docRef.id);
-    }
-    await batch.commit();
-    ids.push(...chunkIds);
+    const chunk = photos.slice(i, i + WRITE_BATCH_LIMIT).map((data) => ({ id: newCloudPhotoId(eventId), data }));
+    await commitScanResults(eventId, chunk, []);
+    ids.push(...chunk.map((p) => p.id));
   }
   return ids;
 }
@@ -194,9 +191,7 @@ export async function getCloudPhotos(eventId: string): Promise<CloudPhoto[]> {
 }
 
 // ---- Face Descriptor Storage (Batched) ----
-// Faces are stored ~100 per document to minimize guest-side reads.
-
-const FACES_PER_BATCH = 100;
+// Faces are stored ~100 per document (written by /api/commit-scan).
 
 /** Allocate a photo document ID locally (no network) so writes can be batched. */
 export function newCloudPhotoId(eventId: string): string {
@@ -207,7 +202,9 @@ export function newCloudPhotoId(eventId: string): string {
  * Atomically persist a chunk of scan results: photo documents (created or
  * merged), their face descriptors, and the event progress counters. Either
  * everything in the chunk is stored or nothing is, so a photo is never marked
- * processed without its faces.
+ * processed without its faces. Runs through `/api/commit-scan`, which also
+ * counts new photos against the owner's quota (rejecting with
+ * `photo_limit_reached` when the cycle limit would be exceeded).
  */
 export async function commitScanResults(
   eventId: string,
@@ -216,18 +213,7 @@ export async function commitScanResults(
   progress?: Pick<CloudEvent, 'photoCount' | 'faceCount'>
 ): Promise<void> {
   if (photos.length === 0 && faces.length === 0 && !progress) return;
-  const batch = writeBatch(firestore);
-  for (const photo of photos) {
-    batch.set(doc(firestore, 'events', eventId, 'photos', photo.id), photo.data, { merge: true });
-  }
-  for (let i = 0; i < faces.length; i += FACES_PER_BATCH) {
-    batch.set(doc(collection(firestore, 'events', eventId, 'faceBatches')), {
-      batchIndex: Date.now() + i,
-      faces: faces.slice(i, i + FACES_PER_BATCH),
-    });
-  }
-  if (progress) batch.update(doc(firestore, 'events', eventId), progress);
-  await batch.commit();
+  await postApi('/api/commit-scan', { eventId, photos, faces, progress: progress ?? null }, { authenticated: true });
 }
 
 export async function getAllFaceDescriptors(
@@ -307,7 +293,8 @@ export interface UserUsage {
 }
 
 /**
- * Subscribe to current 30-day rolling photo usage for a user
+ * Subscribe to current 30-day rolling photo usage for a user. The usage
+ * document is maintained server-side by /api/commit-scan.
  */
 export function subscribeUserUsage(
   userId: string,
@@ -331,48 +318,12 @@ export function subscribeUserUsage(
 }
 
 /**
- * Record photo usage for a user, initiating a 30-day cycle on first upload or after cycle expiry
+ * Remove the user's profile and usage documents (account deletion). Both go in
+ * one batch: the security rules only let owners delete usage together with the profile.
  */
-export async function recordUserPhotoUsage(userId: string, addedPhotos: number): Promise<void> {
-  if (addedPhotos <= 0) return;
-  const docRef = doc(firestore, 'users', userId, 'usage', 'current');
-  const snap = await getDoc(docRef);
-  const now = new Date();
-
-  if (!snap.exists()) {
-    // First upload ever: start 30-day cycle
-    const cycleReset = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000);
-    await setDoc(docRef, {
-      cycleStart: serverTimestamp(),
-      cycleReset,
-      photosThisCycle: addedPhotos,
-      updatedAt: serverTimestamp(),
-    });
-    return;
-  }
-
-  const data = snap.data() as UserUsage;
-  const resetDate = data.cycleReset
-    ? (data.cycleReset as { toDate?: () => Date }).toDate
-      ? (data.cycleReset as { toDate: () => Date }).toDate()
-      : new Date(data.cycleReset as unknown as string)
-    : null;
-
-  if (!resetDate || now.getTime() >= resetDate.getTime()) {
-    // Previous cycle expired: start fresh 30-day cycle
-    const newReset = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000);
-    await setDoc(docRef, {
-      cycleStart: serverTimestamp(),
-      cycleReset: newReset,
-      photosThisCycle: addedPhotos,
-      updatedAt: serverTimestamp(),
-    });
-  } else {
-    // Within active 30-day cycle: accumulate photo count
-    await updateDoc(docRef, {
-      photosThisCycle: (data.photosThisCycle || 0) + addedPhotos,
-      updatedAt: serverTimestamp(),
-    });
-  }
+export async function deleteUserData(userId: string): Promise<void> {
+  const batch = writeBatch(firestore);
+  batch.delete(doc(firestore, 'users', userId, 'usage', 'current'));
+  batch.delete(doc(firestore, 'users', userId));
+  await batch.commit();
 }
-

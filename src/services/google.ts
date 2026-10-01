@@ -106,6 +106,11 @@ function isImageFile(filename: string): boolean {
   return !!ext && IMAGE_EXTENSIONS.includes(ext);
 }
 
+/** Quote a value for a Drive `q` search expression. */
+function driveQueryLiteral(value: string): string {
+  return `'${value.replace(/\\/g, '\\\\').replace(/'/g, "\\'")}'`;
+}
+
 /**
  * List folders in a parent folder (defaults to root: "")
  */
@@ -114,7 +119,7 @@ export async function listFolders(
   parentFolderId = ''
 ): Promise<GoogleFolder[]> {
   const parentQuery = (parentFolderId && parentFolderId !== 'root')
-    ? `'${parentFolderId}' in parents`
+    ? `${driveQueryLiteral(parentFolderId)} in parents`
     : `'root' in parents`;
   const q = `${parentQuery} and mimeType = 'application/vnd.google-apps.folder' and trashed = false`;
 
@@ -147,7 +152,7 @@ export async function makeFolderPublic(
   folderId: string
 ): Promise<boolean> {
   try {
-    const url = `${API_BASE}/files/${folderId}/permissions`;
+    const url = `${API_BASE}/files/${encodeURIComponent(folderId)}/permissions`;
     const res = await fetchWithRetry(url, {
       method: 'POST',
       headers: {
@@ -264,7 +269,7 @@ export async function listPhotosInFolder(
   let pageToken: string | undefined;
 
   do {
-    const parentQuery = `'${folderId}' in parents`;
+    const parentQuery = `${driveQueryLiteral(folderId)} in parents`;
     const q = `${parentQuery} and trashed = false`;
     let url = `${API_BASE}/files?q=${encodeURIComponent(q)}&fields=nextPageToken,files(id,name,mimeType,size,modifiedTime)&pageSize=1000&orderBy=name`;
 
@@ -324,7 +329,7 @@ export async function getPhotoBlob(
   fileId: string,
   timeoutMs = 35000
 ): Promise<Blob> {
-  const url = `${API_BASE}/files/${fileId}?alt=media`;
+  const url = `${API_BASE}/files/${encodeURIComponent(fileId)}?alt=media`;
   const res = await fetchWithRetry(
     url,
     {

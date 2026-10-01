@@ -46,9 +46,10 @@ function CloudPhotoImage({ provider = 'dropbox', driveFileId, accessToken, class
 
     async function load() {
       // Use direct publicUrl if available to bypass API calls and avoid CORS issues
-      if (publicUrl && !fallbackToBlob) {
+      const directUrl = publicUrl && !fallbackToBlob ? convertToRawUrl(provider, publicUrl, size) : '';
+      if (directUrl) {
         if (active) {
-          setSrc(convertToRawUrl(provider, publicUrl, size));
+          setSrc(directUrl);
           setLoading(false);
           setError(false);
         }
@@ -656,6 +657,21 @@ export function EventView({ eventId, onBack }: EventViewProps) {
                   {language === 'he'
                     ? 'יש לנו עומס גבוה היום במערכת, אנא נסה שוב מחר.'
                     : 'We are experiencing high demand today. Please come back tomorrow.'}
+                </p>
+              </div>
+            </div>
+          )}
+          {thisEventScanError === 'quota_exceeded' && (
+            <div role="alert" className="flex flex-col items-center gap-3 bg-amber-500/15 border border-amber-500/30 rounded-xl p-5 text-center mt-2">
+              <AlertCircle className="w-7 h-7 text-amber-400" />
+              <div className="flex flex-col gap-1 text-center">
+                <h4 className="font-bold text-amber-400 text-sm m-0">
+                  {language === 'he' ? 'הגעת למכסת התמונות' : 'Photo Limit Reached'}
+                </h4>
+                <p className="text-sage-muted text-xs m-0">
+                  {language === 'he'
+                    ? 'הסריקה הושהתה כי הגעת למכסת התמונות ל-30 יום. התמונות שכבר נשמרו זמינות לאורחים; ניתן להמשיך כשהמכסה תתאפס או לאחר שדרוג התוכנית.'
+                    : 'Scanning is paused because you reached your 30-day photo limit. Photos already saved are available to guests; resume once your quota resets or your plan is upgraded.'}
                 </p>
               </div>
             </div>

@@ -1,7 +1,7 @@
-import type { User } from 'firebase/auth';
 import type { UserProfile, SystemSettings } from './adminService';
 import { DEFAULT_QUOTAS } from './adminService';
 import type { UserUsage } from './firestore';
+import { ServerApiError } from './serverApi';
 
 export interface UserQuotaStatus {
   tier: 'admin' | 'premium' | 'standard';
@@ -23,17 +23,12 @@ export interface UserQuotaStatus {
  * Calculate the user's current tier and rolling 30-day photo quota status
  */
 export function getUserQuotaStatus(
-  user: User | null,
   userProfile: UserProfile | null,
   userUsage: UserUsage | null,
   systemSettings: SystemSettings,
   language: 'he' | 'en' = 'he'
 ): UserQuotaStatus {
-  const isAdmin = Boolean(
-    userProfile?.role === 'admin' ||
-      user?.email === 'admin@eventtag.com' ||
-      (import.meta.env.VITE_ADMIN_EMAIL && user?.email === import.meta.env.VITE_ADMIN_EMAIL)
-  );
+  const isAdmin = userProfile?.role === 'admin';
 
   const isPremium = Boolean(
     userProfile?.premiumUntil && new Date(userProfile.premiumUntil).getTime() > Date.now()
@@ -134,6 +129,7 @@ export function getUserQuotaStatus(
  */
 export function isFirebaseQuotaOrDemandError(error: unknown): boolean {
   if (!error) return false;
+  if (error instanceof ServerApiError) return error.status === 429 || error.code === 'maintenance';
 
   const err = error as { name?: string; code?: string; message?: string; status?: number; details?: string };
   // Only Firebase errors qualify. Cloud-provider failures such as a Drive 503 or
@@ -174,6 +170,17 @@ export function getFirestoreErrorMessage(
   error: unknown,
   language: 'he' | 'en' = 'he'
 ): { title: string; message: string; isHighDemand: boolean } {
+  if (error instanceof ServerApiError && error.code === 'photo_limit_reached') {
+    return {
+      title: language === 'he' ? 'חריגה ממכסת תמונות' : 'Photo Limit Reached',
+      message:
+        language === 'he'
+          ? 'הגעת למכסת התמונות שלך ל-30 יום. התמונות שכבר נשמרו לא נפגעו; ניתן להוסיף תמונות נוספות כשהמכסה תתאפס.'
+          : 'You have reached your 30-day photo limit. Photos already saved are kept; you can add more once your quota resets.',
+      isHighDemand: false,
+    };
+  }
+
   if (isFirebaseQuotaOrDemandError(error)) {
     return {
       title: language === 'he' ? 'עומס זמני במערכת' : 'High System Demand',
@@ -187,6 +194,7 @@ export function getFirestoreErrorMessage(
 
   const errStr = error instanceof Error ? error.message : String(error);
   const isPermission =
+    (error instanceof ServerApiError && (error.status === 403 || error.status === 401)) ||
     errStr.includes('permission-denied') ||
     errStr.includes('PERMISSION_DENIED') ||
     errStr.includes('Missing or insufficient permissions');

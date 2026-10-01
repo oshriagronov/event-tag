@@ -1,10 +1,11 @@
 /**
  * Face matching service
- * Matches a selfie's face descriptor against all stored descriptors for an event
- * Runs entirely client-side — no server cost
+ * Sends the selfie's face descriptor (never the selfie image) to /api/match,
+ * which compares it with the event's stored descriptors and returns only the
+ * guest's own matching photos. Event face data is not readable by guests.
  */
 
-import { getAllFaceDescriptors, getCloudPhotos } from './firestore';
+import { postApi } from './serverApi';
 
 export interface MatchResult {
   driveFileId: string;
@@ -16,73 +17,14 @@ export interface MatchResult {
 }
 
 /**
- * Compute Euclidean distance between two vectors
- */
-function euclideanDistance(v1: number[], v2: number[]): number {
-  if (v1.length !== v2.length) return Infinity;
-  let sum = 0;
-  for (let i = 0; i < v1.length; i++) {
-    const diff = v1[i] - v2[i];
-    sum += diff * diff;
-  }
-  return Math.sqrt(sum);
-}
-
-/**
  * Match a selfie descriptor against all faces in an event.
- * Returns matching photos sorted by similarity (closest first).
+ * Returns matching photos sorted by similarity (closest first), one per photo.
+ * The match threshold is fixed server-side.
  *
  * @param selfieDescriptor - The 128-dim L2-normalized SFace descriptor from the selfie
  * @param eventId - The Firestore event ID
- * @param threshold - Maximum Euclidean distance to consider a match
  */
-export async function matchSelfieToEvent(
-  selfieDescriptor: number[],
-  eventId: string,
-  threshold = 0.90
-): Promise<MatchResult[]> {
-  const [allFaces, photos] = await Promise.all([
-    getAllFaceDescriptors(eventId),
-    getCloudPhotos(eventId),
-  ]);
-  if (allFaces.length === 0) return [];
-
-  const photoMap = new Map<string, { publicUrl?: string; fileName?: string }>();
-  for (const photo of photos) {
-    if (photo.id) {
-      photoMap.set(photo.id, { publicUrl: photo.publicUrl, fileName: photo.fileName });
-    }
-  }
-
-  const matches: MatchResult[] = [];
-
-  for (const face of allFaces) {
-    const dist = euclideanDistance(selfieDescriptor, face.embedding);
-    if (dist < threshold) {
-      const info = photoMap.get(face.photoId);
-      matches.push({
-        driveFileId: face.driveFileId,
-        photoId: face.photoId,
-        distance: dist,
-        box: face.box,
-        publicUrl: info?.publicUrl,
-        fileName: info?.fileName,
-      });
-    }
-  }
-
-  // Sort by distance (best match first)
-  matches.sort((a, b) => a.distance - b.distance);
-
-  // Deduplicate by photo — keep the best match per photo
-  const seenPhotos = new Set<string>();
-  const uniqueMatches: MatchResult[] = [];
-  for (const match of matches) {
-    if (!seenPhotos.has(match.driveFileId)) {
-      seenPhotos.add(match.driveFileId);
-      uniqueMatches.push(match);
-    }
-  }
-
-  return uniqueMatches;
+export async function matchSelfieToEvent(selfieDescriptor: number[], eventId: string): Promise<MatchResult[]> {
+  const { matches } = await postApi<{ matches: MatchResult[] }>('/api/match', { eventId, descriptor: selfieDescriptor });
+  return matches;
 }

@@ -8,7 +8,7 @@ import {
   deleteCloudEvent,
   addCloudPhotosBatch,
   subscribeUserUsage,
-  recordUserPhotoUsage,
+  deleteUserData,
   type CloudEvent,
   type UserUsage,
 } from '../services/firestore';
@@ -183,7 +183,6 @@ export function Dashboard() {
 
   // Compute user quota status based on user role/profile and system settings
   const quotaStatus = getUserQuotaStatus(
-    user,
     userProfile,
     userUsage,
     systemSettings,
@@ -270,7 +269,6 @@ export function Dashboard() {
         }));
 
         await addCloudPhotosBatch(eventId, basePhotos);
-        await recordUserPhotoUsage(user.uid, pendingPhotos.length);
       }
 
       setShowCreateModal(false);
@@ -325,10 +323,8 @@ export function Dashboard() {
         'google'
       );
 
-      // Record photo usage for the 30-day cycle
-      await recordUserPhotoUsage(user.uid, selectedLocalFiles.length);
-
-      // 3. Trigger 2-worker parallel face scanning & Google Drive upload task
+      // 3. Trigger parallel face scanning & Google Drive upload task (new photos
+      // are counted toward the 30-day quota as their results are saved)
       void startLocalGoogleUploadAndScan(eventId, googleFolder.id, selectedLocalFiles);
 
       // 4. Reset modal state and navigate to event page
@@ -407,10 +403,8 @@ export function Dashboard() {
         'dropbox'
       );
 
-      // Record photo usage for the 30-day cycle
-      await recordUserPhotoUsage(user.uid, selectedLocalFiles.length);
-
-      // 3. Trigger 2-worker parallel face scanning & Dropbox upload task
+      // 3. Trigger parallel face scanning & Dropbox upload task (new photos are
+      // counted toward the 30-day quota as their results are saved)
       void startLocalDropboxUploadAndScan(eventId, dropboxFolder.path, selectedLocalFiles);
 
       // 4. Reset modal state and navigate to event page
@@ -477,11 +471,11 @@ export function Dashboard() {
         setCloudEvents((prev) => prev.filter((ev) => (ev.provider || 'dropbox') !== provider));
 
         if (provider === 'dropbox') {
-          disconnectDropbox();
+          await disconnectDropbox();
         } else if (provider === 'google') {
-          disconnectGoogle();
+          await disconnectGoogle();
         } else if (provider === 'onedrive') {
-          disconnectOneDrive();
+          await disconnectOneDrive();
         }
       },
     });
@@ -538,12 +532,11 @@ export function Dashboard() {
       }
     }
 
-    // 3. Disconnect Cloud Providers
-    disconnectDropbox();
-    disconnectGoogle();
-    disconnectOneDrive();
+    // 3. Disconnect Cloud Providers (revokes the grants while still signed in)
+    await Promise.all([disconnectDropbox(), disconnectGoogle(), disconnectOneDrive()]);
 
-    // 4. Delete Firebase user account
+    // 4. Delete the Firestore profile & usage, then the Firebase user account
+    await deleteUserData(user.uid);
     await user.delete();
 
     // 5. Reset Privacy Consent state & cookies

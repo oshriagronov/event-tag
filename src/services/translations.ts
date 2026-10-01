@@ -309,9 +309,9 @@ export const translations = {
       privacySection1Title: 'עיבוד תמונות מקומי בלבד (On-Device Processing)',
       privacySection1Text: 'כל תמונות האירוע שנסרקות על ידי האפליקציה מעובדות באופן מקומי לחלוטין בתוך דפדפן האינטרנט של המשתמש.',
       privacySection1Bullets: [
-        'זיהוי הפנים, קיבוץ הפנים (Clustering) והשיוך לאורחים מתבצעים באמצעות מודלי בינה מלאכותית מקומיים הרצים ישירות בדפדפן.',
-        'אף תמונה, תוכן ויזואלי או מאפיין ביומטרי אינם נשלחים, מועלים או נשמרים בשרת חיצוני כלשהו.',
-        'כל עיבוד התמונות מתבצע על המחשב או המכשיר הנייד שלך ונשאר תחת שליטתך המלאה.'
+        'זיהוי הפנים וחישוב מפתחות זיהוי הפנים (וקטורים מתמטיים) מתבצעים באמצעות מודלי בינה מלאכותית מקומיים הרצים ישירות בדפדפן.',
+        'התמונות עצמן, לרבות הסלפי של האורח, לעולם אינן נשלחות או נשמרות בשרתי EventTag.',
+        'מפתחות זיהוי הפנים של תמונות האירוע נשמרים בענן (Firebase) ונגישים לבעל האירוע בלבד. בעת חיפוש, נשלח לשרת EventTag רק מפתח הזיהוי של הסלפי (ולא התמונה) לצורך השוואה; הוא אינו נשמר, והאורח מקבל רק את התמונות שבהן הוא מופיע.'
       ],
       privacySection2Title: 'חיבור וגישה לתיקיות ענן',
       privacySection2Text: 'האפליקציה מאפשרת לבעל האירוע לחבר את חשבון ספק הענן שלו ולבחור תיקייה המכילה את תמונות האירוע.',
@@ -843,9 +843,9 @@ export const translations = {
       privacySection1Title: 'On-Device Photo Processing',
       privacySection1Text: 'All event photos scanned by the Application are processed entirely locally within the user\'s web browser.',
       privacySection1Bullets: [
-        'Face detection, facial recognition, and clustering processes are executed on-device using client-side AI models running directly in the browser.',
-        'No photo content, visual media, or biometric face descriptors are ever uploaded, stored, or processed on external servers.',
-        'All processing executes on your local CPU/GPU/NPU and remains under your absolute control.'
+        'Face detection and the computation of face descriptors (mathematical vectors) run on-device using client-side AI models directly in the browser.',
+        'Photos themselves, including a guest\'s selfie, are never uploaded to or stored on EventTag servers.',
+        'Face descriptors of event photos are stored in the cloud (Firebase) and are accessible only to the event owner. When a guest searches, only the selfie\'s descriptor (never the image) is sent to EventTag\'s server for comparison; it is not stored, and the guest receives only the photos they appear in.'
       ],
       privacySection2Title: 'Cloud Storage Integration',
       privacySection2Text: 'The Application allows event hosts to connect their personal cloud storage provider account to select event photos.',

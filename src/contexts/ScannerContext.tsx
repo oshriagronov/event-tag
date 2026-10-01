@@ -24,8 +24,9 @@ import {
 import { useAuth } from './AuthContext';
 import { useModal } from './ModalContext';
 import { isFirebaseQuotaOrDemandError } from '../services/quotaService';
+import { ServerApiError } from '../services/serverApi';
 
-type ScanError = 'auth_expired' | 'network_error' | 'demand_limit';
+type ScanError = 'auth_expired' | 'network_error' | 'demand_limit' | 'quota_exceeded';
 
 export interface EventScanState {
   eventId: string;
@@ -221,10 +222,17 @@ async function processPhotoUnlocked(fileBlob: Blob): Promise<LocalScanResult> {
 const hasValidPublicUrl = (photo: CloudPhoto) =>
   Boolean(photo.publicUrl && !photo.publicUrl.includes('/2.0/files/'));
 
-type FailureKind = 'auth' | 'authorization' | 'demand' | 'transient' | 'permanent';
+type FailureKind = 'auth' | 'authorization' | 'demand' | 'quota' | 'transient' | 'permanent';
 
 function classifyFailure(err: unknown): FailureKind {
   if (err instanceof ReconnectRequiredError) return 'auth';
+  // EventTag's own API (saving results) never invalidates a cloud connection.
+  if (err instanceof ServerApiError) {
+    if (err.code === 'photo_limit_reached') return 'quota';
+    if (err.status === 429 || err.code === 'maintenance') return 'demand';
+    if (err.status === 401 || err.status === 408 || err.status >= 500) return 'transient';
+    return 'permanent';
+  }
   if (isFirebaseQuotaOrDemandError(err)) return 'demand';
   if (isTokenInvalidError(err)) return 'auth';
   if (isTransientError(err)) return 'transient';
@@ -412,8 +420,8 @@ export function ScannerProvider({ children }: { children: ReactNode }) {
       setPaused(eventId, true, 'auth_expired');
       return (await waitWhilePaused(eventId)) ? 'retry' : 'cancelled';
     }
-    if (kind === 'demand') {
-      setPaused(eventId, true, 'demand_limit');
+    if (kind === 'demand' || kind === 'quota') {
+      setPaused(eventId, true, kind === 'quota' ? 'quota_exceeded' : 'demand_limit');
       return (await waitWhilePaused(eventId)) ? 'retry' : 'cancelled';
     }
     if (kind === 'permanent' && onPermanent === 'skip') return 'skip';

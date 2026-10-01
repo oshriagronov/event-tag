@@ -9,6 +9,9 @@
     "lint": "eslint .",
     "preview": "vite preview"
   },
+  "engines": {
+    "node": ">=22"
+  },
   "dependencies": {
     "@tailwindcss/vite": "^4.3.2",
     "@vercel/analytics": "^2.0.1",
@@ -17,6 +20,7 @@
     "dexie": "^4.4.4",
     "dexie-react-hooks": "^4.4.0",
     "firebase": "^12.16.0",
+    "firebase-admin": "^14.5.0",
     "jszip": "^3.10.1",
     "lucide-react": "^1.24.0",
     "onnxruntime-web": "^1.27.0",
@@ -28,7 +32,8 @@
   },
   "overrides": {
     "react-router": "8.3.0",
-    "nanoid": "^3.3.18"
+    "nanoid": "^3.3.18",
+    "@grpc/grpc-js": "^1.14.5"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",

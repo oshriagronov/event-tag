@@ -41,7 +41,7 @@ EventTag is a privacy-first event photo sharing and retrieval platform designed 
 
 ### Event Organizer Experience
 - **Multi-Cloud Storage Integrations:** Connect folders directly from **Dropbox** and **Google Drive** (OneDrive marked as "Soon").
-- **Resilient Cloud Sessions:** Dropbox uses PKCE with renewable offline access; Google uses the authorization-code flow through a small serverless token broker (`api/google-token.ts`) so access tokens renew automatically past the 1-hour limit. Transient network, quota, file, and permission errors never disconnect an account.
+- **Resilient Cloud Sessions:** Dropbox uses PKCE with renewable offline access; Google uses the authorization-code flow. Small serverless token brokers (`api/google-token.ts`, `api/dropbox-token.ts`) keep refresh tokens in an encrypted HttpOnly cookie, so access tokens renew automatically past the 1-hour limit without the browser ever holding a long-lived credential. Transient network, quota, file, and permission errors never disconnect an account.
 - **Long-Running Uploads:** Every provider request uses a freshly renewed token. Uploads and scans pause (keeping all pending files in memory) on expired sessions, permission problems, or quota limits and resume automatically after reconnecting; network failures retry with backoff. A screen wake lock and a leave-page warning keep large uploads alive.
 - **Cloud Auto-Ingest & Upload:** Ingest local photos to automatically create event folders in Dropbox or Google Drive with public view permissions.
 - **Parallel Upload & Scan Pipeline:** Upload workers (4 for Google Drive, 3 for Dropbox) share one serialized face-processing queue: offscreen canvas downscaling (max 1600px), tiled face detection, 112x112 landmark alignment, and SFace WASM embedding extraction. Cloud scans prefetch photos and share links ahead of inference.
@@ -105,18 +105,24 @@ src/
 │   ├── dropbox.ts              # Dropbox Chooser & file streaming integration
 │   ├── faceAlignment.ts        # Facial landmark alignment (112x112 similarity transform)
 │   ├── faceDetection.ts        # Tiled SSD face detection & background-tab-safe WebGL readback
-│   ├── faceMatching.ts         # Face vector distance & similarity matching
-│   ├── firestore.ts            # Firestore CRUD & atomic batched scan-result writer
+│   ├── faceMatching.ts         # Guest selfie matching client (calls /api/match)
+│   ├── firestore.ts            # Firestore CRUD; scan results are saved through /api/commit-scan
 │   ├── google.ts               # Google Drive API REST v3 integration
 │   ├── modelLoader.ts          # Shared face-api + SFace model loader (retries after failed loads)
 │   ├── onnxModel.ts            # ONNX Runtime Web (SFace WASM 128-dim embedding extractor)
 │   ├── quotaService.ts         # Dynamic tier quota calculator & capacity error handler
+│   ├── serverApi.ts            # Client for the /api/* functions (attaches the Firebase ID token)
 │   └── translations.ts         # Hebrew/English localization strings
 └── utils/
+    ├── photoUrls.ts            # Trusted photo-link / Drive-ID validation (shared with api/)
     └── shareUtils.ts           # Web Share API & fallback share link helpers
 
 api/
-└── google-token.ts             # Vercel Function: Google OAuth code exchange & token refresh (holds the client secret)
+├── _lib/                       # Shared helpers (not deployed as routes): HTTP, Firebase Admin, token cookie, OAuth broker
+├── commit-scan.ts              # Saves scan results atomically and enforces the rolling photo quota
+├── match.ts                    # Guest face matching; returns only the guest's own photos
+├── google-token.ts             # Google OAuth code exchange, refresh & revoke (holds the client secret)
+└── dropbox-token.ts            # Dropbox PKCE code exchange, refresh & revoke
 ```
 
 ### Data Flow
@@ -127,8 +133,8 @@ Cloud Storage (Google Drive / Dropbox)
     → @vladmandic/face-api (SSD MobileNet V1, full frame + 2x2 tiles, 68 Landmarks)
       → Landmark Alignment (112x112 similarity transform)
         → ONNX Runtime Web (SFace WASM 128-dim vector extraction)
-          → Firebase Firestore Atomic Batched Write (Descriptors & metadata only)
-            → Guest Selfie Search (L2 Euclidean distance matching, threshold 0.85)
+          → /api/commit-scan (quota check + atomic Firestore write, descriptors & metadata only)
+            → Guest selfie descriptor → /api/match (L2 Euclidean distance, threshold 0.85, own matches only)
 ```
 
 ### Firestore Database Schema
@@ -205,23 +211,31 @@ In Vercel Project Settings → **Environment Variables**, configure:
 - `VITE_GOOGLE_CLIENT_ID`
 - `VITE_GOOGLE_OFFLINE_ACCESS=true` (enables the Google authorization-code flow)
 - `GOOGLE_CLIENT_SECRET` (server-only; never prefix with `VITE_`)
-- `GOOGLE_OAUTH_ALLOWED_ORIGINS` (optional, comma-separated origins allowed to call the token broker)
+- `TOKEN_COOKIE_SECRET` (server-only; 32+ random characters that encrypt the refresh-token cookie)
+- `FIREBASE_SERVICE_ACCOUNT` (server-only; Firebase service-account JSON, raw or base64, used by `/api/commit-scan` and `/api/match`. It has full database access, so store it only as a secret)
+- `API_ALLOWED_ORIGINS` (optional, comma-separated origins allowed to call `/api/*`; defaults to the deployment's own origin)
 - `VITE_ONEDRIVE_CLIENT_ID`
 
-### 3. Update OAuth Authorized Redirect URIs
+### 3. Grant the First Admin
+Admin rights come only from `role: "admin"` on the user's `users/{uid}` document; users can never assign it themselves. Sign in once, then set the field in the Firebase Console. Existing admins can promote others from the Admin panel.
+
+### 4. Update OAuth Authorized Redirect URIs
 In Firebase Console, Google Cloud Console, and Dropbox App Console:
 - Add your Vercel deployment URL (e.g., `https://your-app.vercel.app`) to **Authorized JavaScript origins** and **Authorized redirect URIs**.
 - In Dropbox, enable the OAuth authorization-code flow with short-lived tokens and offline access for the configured app key. Existing implicit-flow connections will need one final reconnect to upgrade.
 
 - For Google Drive, the OAuth client must be a **Web application** client; the GIS popup code flow uses the `postmessage` redirect URI, so only the JavaScript origin needs to be registered. Users connected before offline access was enabled reconnect once to obtain a refresh token.
 
-`vercel.json` in the root directory manages SPA routing rewrites (every path except `/api/*` -> `/index.html`) and static WASM cache headers. Run `vercel dev` locally to serve the token broker; without it (or with `VITE_GOOGLE_OFFLINE_ACCESS` unset), Google falls back to 1-hour tokens and uploads pause for a one-click reconnect.
+`vercel.json` in the root directory manages SPA routing rewrites (every path except `/api/*` -> `/index.html`), static WASM cache headers, and security headers (Content-Security-Policy, HSTS, Permissions-Policy, COOP). When adding a new third-party script, API host, or iframe, extend the CSP there. Keep scripts out of `index.html`; the pre-paint theme script lives in `public/theme-init.js` so the CSP needs no inline-script exception. Run `vercel dev` locally to serve the API functions: saving scan results and guest matching require them. Under the plain Vite dev server, Dropbox falls back to a browser-only token flow and Google (or any deployment with `VITE_GOOGLE_OFFLINE_ACCESS` unset) falls back to 1-hour tokens that pause uploads for a one-click reconnect. Consider adding a Vercel Firewall rate-limit rule for `/api/*`; `/api/match` only has a best-effort per-instance limit.
 
 
 ## Privacy & Security
 
 - **Zero Photo Uploads:** Photos are ingested in client memory from cloud storage providers and are never uploaded to backend servers.
-- **Local Client-Side ML:** Facial recognition inference runs entirely on the user's device via WebAssembly.
-- **Mathematical Descriptors Only:** Only anonymous 128-dimensional floating point vectors are stored in Firestore.
-- **Complete Account Deletion & Data Purging:** Purges associated Firestore events, photo references, and face descriptors, revokes OAuth connections, wipes client caches, deletes the Firebase Auth account, and resets consent flags.
+- **Local Client-Side ML:** Face detection and descriptor extraction run entirely on the user's device via WebAssembly; no photo or selfie image is ever sent to a server.
+- **Mathematical Descriptors Only:** Only 128-dimensional floating point vectors are stored in Firestore, readable only by the event owner. Guests send just their selfie's descriptor to `/api/match`, which is not stored and returns only the photos they appear in.
+- **Server-Enforced Quotas:** Photos and face data can only be created through `/api/commit-scan`, which checks the rolling 30-day photo limit in the same transaction that saves them.
+- **Complete Account Deletion & Data Purging:** Purges associated Firestore events, photo references, face descriptors, the user profile and usage records, revokes OAuth connections, wipes client caches, deletes the Firebase Auth account, and resets consent flags.
+- **Hardened Access Rules:** Firestore rules restrict admin rights to the stored profile role, keep the allowlist readable only by admins (users may check their own verified address), accept audit logs only from admins under their own identity, and leave photo, face and usage writes to the server functions.
+- **OAuth & Content Safety:** Token brokers require the caller's Firebase ID token and reject blocked users; refresh tokens never reach page scripts. Implicit-flow OAuth redirects are accepted only with a matching one-time `state`, owner-supplied photo links are limited to https URLs on the known cloud-provider hosts before guests load or download them, and a strict Content-Security-Policy is served for every page.
 - **Israeli Privacy Protection Law (Amendment 13) Compliant:** User consent controls, transparent policies, and zero third-party tracking.

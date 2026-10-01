@@ -118,7 +118,7 @@ export async function logAuditEvent(
     await addDoc(collection(firestore, 'audit_logs'), {
       action,
       performedBy,
-      userEmail: userEmail || 'admin@eventtag.com',
+      userEmail: userEmail || '',
       target: target || '',
       details: details || {},
       severity,
@@ -163,18 +163,15 @@ export async function ensureUserProfile(user: User): Promise<UserProfile> {
   const userRef = doc(firestore, 'users', user.uid);
   const snap = await getDoc(userRef);
 
-  // Security rules only let the built-in admin address (verified) self-assign
-  // the admin role; VITE_ADMIN_EMAIL is a client-side convenience and must be
-  // promoted by an existing admin or in the Firebase console.
-  const isInitialAdmin = user.emailVerified && user.email === 'admin@eventtag.com';
-
+  // Users can never assign themselves the admin role (the security rules
+  // reject it); the first admin is promoted in the Firebase console.
   if (!snap.exists()) {
     const newProfile: UserProfile = {
       uid: user.uid,
       email: (user.email || '').toLowerCase(),
       displayName: user.displayName || user.email || 'משתמש',
       photoURL: user.photoURL || '',
-      role: isInitialAdmin ? 'admin' : 'user',
+      role: 'user',
       status: 'active',
       premiumUntil: null,
       createdAt: serverTimestamp(),
@@ -191,11 +188,6 @@ export async function ensureUserProfile(user: User): Promise<UserProfile> {
     photoURL: user.photoURL || existingData.photoURL,
     updatedAt: serverTimestamp(),
   };
-
-  // If initial admin ENV matches and user is not admin yet, auto elevate
-  if (isInitialAdmin && existingData.role !== 'admin') {
-    updates.role = 'admin';
-  }
 
   await updateDoc(userRef, updates);
   return { ...existingData, ...updates } as UserProfile;
@@ -515,6 +507,18 @@ export function subscribeAllowlist(
 }
 
 /**
+ * Real-time check whether a single (verified, lowercase) email is allowlisted.
+ * Non-admins may only read their own entry.
+ */
+export function subscribeAllowlistEntry(email: string, onUpdate: (isAllowlisted: boolean) => void) {
+  return onSnapshot(
+    doc(firestore, 'allowlist', email),
+    (snap) => onUpdate(snap.exists()),
+    () => onUpdate(false)
+  );
+}
+
+/**
  * Add email to allowlist (Admin only)
  */
 export async function addToAllowlist(email: string, adminUid: string, adminEmail?: string): Promise<void> {
@@ -658,9 +662,9 @@ export async function bulkAddToAllowlist(emails: string[], adminUid: string, adm
 export function exportAllowlistCsv(entries: AllowlistEntry[]): void {
   if (!entries.length) return;
   const headers = 'email,addedBy\n';
-  const rows = entries
-    .map((e) => `"${e.email.replace(/"/g, '""')}","${(e.addedBy || '').replace(/"/g, '""')}"`)
-    .join('\n');
+  // Prefix values that spreadsheets would evaluate as formulas.
+  const cell = (value: string) => `"${value.replace(/^[=+\-@\t\r]/, "'$&").replace(/"/g, '""')}"`;
+  const rows = entries.map((e) => `${cell(e.email)},${cell(e.addedBy || '')}`).join('\n');
   const csvContent = headers + rows;
 
   const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
