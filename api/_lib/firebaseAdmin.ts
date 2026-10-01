@@ -5,11 +5,15 @@
  * database access and is required by the endpoints that read or write data on
  * behalf of users (commit-scan, match). Verifying Firebase ID tokens only needs
  * the project ID, so the OAuth token brokers keep working without it.
+ *
+ * ID tokens are verified with `jose` rather than `firebase-admin/auth`: the
+ * latter loads jwks-rsa, which require()s the ESM-only jose and crashes on
+ * Vercel's Node runtime (ERR_REQUIRE_ESM). Do not import firebase-admin/auth.
  */
 
 import { cert, getApps, initializeApp, type App } from 'firebase-admin/app';
-import { getAuth } from 'firebase-admin/auth';
 import { getFirestore, type Firestore } from 'firebase-admin/firestore';
+import { createRemoteJWKSet, decodeJwt, jwtVerify, type JWTPayload } from 'jose';
 import { HttpError } from './http.js';
 
 interface ServiceAccountJson {
@@ -69,13 +73,50 @@ export interface AuthedUser {
   idToken: string;
 }
 
+// Google's public keys for Firebase ID tokens (cached and rotated by jose).
+const FIREBASE_ID_TOKEN_KEYS = createRemoteJWKSet(
+  new URL('https://www.googleapis.com/service_accounts/v1/jwk/securetoken@system.gserviceaccount.com')
+);
+
+/**
+ * Verify a Firebase ID token as documented for third-party JWT libraries:
+ * RS256 signature by Google, issuer/audience of this project, unexpired, and a
+ * non-empty subject (the uid).
+ */
+async function verifyFirebaseIdToken(token: string): Promise<JWTPayload> {
+  const projectId = firebaseProjectId();
+  let payload: JWTPayload;
+  if (process.env.FIREBASE_AUTH_EMULATOR_HOST) {
+    // The Auth emulator issues unsigned tokens; never set this variable in production.
+    payload = decodeJwt(token);
+    if (payload.aud !== projectId) throw new Error('wrong audience');
+  } else {
+    ({ payload } = await jwtVerify(token, FIREBASE_ID_TOKEN_KEYS, {
+      algorithms: ['RS256'],
+      issuer: `https://securetoken.google.com/${projectId}`,
+      audience: projectId,
+      clockTolerance: 60,
+    }));
+    const authTime = payload.auth_time;
+    if (typeof authTime !== 'number' || authTime * 1000 > Date.now() + 60_000) throw new Error('invalid auth_time');
+  }
+  if (typeof payload.sub !== 'string' || payload.sub.length === 0 || payload.sub.length > 128) {
+    throw new Error('invalid subject');
+  }
+  return payload;
+}
+
 /** Verify the caller's Firebase ID token (`Authorization: Bearer <token>`). */
 export async function requireUser(request: Request): Promise<AuthedUser> {
   const match = /^Bearer\s+(\S+)$/.exec(request.headers.get('authorization') || '');
   if (!match) throw new HttpError(401, 'unauthenticated');
   try {
-    const decoded = await getAuth(adminApp()).verifyIdToken(match[1]);
-    return { uid: decoded.uid, email: decoded.email ?? null, idToken: match[1] };
+    const payload = await verifyFirebaseIdToken(match[1]);
+    return {
+      uid: payload.sub as string,
+      email: typeof payload.email === 'string' ? payload.email : null,
+      idToken: match[1],
+    };
   } catch {
     throw new HttpError(401, 'unauthenticated');
   }
