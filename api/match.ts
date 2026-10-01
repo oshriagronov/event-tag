@@ -13,6 +13,7 @@
 
 import { HttpError, handle, json, readJsonBody } from './_lib/http.js';
 import { adminDb } from './_lib/firebaseAdmin.js';
+import { checkRateLimit } from './_lib/rateLimit.js';
 import { toTrustedPhotoUrl } from '../src/utils/photoUrls.js';
 
 // Strict threshold on L2-normalized SFace descriptors, to prevent false positives.
@@ -21,8 +22,7 @@ const EMBEDDING_SIZE = 128;
 const MAX_RESULTS = 500;
 const CACHE_TTL_MS = 60_000;
 const CACHE_MAX_EVENTS = 50;
-// Best-effort per-instance limit; add a Vercel Firewall rate-limit rule for a global one.
-const RATE_LIMIT = { windowMs: 60_000, max: 20 };
+const MATCHES_PER_MINUTE = 20;
 
 interface StoredFace {
   photoId: string;
@@ -32,17 +32,6 @@ interface StoredFace {
 }
 
 const faceCache = new Map<string, { expiresAt: number; faces: StoredFace[] }>();
-const requestLog = new Map<string, number[]>();
-
-function checkRateLimit(request: Request): void {
-  const ip = (request.headers.get('x-forwarded-for') || '').split(',')[0].trim() || request.headers.get('x-real-ip') || 'unknown';
-  const now = Date.now();
-  const recent = (requestLog.get(ip) || []).filter((t) => now - t < RATE_LIMIT.windowMs);
-  if (recent.length >= RATE_LIMIT.max) throw new HttpError(429, 'rate_limited');
-  recent.push(now);
-  requestLog.set(ip, recent);
-  if (requestLog.size > 10_000) requestLog.clear();
-}
 
 async function loadFaces(eventId: string): Promise<StoredFace[]> {
   const cached = faceCache.get(eventId);
@@ -71,7 +60,7 @@ function euclideanDistance(a: number[], b: number[]): number {
 
 export function POST(request: Request): Promise<Response> {
   return handle(request, async () => {
-    checkRateLimit(request);
+    checkRateLimit(request, 'match', MATCHES_PER_MINUTE);
     const body = await readJsonBody(request, 16 * 1024);
     const { eventId, descriptor } = body;
     if (typeof eventId !== 'string' || !/^[A-Za-z0-9_-]{1,128}$/.test(eventId)) {

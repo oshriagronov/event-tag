@@ -126,8 +126,11 @@ service cloud.firestore {
 
     // Events collection
     match /events/{eventId} {
-      // Guests can fetch specific event metadata for face matching
-      allow get: if true;
+      // Event documents hold private fields (ownerId, the cloud folder ID; Drive
+      // event folders are link-shared), so only the owner and admins read them.
+      // Guests get name/status/provider from /api/event-info instead. Reading a
+      // missing event is allowed so the owner's views can tell it was deleted.
+      allow get: if resource == null || isOwner(resource.data.ownerId) || isAdmin();
       // Prevent global listing, only owners or admins can list events
       allow list: if isOwner(resource.data.ownerId) || isAdmin();
 

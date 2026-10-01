@@ -25,9 +25,8 @@ import {
   X,
   Sparkles,
 } from 'lucide-react';
-import { getCloudEvent, type CloudEvent } from '../services/firestore';
 import { convertToRawUrl, isValidDriveFileId, type CloudProvider } from '../services/cloudProviders';
-import { matchSelfieToEvent, type MatchResult } from '../services/faceMatching';
+import { getPublicEventInfo, matchSelfieToEvent, type MatchResult, type PublicEventInfo } from '../services/faceMatching';
 import { SelfieCapture } from './SelfieCapture';
 import { ensureModelsLoaded } from '../services/modelLoader';
 import { warmUpONNX } from '../services/onnxModel';
@@ -125,7 +124,7 @@ export function GuestView({ eventId }: GuestViewProps) {
   const { alert } = useModal();
   
   const [viewState, setViewState] = useState<ViewState>('loading-event');
-  const [event, setEvent] = useState<CloudEvent | null>(null);
+  const [event, setEvent] = useState<PublicEventInfo | null>(null);
   const [matches, setMatches] = useState<MatchResult[]>([]);
   const [errorMessage, setErrorMessage] = useState('');
   const [downloadingAll, setDownloadingAll] = useState(false);
@@ -156,7 +155,7 @@ export function GuestView({ eventId }: GuestViewProps) {
 
     async function loadEvent() {
       try {
-        const eventData = await getCloudEvent(eventId);
+        const eventData = await getPublicEventInfo(eventId);
 
         if (cancelled) return;
 

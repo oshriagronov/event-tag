@@ -118,9 +118,10 @@ src/
     └── shareUtils.ts           # Web Share API & fallback share link helpers
 
 api/
-├── _lib/                       # Shared helpers (not deployed as routes): HTTP, Firebase Admin, token cookie, OAuth broker
+├── _lib/                       # Shared helpers (not deployed as routes): HTTP, Firebase Admin, token cookie, OAuth broker, rate limits
 ├── commit-scan.ts              # Saves scan results atomically and enforces the rolling photo quota
 ├── match.ts                    # Guest face matching; returns only the guest's own photos
+├── event-info.ts               # Public event name/status/provider for the guest page
 ├── google-token.ts             # Google OAuth code exchange, refresh & revoke (holds the client secret)
 └── dropbox-token.ts            # Dropbox PKCE code exchange, refresh & revoke
 ```
@@ -226,14 +227,14 @@ In Firebase Console, Google Cloud Console, and Dropbox App Console:
 
 - For Google Drive, the OAuth client must be a **Web application** client; the GIS popup code flow uses the `postmessage` redirect URI, so only the JavaScript origin needs to be registered. Users connected before offline access was enabled reconnect once to obtain a refresh token.
 
-`vercel.json` in the root directory manages SPA routing rewrites (every path except `/api/*` -> `/index.html`), static WASM cache headers, and security headers (Content-Security-Policy, HSTS, Permissions-Policy, COOP). When adding a new third-party script, API host, or iframe, extend the CSP there. Keep scripts out of `index.html`; the pre-paint theme script lives in `public/theme-init.js` so the CSP needs no inline-script exception. Run `vercel dev` locally to serve the API functions: saving scan results and guest matching require them. Under the plain Vite dev server, Dropbox falls back to a browser-only token flow and Google (or any deployment with `VITE_GOOGLE_OFFLINE_ACCESS` unset) falls back to 1-hour tokens that pause uploads for a one-click reconnect. Consider adding a Vercel Firewall rate-limit rule for `/api/*`; `/api/match` only has a best-effort per-instance limit.
+`vercel.json` in the root directory manages SPA routing rewrites (every path except `/api/*` -> `/index.html`), static WASM cache headers, and security headers (Content-Security-Policy, HSTS, Permissions-Policy, COOP). When adding a new third-party script, API host, or iframe, extend the CSP there. Keep scripts out of `index.html`; the pre-paint theme script lives in `public/theme-init.js` so the CSP needs no inline-script exception. Run `vercel dev` locally to serve the API functions: saving scan results and guest matching require them. Under the plain Vite dev server, Dropbox falls back to a browser-only token flow and Google (or any deployment with `VITE_GOOGLE_OFFLINE_ACCESS` unset) falls back to 1-hour tokens that pause uploads for a one-click reconnect. Consider adding a Vercel Firewall rate-limit rule for `/api/*`; `/api/match` and `/api/event-info` only have best-effort per-instance limits.
 
 
 ## Privacy & Security
 
 - **Zero Photo Uploads:** Photos are ingested in client memory from cloud storage providers and are never uploaded to backend servers.
 - **Local Client-Side ML:** Face detection and descriptor extraction run entirely on the user's device via WebAssembly; no photo or selfie image is ever sent to a server.
-- **Mathematical Descriptors Only:** Only 128-dimensional floating point vectors are stored in Firestore, readable only by the event owner. Guests send just their selfie's descriptor to `/api/match`, which is not stored and returns only the photos they appear in.
+- **Mathematical Descriptors Only:** Only 128-dimensional floating point vectors are stored in Firestore, readable only by the event owner. Guests send just their selfie's descriptor to `/api/match`, which is not stored and returns only the photos they appear in. Event documents are owner-only too (they contain the link-shared cloud folder ID); guests get just the event name and status from `/api/event-info`.
 - **Server-Enforced Quotas:** Photos and face data can only be created through `/api/commit-scan`, which checks the rolling 30-day photo limit in the same transaction that saves them.
 - **Complete Account Deletion & Data Purging:** Purges associated Firestore events, photo references, face descriptors, the user profile and usage records, revokes OAuth connections, wipes client caches, deletes the Firebase Auth account, and resets consent flags.
 - **Hardened Access Rules:** Firestore rules restrict admin rights to the stored profile role, keep the allowlist readable only by admins (users may check their own verified address), accept audit logs only from admins under their own identity, and leave photo, face and usage writes to the server functions.
